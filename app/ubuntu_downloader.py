@@ -27,31 +27,29 @@ class UbuntuDownloader:
         self.base_path = Path(base_path)
         self.ubuntu_dir = self.base_path / "ubuntu"
 
-        # Ubuntu versions configuration with FIXED URLs
+        # URLs
         self.versions = {
             "24.04": {
                 "name": "Ubuntu 24.04.2 LTS (Noble)",
-                "method": "netboot",  # Есть netboot
-                "netboot_url": "https://cdimage.ubuntu.com/netboot/noble/ubuntu-installer-amd64.tar.gz",
-                "size_mb": 45
+                "method": "iso_extract",  # Extracting from ISO
+                "iso_url": "https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso",
+                "size_mb": 2800  # ~2.8GB ISO
             },
             "22.04": {
                 "name": "Ubuntu 22.04.5 LTS (Jammy)",
-                "method": "live",  # Нет netboot, используем live installer
-                "live_url": "https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso",
-                "kernel_url": "https://cdimage.ubuntu.com/netboot/jammy/ubuntu-installer/amd64/linux",
-                "initrd_url": "https://cdimage.ubuntu.com/netboot/jammy/ubuntu-installer/amd64/initrd.gz",
-                "size_mb": 25  # Kernel + initrd
+                "method": "iso_extract",  # Extracting from ISO
+                "iso_url": "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-live-server-amd64.iso",
+                "size_mb": 2400  # ~2.4GB ISO
             },
             "20.04": {
                 "name": "Ubuntu 20.04.6 LTS (Focal)",
-                "method": "netboot",  # Есть legacy netboot
+                "method": "netboot",  # Legacy netboot
                 "netboot_url": "http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/netboot.tar.gz",
                 "size_mb": 35
             }
         }
 
-    def download_all_files(self, version: str = "24.04",
+    def download_all_files(self, version: str = "20.04",
                            progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
         """Download all Ubuntu files for specified version"""
         try:
@@ -65,11 +63,11 @@ class UbuntuDownloader:
 
             status = f"🔄 Downloading {version_info['name']}...\n"
 
-            # Выбираем метод загрузки в зависимости от версии
+            # Choosing a downloading method
             if version_info["method"] == "netboot":
                 result = self._download_netboot(version, progress_callback)
-            elif version_info["method"] == "live":
-                result = self._download_live_installer(version, progress_callback)
+            elif version_info["method"] == "iso_extract":
+                result = self._download_and_extract_iso(version, progress_callback)
             else:
                 result = "❌ Unknown download method"
 
@@ -87,6 +85,130 @@ class UbuntuDownloader:
 
         except Exception as e:
             return f"❌ Error downloading Ubuntu files: {str(e)}"
+
+    def _download_and_extract_iso(self, version: str,
+                                  progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+        """Download ISO and extract kernel/initrd for modern Ubuntu versions"""
+        try:
+            version_info = self.versions[version]
+            iso_url = version_info["iso_url"]
+
+            status = f"📥 Downloading Ubuntu ISO ({version_info['size_mb']} MB)...\n"
+            status += "⚠️  This will take some time due to large file size\n"
+
+            # Download ISO to temp location
+            temp_iso = tempfile.NamedTemporaryFile(delete=False, suffix='.iso')
+
+            response = requests.get(iso_url, timeout=600, stream=True)
+            if response.status_code != 200:
+                return f"❌ Failed to download ISO: HTTP {response.status_code}"
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            with temp_iso as f:
+                for chunk in response.iter_content(chunk_size=32768):  # Larger chunks for big files
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+                    if progress_callback and total_size > 0:
+                        progress_callback(downloaded, total_size, f"ubuntu-{version}.iso")
+
+            status += "✅ ISO downloaded\n"
+            status += "📦 Extracting kernel and initrd from ISO...\n"
+
+            # Extract files from ISO
+            extract_result = self._extract_from_iso(temp_iso.name, version)
+            status += extract_result
+
+            # Clean up
+            Path(temp_iso.name).unlink()
+
+            return status
+
+        except Exception as e:
+            return f"❌ Error downloading ISO: {str(e)}"
+
+    def _extract_from_iso(self, iso_path: str, version: str) -> str:
+        """Extract kernel and initrd from Ubuntu ISO"""
+        try:
+            import subprocess
+            import platform
+
+            status = ""
+
+            # Mount point for ISO
+            if platform.system() == "Windows":
+                # На Windows можем использовать 7zip или другие инструменты
+                status += "⚠️  ISO extraction on Windows requires manual setup\n"
+                status += "🔧 Please extract casper/vmlinuz and casper/initrd from ISO manually\n"
+                return status
+
+            # На Linux используем mount
+            mount_point = tempfile.mkdtemp()
+
+            try:
+                # Mount ISO
+                mount_cmd = ["sudo", "mount", "-o", "loop", iso_path, mount_point]
+                result = subprocess.run(mount_cmd, capture_output=True, text=True)
+
+                if result.returncode != 0:
+                    return f"❌ Failed to mount ISO: {result.stderr}"
+
+                status += f"✅ ISO mounted at {mount_point}\n"
+
+                # Look for kernel and initrd in common locations
+                possible_paths = [
+                    ("casper/vmlinuz", "casper/initrd"),  # Live images
+                    ("install/vmlinuz", "install/initrd.gz"),  # Installer
+                    ("casper/vmlinuz.efi", "casper/initrd.lz"),  # EFI variants
+                ]
+
+                kernel_found = False
+                initrd_found = False
+
+                for kernel_path, initrd_path in possible_paths:
+                    kernel_source = Path(mount_point) / kernel_path
+                    initrd_source = Path(mount_point) / initrd_path
+
+                    if kernel_source.exists() and initrd_source.exists():
+                        # Copy kernel
+                        shutil.copy2(kernel_source, self.ubuntu_dir / "vmlinuz")
+                        status += f"✅ Extracted kernel: {kernel_path}\n"
+                        kernel_found = True
+
+                        # Copy initrd
+                        shutil.copy2(initrd_source, self.ubuntu_dir / "initrd")
+                        status += f"✅ Extracted initrd: {initrd_path}\n"
+                        initrd_found = True
+
+                        break
+
+                if not (kernel_found and initrd_found):
+                    # List available files for debugging
+                    try:
+                        files = list(Path(mount_point).rglob("*"))
+                        relevant_files = [f for f in files if any(pattern in f.name.lower()
+                                                                  for pattern in
+                                                                  ['vmlinuz', 'linux', 'initrd', 'initramfs'])]
+                        status += f"🔍 Available files: {[str(f.relative_to(mount_point)) for f in relevant_files[:10]]}\n"
+                    except:
+                        pass
+
+            finally:
+                # Unmount
+                subprocess.run(["sudo", "umount", mount_point], capture_output=True)
+                os.rmdir(mount_point)
+
+            if kernel_found and initrd_found:
+                status += "🎉 Successfully extracted kernel and initrd from ISO!\n"
+            else:
+                status += "❌ Could not find kernel and initrd in ISO\n"
+
+            return status
+
+        except Exception as e:
+            return f"❌ Error extracting from ISO: {str(e)}"
 
     def _download_live_installer(self, version: str,
                                  progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
