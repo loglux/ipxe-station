@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, RedirectResponse
 import gradio as gr
 from gradio_ui import build_gradio_ui
 import os
@@ -31,8 +31,8 @@ async def serve_tftp(filename: str):
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {"message": "iPXE Station Server", "status": "running"}
+    """Redirect to Gradio UI"""
+    return RedirectResponse(url="/gradio")
 
 @app.get("/status")
 async def status():
@@ -44,11 +44,14 @@ async def status():
     }
 
 # Create and mount Gradio interface
+print("Creating Gradio UI...")
 gradio_app = build_gradio_ui()
 
-# Mount Gradio at /ui
-app = gr.mount_gradio_app(app, gradio_app, path="/ui")
+# Mount Gradio at /gradio
+print("Mounting Gradio app...")
+app = gr.mount_gradio_app(app, gradio_app, path="/gradio")
 
 if __name__ == "__main__":
     import uvicorn
+    print("Starting server...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
