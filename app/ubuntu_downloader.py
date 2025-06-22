@@ -19,12 +19,12 @@ class UbuntuDownloader:
 
     def __init__(self, base_path: str = None):
         if base_path is None:
-            base_path = "/srv/http"  # Docker стандарт
+            base_path = "/srv/http"  # Docker standard
 
         self.base_path = Path(base_path)
         self.ubuntu_dir = self.base_path / "ubuntu"
 
-        # Конфигурация оптимизированная для Docker
+        # Conf For Docker
         self.versions = {
             "24.04": {
                 "name": "Ubuntu 24.04.2 LTS (Noble)",
