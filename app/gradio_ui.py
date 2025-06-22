@@ -1,6 +1,6 @@
 """
-Gradio Web UI for PXE Boot Station
-Refactored to use modular architecture
+Gradio Web UI for PXE Boot Station - Multi-version Ubuntu Support
+Refactored to use modular architecture with enhanced Ubuntu management
 """
 
 import gradio as gr
@@ -8,7 +8,7 @@ import json
 import os
 from typing import Dict, List, Tuple, Optional, Any
 
-# Import our new modular components with error handling
+# Import our modular components with error handling
 try:
     from tests import SystemTester
     from tests import test_http_endpoints as legacy_test_http_endpoints
@@ -49,7 +49,7 @@ except ImportError:
 
 
 class PXEBootStationUI:
-    """Main UI controller class"""
+    """Main UI controller class with multi-version Ubuntu support"""
 
     def __init__(self):
         # Initialize components with fallbacks
@@ -297,7 +297,7 @@ class PXEBootStationUI:
 
     def create_ipxe_menu_from_template(self, template_name: str, server_ip: str = "localhost",
                                        port: int = 8000) -> Tuple[str, str]:
-        """Create iPXE menu from template"""
+        """Create iPXE menu from template with auto-detection of Ubuntu versions"""
         try:
             if not self.ipxe_manager:
                 return "❌ iPXE manager module not available", ""
@@ -305,6 +305,27 @@ class PXEBootStationUI:
             menu = self.ipxe_manager.get_template(template_name, server_ip, port)
             if not menu:
                 return f"❌ Template '{template_name}' not found", ""
+
+            # If template is Ubuntu-related, add all installed versions
+            if template_name == "ubuntu" and self.ubuntu_downloader:
+                installed_versions = self.ubuntu_downloader.get_installed_versions()
+                if installed_versions:
+                    # Clear existing Ubuntu entries and add all installed versions
+                    menu.entries = [e for e in menu.entries if "ubuntu" not in e.name.lower()]
+
+                    for i, version in enumerate(installed_versions):
+                        entry = iPXEEntry(
+                            name=f"ubuntu_{version.replace('.', '_')}",
+                            title=f"Ubuntu {version} LTS",
+                            kernel=f"ubuntu-{version}/vmlinuz",
+                            initrd=f"ubuntu-{version}/initrd",
+                            cmdline=f"ip=dhcp url=http://{server_ip}:{port}/ubuntu-{version}/preseed.cfg",
+                            description=f"Ubuntu {version} automated installation",
+                            order=i + 1
+                        )
+                        menu.entries.append(entry)
+
+                    menu.default_entry = f"ubuntu_{installed_versions[0].replace('.', '_')}"
 
             is_valid, message, script_content = self.ipxe_manager.validate_and_generate(menu)
             return message, script_content if is_valid else ""
@@ -403,7 +424,7 @@ goto start
             return f"❌ Validation failed: {str(e)}"
 
     # =========================
-    # UBUNTU DOWNLOAD TAB
+    # UBUNTU DOWNLOAD TAB - ENHANCED
     # =========================
 
     def download_ubuntu_files(self, version: str = "22.04", progress=gr.Progress()) -> str:
@@ -428,7 +449,7 @@ goto start
             return f"❌ Ubuntu download failed: {str(e)}"
 
     def check_ubuntu_files(self) -> str:
-        """Check Ubuntu files status"""
+        """Check all Ubuntu files status"""
         try:
             if not self.ubuntu_downloader:
                 return "❌ Ubuntu downloader module not available"
@@ -436,9 +457,91 @@ goto start
         except Exception as e:
             return f"❌ Ubuntu check failed: {str(e)}"
 
+    def check_specific_ubuntu_version(self, version: str) -> str:
+        """Check files for specific Ubuntu version"""
+        try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
+
+            if not version or version in ["No versions installed", "Error"]:
+                return "❌ Please select a valid version to check"
+
+            return self.ubuntu_downloader.check_files_status(version)
+        except Exception as e:
+            return f"❌ Ubuntu version check failed: {str(e)}"
+
+    def get_installed_ubuntu_versions(self) -> list:
+        """Get list of installed Ubuntu versions for dropdown"""
+        try:
+            if not self.ubuntu_downloader:
+                return ["No versions found"]
+
+            installed = self.ubuntu_downloader.get_installed_versions()
+            return installed if installed else ["No versions installed"]
+        except Exception as e:
+            return ["Error loading versions"]
+
+    def delete_ubuntu_version(self, version: str) -> str:
+        """Delete specific Ubuntu version"""
+        try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
+
+            if not version or version in ["No versions installed", "Error"]:
+                return "❌ Please select a valid version to delete"
+
+            return self.ubuntu_downloader.delete_version(version)
+        except Exception as e:
+            return f"❌ Ubuntu deletion failed: {str(e)}"
+
+    def delete_all_ubuntu_versions(self) -> str:
+        """Delete all Ubuntu versions"""
+        try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
+
+            return self.ubuntu_downloader.delete_all_versions()
+        except Exception as e:
+            return f"❌ Ubuntu deletion failed: {str(e)}"
+
+    def refresh_ubuntu_versions_dropdown(self) -> dict:
+        """Refresh the installed versions dropdown"""
+        try:
+            versions = self.get_installed_ubuntu_versions()
+            return gr.update(choices=versions, value=versions[0] if versions and versions[
+                0] != "No versions installed" else "No versions installed")
+        except Exception as e:
+            return gr.update(choices=["Error"], value="Error")
+
+    def get_ubuntu_summary(self) -> str:
+        """Get Ubuntu installations summary"""
+        try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
+
+            installed = self.ubuntu_downloader.get_installed_versions()
+            supported = list(self.ubuntu_downloader.get_supported_versions().keys())
+
+            summary = []
+            summary.append("📊 **Ubuntu Versions Overview**")
+            summary.append(f"📁 Installed: {len(installed)} versions")
+            summary.append(f"🔢 Available: {len(supported)} versions")
+
+            if installed:
+                summary.append(f"✅ Installed versions: {', '.join(installed)}")
+            else:
+                summary.append("ℹ️ No versions installed yet")
+
+            summary.append(f"📥 Available to download: {', '.join(supported)}")
+
+            return "\n".join(summary)
+
+        except Exception as e:
+            return f"❌ Error getting summary: {str(e)}"
+
 
 def build_gradio_ui():
-    """Build the main Gradio interface"""
+    """Build the main Gradio interface with enhanced Ubuntu management"""
 
     # Initialize UI controller
     ui = PXEBootStationUI()
@@ -755,46 +858,126 @@ def build_gradio_ui():
                     )
 
             # =========================
-            # UBUNTU DOWNLOAD TAB
+            # UBUNTU DOWNLOAD TAB - ENHANCED
             # =========================
             with gr.Tab("🐧 Ubuntu Download", elem_id="ubuntu-tab"):
                 gr.Markdown("## 🐧 Ubuntu Files Download & Management")
 
+                # Summary section
+                with gr.Row():
+                    with gr.Column():
+                        summary_output = gr.Textbox(
+                            label="Ubuntu Versions Summary",
+                            value=ui.get_ubuntu_summary(),
+                            lines=4,
+                            interactive=False
+                        )
+                        refresh_summary_btn = gr.Button("🔄 Refresh Summary", variant="secondary", size="sm")
+
+                # Download section
+                gr.Markdown("### 📥 Download New Version")
                 with gr.Row():
                     with gr.Column():
                         ubuntu_version = gr.Dropdown(
-                            choices=["22.04", "20.04", "24.04"],
+                            choices=["24.04", "22.04", "20.04"],
                             value="24.04",
-                            label="Ubuntu Version"
+                            label="Ubuntu Version to Download"
                         )
 
                         with gr.Row():
                             download_btn = gr.Button("⬇️ Download Ubuntu Files", variant="primary")
-                            check_btn = gr.Button("🔍 Check Files", variant="secondary")
+                            check_all_btn = gr.Button("🔍 Check All Versions", variant="secondary")
 
-                ubuntu_status = gr.Textbox(
+                download_status = gr.Textbox(
                     label="Download Status",
-                    lines=10,
+                    lines=12,
                     interactive=False
                 )
 
+                # Management section
+                gr.Markdown("### 🔧 Manage Installed Versions")
+                with gr.Row():
+                    with gr.Column():
+                        installed_versions = gr.Dropdown(
+                            choices=ui.get_installed_ubuntu_versions(),
+                            value=ui.get_installed_ubuntu_versions()[0] if ui.get_installed_ubuntu_versions() and
+                                                                           ui.get_installed_ubuntu_versions()[
+                                                                               0] != "No versions installed" else "No versions installed",
+                            label="Installed Versions",
+                            allow_custom_value=False
+                        )
+
+                        with gr.Row():
+                            check_version_btn = gr.Button("🔍 Check Version", variant="secondary")
+                            refresh_versions_btn = gr.Button("🔄 Refresh List", variant="secondary")
+                            delete_version_btn = gr.Button("🗑️ Delete Version", variant="stop")
+
+                        with gr.Row():
+                            delete_all_btn = gr.Button("🗑️ Delete All Versions", variant="stop")
+
+                management_status = gr.Textbox(
+                    label="Management Status",
+                    lines=8,
+                    interactive=False
+                )
+
+                # Event handlers
                 download_btn.click(
                     fn=ui.download_ubuntu_files,
                     inputs=[ubuntu_version],
-                    outputs=ubuntu_status,
+                    outputs=download_status,
                     show_progress=True
                 )
 
-                check_btn.click(
+                check_all_btn.click(
                     fn=ui.check_ubuntu_files,
-                    outputs=ubuntu_status
+                    outputs=download_status
+                )
+
+                check_version_btn.click(
+                    fn=ui.check_specific_ubuntu_version,
+                    inputs=[installed_versions],
+                    outputs=management_status
+                )
+
+                refresh_versions_btn.click(
+                    fn=ui.refresh_ubuntu_versions_dropdown,
+                    outputs=installed_versions
+                )
+
+                delete_version_btn.click(
+                    fn=ui.delete_ubuntu_version,
+                    inputs=[installed_versions],
+                    outputs=management_status
+                ).then(
+                    fn=ui.refresh_ubuntu_versions_dropdown,
+                    outputs=installed_versions
+                ).then(
+                    fn=ui.get_ubuntu_summary,
+                    outputs=summary_output
+                )
+
+                delete_all_btn.click(
+                    fn=ui.delete_all_ubuntu_versions,
+                    outputs=management_status
+                ).then(
+                    fn=ui.refresh_ubuntu_versions_dropdown,
+                    outputs=installed_versions
+                ).then(
+                    fn=ui.get_ubuntu_summary,
+                    outputs=summary_output
+                )
+
+                refresh_summary_btn.click(
+                    fn=ui.get_ubuntu_summary,
+                    outputs=summary_output
                 )
 
         # Footer
         gr.HTML("""
         <div style="text-align: center; padding: 20px; margin-top: 30px; border-top: 1px solid #ddd;">
             <p>🚀 <strong>PXE Boot Station</strong> - Network Boot Management Made Easy</p>
-            <p style="color: #666;">Modular Architecture • Clean Code • Enterprise Ready</p>
+            <p style="color: #666;">Modular Architecture • Clean Code • Enterprise Ready • Multi-Version Support</p>
         </div>
         """)
 
