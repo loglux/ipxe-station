@@ -19,7 +19,7 @@ class iPXEEntry:
     """Single iPXE menu entry with enhanced options"""
     name: str
     title: str
-    kernel: str
+    kernel: Optional[str] = None
     initrd: Optional[str] = None
     cmdline: str = ""
     description: str = ""
@@ -153,6 +153,8 @@ class iPXEValidator:
                 )
                 if not is_valid:
                     errors.append(f"Entry {i + 1} ({entry.name}) kernel: {msg}")
+            elif entry.entry_type == "boot" and not entry.kernel:
+                errors.append(f"Entry {i + 1} ({entry.name}): Boot entries must have a kernel path")
 
         return len(errors) == 0, errors
 
@@ -355,7 +357,7 @@ class iPXEGenerator:
 
         # Generate boot sections for each entry
         for entry in menu.entries:
-            if not entry.enabled or entry.entry_type != "boot":
+            if not entry.enabled or entry.entry_type != "boot" or not entry.kernel:
                 continue
 
             script_lines.extend([
@@ -374,8 +376,9 @@ class iPXEGenerator:
                 script_lines.append("echo Note: Local ISO file required")
 
             # Determine kernel URL
-            kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
-            script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
+            if entry.kernel:
+                kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
+                script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
 
             # Add initrd if provided
             if entry.initrd:
@@ -421,6 +424,8 @@ class iPXEGenerator:
     @staticmethod
     def _resolve_kernel_url(path: str, server_ip: str, port: int) -> str:
         """Resolve kernel path to full URL"""
+        if not path:
+            return ""
         if path.startswith(('http://', 'https://', 'tftp://')):
             return path
         elif path.startswith('/'):
@@ -644,7 +649,8 @@ class iPXETemplateManager:
             kernel="tools/memtest86+.bin",
             description="Test system memory for errors",
             order=order,
-            boot_mode="tool"
+            boot_mode="tool",
+            entry_type="boot"
         ))
 
         # Set default to first netboot option
