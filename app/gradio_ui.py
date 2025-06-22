@@ -5,28 +5,61 @@ Refactored to use modular architecture
 
 import gradio as gr
 import json
+import os
 from typing import Dict, List, Tuple, Optional, Any
 
-# Import our new modular components
-from tests import SystemTester, test_http_endpoints as legacy_test_http_endpoints
-from dhcp_config import DHCPConfigManager, DHCPConfig, create_simple_config
-from ipxe_manager import iPXEManager, iPXEMenu, iPXEEntry, iPXETemplateManager
-from system_status import SystemStatusManager, get_system_status
-from ubuntu_downloader import UbuntuDownloader
-from file_utils import FileManager
+# Import our new modular components with error handling
+try:
+    from tests import SystemTester
+    from tests import test_http_endpoints as legacy_test_http_endpoints
+except ImportError:
+    SystemTester = None
+    legacy_test_http_endpoints = None
+
+try:
+    from dhcp_config import DHCPConfigManager, DHCPConfig, create_simple_config
+except ImportError:
+    DHCPConfigManager = None
+    DHCPConfig = None
+    create_simple_config = None
+
+try:
+    from ipxe_manager import iPXEManager, iPXEMenu, iPXEEntry, iPXETemplateManager
+except ImportError:
+    iPXEManager = None
+    iPXEMenu = None
+    iPXEEntry = None
+    iPXETemplateManager = None
+
+try:
+    from system_status import SystemStatusManager, get_system_status
+except ImportError:
+    SystemStatusManager = None
+    get_system_status = None
+
+try:
+    from ubuntu_downloader import UbuntuDownloader
+except ImportError:
+    UbuntuDownloader = None
+
+try:
+    from file_utils import FileManager
+except ImportError:
+    FileManager = None
 
 
 class PXEBootStationUI:
     """Main UI controller class"""
 
     def __init__(self):
-        self.system_tester = SystemTester()
-        self.dhcp_manager = DHCPConfigManager()
-        self.ipxe_manager = iPXEManager()
-        self.status_manager = SystemStatusManager()
-        self.ubuntu_downloader = UbuntuDownloader()
-        self.file_manager = FileManager()
-        self.ipxe_templates = iPXETemplateManager()
+        # Initialize components with fallbacks
+        self.system_tester = SystemTester() if SystemTester else None
+        self.dhcp_manager = DHCPConfigManager() if DHCPConfigManager else None
+        self.ipxe_manager = iPXEManager() if iPXEManager else None
+        self.status_manager = SystemStatusManager() if SystemStatusManager else None
+        self.ubuntu_downloader = UbuntuDownloader() if UbuntuDownloader else None
+        self.file_manager = FileManager() if FileManager else None
+        self.ipxe_templates = iPXETemplateManager() if iPXETemplateManager else None
 
     # =========================
     # SYSTEM STATUS TAB
@@ -35,6 +68,9 @@ class PXEBootStationUI:
     def get_system_status_display(self) -> str:
         """Get formatted system status for display"""
         try:
+            if not self.status_manager:
+                return "❌ System status module not available"
+
             status = self.status_manager.get_complete_status()
 
             output = []
@@ -121,6 +157,15 @@ class PXEBootStationUI:
         """Refresh system status"""
         return self.get_system_status_display()
 
+    def export_system_status(self) -> str:
+        """Export system status as JSON"""
+        try:
+            if not self.status_manager:
+                return "❌ System status module not available"
+            return self.status_manager.export_status_json()
+        except Exception as e:
+            return f"❌ Export failed: {str(e)}"
+
     # =========================
     # TESTING TAB
     # =========================
@@ -128,6 +173,8 @@ class PXEBootStationUI:
     def run_full_system_test(self) -> str:
         """Run comprehensive system test"""
         try:
+            if not self.system_tester:
+                return "❌ System testing module not available"
             return self.system_tester.run_full_system_test()
         except Exception as e:
             return f"❌ Test failed: {str(e)}"
@@ -136,6 +183,8 @@ class PXEBootStationUI:
                              filename: str = "undionly.kpxe", timeout: int = 5) -> str:
         """Test TFTP connection with custom parameters"""
         try:
+            if not self.system_tester:
+                return "❌ System testing module not available"
             return self.system_tester.tftp_tester.test_tftp_connection(host, port, filename, timeout)
         except Exception as e:
             return f"❌ TFTP test failed: {str(e)}"
@@ -143,6 +192,8 @@ class PXEBootStationUI:
     def test_http_endpoint(self, url: str = "http://localhost:8000/status", timeout: int = 5) -> str:
         """Test HTTP endpoint"""
         try:
+            if not self.system_tester:
+                return "❌ System testing module not available"
             return self.system_tester.http_tester.test_endpoint(url, timeout)
         except Exception as e:
             return f"❌ HTTP test failed: {str(e)}"
@@ -150,9 +201,20 @@ class PXEBootStationUI:
     def check_file_exists(self, filepath: str) -> str:
         """Check if file exists"""
         try:
+            if not self.system_tester:
+                return "❌ System testing module not available"
             return self.system_tester.file_checker.check_file_exists(filepath)
         except Exception as e:
             return f"❌ File check failed: {str(e)}"
+
+    def run_legacy_http_test(self) -> str:
+        """Run legacy HTTP test"""
+        try:
+            if not legacy_test_http_endpoints:
+                return "❌ Legacy test function not available"
+            return legacy_test_http_endpoints()
+        except Exception as e:
+            return f"❌ Legacy test failed: {str(e)}"
 
     # =========================
     # DHCP CONFIGURATION TAB
@@ -163,6 +225,9 @@ class PXEBootStationUI:
                              lease_time: int = 86400, domain_name: str = "") -> Tuple[str, str]:
         """Generate DHCP configuration"""
         try:
+            if not self.dhcp_manager:
+                return "❌ DHCP configuration module not available", ""
+
             # Parse DNS servers
             dns_list = [dns.strip() for dns in dns_servers.split(",") if dns.strip()]
 
@@ -188,16 +253,25 @@ class PXEBootStationUI:
     def save_dhcp_config(self, config_content: str, config_type: str) -> str:
         """Save DHCP configuration to file"""
         try:
+            if not self.dhcp_manager:
+                return "❌ DHCP configuration module not available"
+
             if not config_content:
                 return "❌ No configuration content to save"
 
+            # Cross-platform file paths
+            if os.name == 'nt':  # Windows
+                base_path = "C:/srv/dhcp"
+            else:  # Unix-like
+                base_path = "/srv/dhcp"
+
             filename_map = {
-                "isc": "/srv/dhcp/dhcpd.conf",
-                "dnsmasq": "/srv/dhcp/dnsmasq.conf",
-                "mikrotik": "/srv/dhcp/mikrotik_commands.txt"
+                "isc": f"{base_path}/dhcpd.conf",
+                "dnsmasq": f"{base_path}/dnsmasq.conf",
+                "mikrotik": f"{base_path}/mikrotik_commands.txt"
             }
 
-            filepath = filename_map.get(config_type.lower(), f"/srv/dhcp/{config_type}.conf")
+            filepath = filename_map.get(config_type.lower(), f"{base_path}/{config_type}.conf")
             is_saved, message = self.dhcp_manager.save_config(config_content, filepath)
 
             return message
@@ -208,6 +282,9 @@ class PXEBootStationUI:
     def create_simple_dhcp_config(self, server_ip: str, network_cidr: str) -> Tuple[str, str]:
         """Create simple DHCP configuration from CIDR"""
         try:
+            if not self.dhcp_manager or not create_simple_config:
+                return "❌ DHCP configuration module not available", ""
+
             config = create_simple_config(server_ip, network_cidr)
             is_valid, message, config_content = self.dhcp_manager.validate_and_generate(config, "isc")
             return message, config_content if is_valid else ""
@@ -222,6 +299,9 @@ class PXEBootStationUI:
                                        port: int = 8000) -> Tuple[str, str]:
         """Create iPXE menu from template"""
         try:
+            if not self.ipxe_manager:
+                return "❌ iPXE manager module not available", ""
+
             menu = self.ipxe_manager.get_template(template_name, server_ip, port)
             if not menu:
                 return f"❌ Template '{template_name}' not found", ""
@@ -238,11 +318,20 @@ class PXEBootStationUI:
             if not script_content:
                 return "❌ No script content to save"
 
-            # Save to default location
-            with open("/srv/ipxe/boot.ipxe", "w") as f:
+            # Cross-platform file path
+            if os.name == 'nt':  # Windows
+                filepath = "C:/srv/ipxe/boot.ipxe"
+            else:  # Unix-like
+                filepath = "/srv/ipxe/boot.ipxe"
+
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+            # Save to file
+            with open(filepath, "w") as f:
                 f.write(script_content)
 
-            return "✅ iPXE menu saved to /srv/ipxe/boot.ipxe"
+            return f"✅ iPXE menu saved to {filepath}"
 
         except Exception as e:
             return f"❌ Failed to save iPXE menu: {str(e)}"
@@ -252,6 +341,9 @@ class PXEBootStationUI:
                               description: str = "") -> str:
         """Add custom entry to iPXE menu"""
         try:
+            if not menu_script:
+                return "❌ No menu script provided"
+
             # This is a simplified version - in practice you'd parse the existing script
             # and add the new entry properly
 
@@ -317,6 +409,9 @@ goto start
     def download_ubuntu_files(self, version: str = "22.04", progress=gr.Progress()) -> str:
         """Download Ubuntu files with progress tracking"""
         try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
+
             def progress_callback(current: int, total: int, filename: str):
                 if total > 0:
                     percent = (current / total) * 100
@@ -335,6 +430,8 @@ goto start
     def check_ubuntu_files(self) -> str:
         """Check Ubuntu files status"""
         try:
+            if not self.ubuntu_downloader:
+                return "❌ Ubuntu downloader module not available"
             return self.ubuntu_downloader.check_files_status()
         except Exception as e:
             return f"❌ Ubuntu check failed: {str(e)}"
@@ -397,8 +494,8 @@ def build_gradio_ui():
                 )
 
                 export_btn.click(
-                    fn=lambda: ui.status_manager.export_status_json(),
-                    outputs=gr.File(label="System Status JSON")
+                    fn=ui.export_system_status,
+                    outputs=gr.Textbox(label="JSON Export", lines=5)
                 )
 
             # =========================
@@ -425,7 +522,7 @@ def build_gradio_ui():
                     )
 
                     quick_test_btn.click(
-                        fn=lambda: legacy_test_http_endpoints(),
+                        fn=ui.run_legacy_http_test,
                         outputs=test_output
                     )
 

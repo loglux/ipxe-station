@@ -3,3 +3,4 @@ gradio
 uvicorn
 python-multipart
 requests
+psutil

@@ -15,6 +15,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 
+# Fix for Windows compatibility
+try:
+    import pwd
+    import grp
+except ImportError:
+    pwd = None
+    grp = None
+
 
 class ServiceStatus(Enum):
     """Service status states"""
@@ -133,8 +141,10 @@ class ServiceChecker:
     def check_process_by_port(port: int, protocol: str = "tcp") -> Tuple[bool, Optional[int]]:
         """Check process listening on specific port"""
         try:
-            for conn in psutil.net_connections():
-                if (conn.laddr.port == port and
+            connections = psutil.net_connections()
+            for conn in connections:
+                if (hasattr(conn, 'laddr') and conn.laddr and
+                        conn.laddr.port == port and
                         conn.type == getattr(socket, f"SOCK_{protocol.upper()}")):
                     return True, conn.pid
             return False, None
@@ -155,6 +165,14 @@ class ServiceChecker:
     def check_systemd_service(service_name: str) -> Tuple[ServiceStatus, str]:
         """Check systemd service status"""
         try:
+            # Check if systemctl is available
+            result = subprocess.run(
+                ['systemctl', '--version'],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode != 0:
+                return ServiceStatus.UNKNOWN, "systemctl not available"
+
             result = subprocess.run(
                 ['systemctl', 'is-active', service_name],
                 capture_output=True, text=True, timeout=5
@@ -187,11 +205,17 @@ class SystemMonitor:
         try:
             # Basic system info
             hostname = socket.gethostname()
-            platform = psutil.os.name
-            architecture = os.uname().machine if hasattr(os, 'uname') else 'unknown'
+            platform = os.name
+
+            # Get architecture - cross-platform way
+            try:
+                import platform as plt
+                architecture = plt.machine()
+            except:
+                architecture = 'unknown'
 
             # CPU and memory
-            cpu_count = psutil.cpu_count()
+            cpu_count = psutil.cpu_count() or 1
             memory = psutil.virtual_memory()
             cpu_percent = psutil.cpu_percent(interval=1)
 
@@ -199,7 +223,7 @@ class SystemMonitor:
             boot_time = datetime.fromtimestamp(psutil.boot_time())
             uptime = datetime.now() - boot_time
 
-            # Load average (Unix-like systems)
+            # Load average (Unix-like systems only)
             load_avg = None
             try:
                 if hasattr(os, 'getloadavg'):
@@ -239,7 +263,11 @@ class SystemMonitor:
     def get_disk_usage(paths: List[str] = None) -> List[DiskUsage]:
         """Get disk usage for specified paths"""
         if paths is None:
-            paths = ["/", "/srv", "/tmp"]
+            # Default paths - cross-platform
+            if os.name == 'nt':  # Windows
+                paths = ["C:\\", "D:\\"]
+            else:  # Unix-like
+                paths = ["/", "/srv", "/tmp"]
 
         disk_usage = []
 
@@ -270,11 +298,17 @@ class SystemMonitor:
             # Get network interface addresses
             addresses = psutil.net_if_addrs()
             stats = psutil.net_if_stats()
-            io_counters = psutil.net_io_counters(pernic=True)
+
+            # Get I/O counters (may not be available on all systems)
+            io_counters = {}
+            try:
+                io_counters = psutil.net_io_counters(pernic=True)
+            except:
+                pass
 
             for interface_name, addr_list in addresses.items():
                 # Skip loopback interface
-                if interface_name.startswith('lo'):
+                if interface_name.startswith(('lo', 'Loopback')):
                     continue
 
                 interface = NetworkInterface(name=interface_name)
@@ -285,14 +319,17 @@ class SystemMonitor:
                         interface.ip_address = addr.address
                         interface.netmask = addr.netmask
                         interface.broadcast = addr.broadcast
-                    elif addr.family == psutil.AF_LINK:  # MAC address
+                    elif hasattr(psutil, 'AF_LINK') and addr.family == psutil.AF_LINK:  # MAC address (Unix)
                         interface.mac_address = addr.address
+                    elif os.name == 'nt' and addr.family == socket.AF_INET:  # Windows MAC handling
+                        # On Windows, MAC address is usually in a different field
+                        pass
 
                 # Get interface status
                 if interface_name in stats:
                     interface.is_up = stats[interface_name].isup
 
-                # Get I/O counters
+                # Get I/O counters if available
                 if interface_name in io_counters:
                     io = io_counters[interface_name]
                     interface.bytes_sent = io.bytes_sent
@@ -405,19 +442,21 @@ class PXEServiceMonitor:
             description="DHCP server (external)"
         )
 
-        # Check common DHCP services
-        dhcp_services = ["isc-dhcp-server", "dhcpd", "dnsmasq"]
+        # Only check systemd services on Unix-like systems
+        if os.name != 'nt':
+            # Check common DHCP services
+            dhcp_services = ["isc-dhcp-server", "dhcpd", "dnsmasq"]
 
-        for service_name in dhcp_services:
-            status, message = self.service_checker.check_systemd_service(service_name)
-            if status == ServiceStatus.RUNNING:
-                service.status = ServiceStatus.RUNNING
-                service.error_message = f"{service_name} is running"
-                break
-            elif status == ServiceStatus.ERROR:
-                service.status = ServiceStatus.ERROR
-                service.error_message = f"{service_name} failed: {message}"
-                break
+            for service_name in dhcp_services:
+                status, message = self.service_checker.check_systemd_service(service_name)
+                if status == ServiceStatus.RUNNING:
+                    service.status = ServiceStatus.RUNNING
+                    service.error_message = f"{service_name} is running"
+                    break
+                elif status == ServiceStatus.ERROR:
+                    service.status = ServiceStatus.ERROR
+                    service.error_message = f"{service_name} failed: {message}"
+                    break
 
         if service.status == ServiceStatus.UNKNOWN:
             # Check if port 67 is listening
@@ -438,13 +477,23 @@ class FileSystemMonitor:
     @staticmethod
     def check_pxe_files() -> Dict[str, Dict[str, Any]]:
         """Check status of PXE boot files"""
+        # Cross-platform file paths
+        if os.name == 'nt':  # Windows
+            base_tftp = "C:/srv/tftp"
+            base_http = "C:/srv/http"
+            base_ipxe = "C:/srv/ipxe"
+        else:  # Unix-like
+            base_tftp = "/srv/tftp"
+            base_http = "/srv/http"
+            base_ipxe = "/srv/ipxe"
+
         files_to_check = {
-            "iPXE BIOS": "/srv/tftp/undionly.kpxe",
-            "iPXE UEFI": "/srv/tftp/ipxe.efi",
-            "iPXE Menu": "/srv/ipxe/boot.ipxe",
-            "Ubuntu Kernel": "/srv/http/ubuntu/vmlinuz",
-            "Ubuntu Initrd": "/srv/http/ubuntu/initrd",
-            "Ubuntu ISO": "/srv/http/ubuntu/ubuntu-22.04-live-server-amd64.iso"
+            "iPXE BIOS": f"{base_tftp}/undionly.kpxe",
+            "iPXE UEFI": f"{base_tftp}/ipxe.efi",
+            "iPXE Menu": f"{base_ipxe}/boot.ipxe",
+            "Ubuntu Kernel": f"{base_http}/ubuntu/vmlinuz",
+            "Ubuntu Initrd": f"{base_http}/ubuntu/initrd",
+            "Ubuntu ISO": f"{base_http}/ubuntu/ubuntu-22.04-live-server-amd64.iso"
         }
 
         file_status = {}
@@ -660,6 +709,54 @@ class SystemStatusManager:
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
         return json.dumps(status, indent=2, default=json_serializer)
+
+
+# Helper functions
+def _calculate_dhcp_range(subnet: str, netmask: str) -> str:
+    """Calculate DHCP range from subnet and netmask"""
+    try:
+        import ipaddress
+        network = ipaddress.IPv4Network(f"{subnet}/{netmask}", strict=False)
+        # Use middle 50% of the network for DHCP range
+        hosts = list(network.hosts())
+        if len(hosts) < 4:
+            # Very small network, use all available hosts except first and last
+            start_ip = str(hosts[0])
+            end_ip = str(hosts[-1])
+        else:
+            # Skip first 25% and last 25% of addresses
+            start_idx = len(hosts) // 4
+            end_idx = len(hosts) - (len(hosts) // 4)
+            start_ip = str(hosts[start_idx])
+            end_ip = str(hosts[end_idx - 1])
+
+        return f"{start_ip} {end_ip}"
+    except Exception:
+        return "192.168.1.100 192.168.1.200"  # Fallback range
+
+
+def _netmask_to_cidr(netmask: str) -> int:
+    """Convert netmask to CIDR notation"""
+    try:
+        import ipaddress
+        return ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+    except Exception:
+        return 24  # Default /24
+
+
+def _seconds_to_time(seconds: int) -> str:
+    """Convert seconds to time format for MikroTik"""
+    if seconds >= 86400:  # days
+        days = seconds // 86400
+        return f"{days}d"
+    elif seconds >= 3600:  # hours
+        hours = seconds // 3600
+        return f"{hours}h"
+    elif seconds >= 60:  # minutes
+        minutes = seconds // 60
+        return f"{minutes}m"
+    else:
+        return f"{seconds}s"
 
 
 # Convenience functions for backward compatibility
