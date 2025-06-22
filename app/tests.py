@@ -91,26 +91,6 @@ class ServiceChecker:
         except Exception as e:
             return f"❓ TFTP daemon check: {str(e)}"
 
-    @staticmethod
-    def check_port_availability(port: int, protocol: str = 'tcp') -> str:
-        """Check if port is available"""
-        try:
-            if protocol.lower() == 'tcp':
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            else:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-            sock.settimeout(1)
-            result = sock.connect_ex(('localhost', port))
-            sock.close()
-
-            if result == 0:
-                return f"❌ Port {port}/{protocol.upper()}: In use"
-            else:
-                return f"✅ Port {port}/{protocol.upper()}: Available"
-        except Exception as e:
-            return f"❓ Port {port}/{protocol.upper()}: {str(e)}"
-
 
 class HTTPTester:
     """HTTP endpoint testing utilities"""
@@ -281,10 +261,6 @@ class SystemTester:
         daemon_result = self.service_checker.check_tftp_daemon()
         results.append(daemon_result)
 
-        # Check port availability
-        port_result = self.service_checker.check_port_availability(69, 'udp')
-        results.append(port_result)
-
         # Test main HTTP server
         http_result = self.http_tester.test_endpoint("http://localhost:8000/status")
         results.append(http_result)
@@ -326,15 +302,13 @@ class SystemTester:
 
         # Check for working Ubuntu versions
         ubuntu_versions_working = any("Working Ubuntu versions" in result for result in test_results)
-        critical_files_present = all(
-            any(file_check in result for result in test_results)
-            for file_check in ["iPXE BIOS: Found", "iPXE menu file: Found"]
-        )
+        tftp_working = any("TFTP test: SUCCESS" in result for result in test_results)
+        ipxe_files_present = any("undionly.kpxe" in result and "Found" in result for result in test_results)
 
-        if ubuntu_versions_working and critical_files_present:
+        if ubuntu_versions_working and tftp_working and ipxe_files_present:
             status_lines.extend([
                 "🎉 READY FOR PXE BOOT TESTING!",
-                "📋 Ubuntu installations and iPXE components are working",
+                "📋 Ubuntu installations, TFTP, and iPXE components are working",
                 "",
                 "🔍 Next steps:",
                 "1. Configure DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe",
@@ -342,14 +316,24 @@ class SystemTester:
                 "3. Use 'Create Smart Menu' to generate multi-mode iPXE menu",
                 "4. Or test with QEMU emulator"
             ])
-        elif ubuntu_versions_working:
+        elif ubuntu_versions_working and tftp_working:
             status_lines.extend([
-                "⚠️ PARTIALLY READY",
-                "✅ Ubuntu files found, but some iPXE components missing",
+                "⚠️ MOSTLY READY",
+                "✅ Ubuntu files and TFTP found, but check iPXE components",
                 "",
                 "🔧 Please check:",
                 "1. Verify iPXE files (undionly.kpxe, ipxe.efi)",
                 "2. Generate iPXE menu configuration"
+            ])
+        elif ubuntu_versions_working:
+            status_lines.extend([
+                "⚠️ PARTIALLY READY",
+                "✅ Ubuntu files found, but TFTP may not be working",
+                "",
+                "🔧 Please check:",
+                "1. Start TFTP server",
+                "2. Verify iPXE files (undionly.kpxe, ipxe.efi)",
+                "3. Generate iPXE menu configuration"
             ])
         else:
             status_lines.extend([
@@ -359,8 +343,9 @@ class SystemTester:
                 "🔧 Please check:",
                 "1. Download Ubuntu files using Ubuntu Download tab",
                 "2. Verify Ubuntu files are in /srv/http/ubuntu-XX.XX/ structure",
-                "3. Generate iPXE menu",
-                "4. Verify file permissions"
+                "3. Start TFTP server if needed",
+                "4. Generate iPXE menu",
+                "5. Verify file permissions"
             ])
 
         return status_lines
