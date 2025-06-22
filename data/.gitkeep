@@ -1,0 +1,15 @@
+# iPXE Station Data Directory
+#
+# This file ensures the data directory structure is preserved in git
+# while excluding the actual data files (which can be large Ubuntu ISOs).
+#
+# Directory structure:
+# data/
+# └── srv/
+#     ├── tftp/    # TFTP boot files (undionly.kpxe, ipxe.efi)
+#     ├── http/    # HTTP boot files (Ubuntu versions, ISOs)
+#     ├── ipxe/    # iPXE scripts (boot.ipxe)
+#     └── dhcp/    # DHCP configurations
+#
+# The actual directories will be created automatically by the deploy script
+# or Docker container on first run.
