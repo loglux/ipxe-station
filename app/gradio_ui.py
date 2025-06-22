@@ -112,40 +112,21 @@ def build_gradio_ui():
             return f"❌ Error downloading iPXE files: {str(e)}"
 
     def download_ubuntu_files():
-        """Download Ubuntu 24.04.2 LTS netboot files"""
-        try:
-            ubuntu_dir = Path("/srv/http/ubuntu")
-            ubuntu_dir.mkdir(parents=True, exist_ok=True)
+        errors = []
 
-            status = "🔄 Downloading Ubuntu 24.04.2 LTS files...\n"
+        # Попытка скачать kernel
+        if not download_kernel():
+            errors.append("❌ Failed to download Kernel")
 
-            # Ubuntu 24.04.2 LTS netboot URLs
-            base_url = "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/"
+        # Попытка скачать initrd
+        if not download_initrd():
+            errors.append("❌ Failed to download Initial RAM disk")
 
-            files_to_download = [
-                ("linux", "vmlinuz", "Kernel"),
-                ("initrd.gz", "initrd", "Initial RAM disk")
-            ]
-
-            for remote_name, local_name, description in files_to_download:
-                url = base_url + remote_name
-                status += f"📥 Downloading {description}...\n"
-
-                response = requests.get(url, timeout=60)
-                if response.status_code == 200:
-                    with open(ubuntu_dir / local_name, "wb") as f:
-                        f.write(response.content)
-                    size_mb = len(response.content) / (1024 * 1024)
-                    status += f"✅ {description}: {size_mb:.1f} MB\n"
-                else:
-                    status += f"❌ Failed to download {description}\n"
-
-            status += "\n🎉 Ubuntu 24.04.2 LTS files downloaded!"
-            status += "\n📝 Note: This is the network installer, not the full desktop."
-            return status
-
-        except Exception as e:
-            return f"❌ Error downloading Ubuntu files: {str(e)}"
+        # ПРОВЕРЯЕМ РЕЗУЛЬТАТ:
+        if errors:
+            return "\n".join(errors) + "\n❌ Ubuntu download failed!"
+        else:
+            return "🎉 Ubuntu 24.04.2 LTS files downloaded!"
 
     def create_ipxe_menu():
         """Create iPXE boot menu"""
