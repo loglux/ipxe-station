@@ -1,6 +1,7 @@
 """
 iPXE menu management for PXE Boot Station
 Handles iPXE menu configuration generation, validation, and management
+Enhanced with multiple Ubuntu boot options: netboot, live boot, rescue mode
 """
 
 import os
@@ -15,7 +16,7 @@ from urllib.parse import urlparse
 
 @dataclass
 class iPXEEntry:
-    """Single iPXE menu entry"""
+    """Single iPXE menu entry with enhanced options"""
     name: str
     title: str
     kernel: str
@@ -26,6 +27,9 @@ class iPXEEntry:
     order: int = 0
     entry_type: str = "boot"  # boot, menu, action, separator
     url: Optional[str] = None  # For HTTP boot entries
+    boot_mode: str = "netboot"  # netboot, live, rescue, custom
+    requires_iso: bool = False  # Whether this option needs ISO file
+    requires_internet: bool = False  # Whether this option needs internet
 
     def __post_init__(self):
         """Validate entry after initialization"""
@@ -96,7 +100,7 @@ class iPXEValidator:
                 return False, f"File not found: {kernel}"
         else:
             # Relative path - assume it's served via HTTP
-            full_url = f"http://{server_ip}:{port}/http/{kernel.lstrip('/')}"
+            full_url = f"http://{server_ip}:{port}/{kernel.lstrip('/')}"
             return True, f"Will be served as: {full_url}"
 
     @staticmethod
@@ -153,16 +157,138 @@ class iPXEValidator:
         return len(errors) == 0, errors
 
 
+class UbuntuBootModes:
+    """Ubuntu boot mode configurations"""
+
+    @staticmethod
+    def get_netboot_config(version: str, server_ip: str, port: int) -> Dict[str, str]:
+        """Get netboot configuration (internet installation)"""
+        base_url = f"http://{server_ip}:{port}/ubuntu-{version}"
+
+        configs = {
+            "24.04": {
+                "kernel": f"{base_url}/vmlinuz",
+                "initrd": f"{base_url}/initrd",
+                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "description": "Network installation from Ubuntu repositories"
+            },
+            "22.04": {
+                "kernel": f"{base_url}/vmlinuz",
+                "initrd": f"{base_url}/initrd",
+                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "description": "Network installation from Ubuntu repositories"
+            },
+            "20.04": {
+                "kernel": f"{base_url}/vmlinuz",
+                "initrd": f"{base_url}/initrd",
+                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "description": "Network installation from Ubuntu repositories"
+            }
+        }
+
+        return configs.get(version, configs["22.04"])  # Default to 22.04
+
+    @staticmethod
+    def get_live_config(version: str, server_ip: str, port: int) -> Dict[str, str]:
+        """Get live boot configuration (requires ISO)"""
+        base_url = f"http://{server_ip}:{port}/ubuntu-{version}"
+
+        return {
+            "kernel": f"{base_url}/vmlinuz",
+            "initrd": f"{base_url}/initrd",
+            "cmdline": f"ip=dhcp boot=casper netboot=url url={base_url}/ubuntu-{version}-live-server-amd64.iso quiet splash",
+            "description": "Live boot from local ISO file"
+        }
+
+    @staticmethod
+    def get_rescue_config(version: str, server_ip: str, port: int) -> Dict[str, str]:
+        """Get rescue mode configuration"""
+        base_url = f"http://{server_ip}:{port}/ubuntu-{version}"
+
+        return {
+            "kernel": f"{base_url}/vmlinuz",
+            "initrd": f"{base_url}/initrd",
+            "cmdline": f"ip=dhcp rescue/enable=true single",
+            "description": "Rescue and recovery mode"
+        }
+
+    @staticmethod
+    def get_preseed_config(version: str, server_ip: str, port: int) -> Dict[str, str]:
+        """Get automated preseed installation"""
+        base_url = f"http://{server_ip}:{port}/ubuntu-{version}"
+
+        return {
+            "kernel": f"{base_url}/vmlinuz",
+            "initrd": f"{base_url}/initrd",
+            "cmdline": f"ip=dhcp auto=true url={base_url}/preseed.cfg locale=en_US console-setup/ask_detect=false keyboard-configuration/xkb-keymap=us",
+            "description": "Automated installation with preseed configuration"
+        }
+
+
+class UbuntuVersionDetector:
+    """Detect available Ubuntu versions and their capabilities"""
+
+    @staticmethod
+    def scan_available_versions(base_path: str = "/srv/http") -> Dict[str, Dict[str, bool]]:
+        """Scan for available Ubuntu versions and their files"""
+        base_dir = Path(base_path)
+        versions = {}
+
+        if not base_dir.exists():
+            return versions
+
+        # Look for ubuntu-* directories
+        for ubuntu_dir in base_dir.iterdir():
+            if not ubuntu_dir.is_dir() or not ubuntu_dir.name.startswith('ubuntu-'):
+                continue
+
+            version = ubuntu_dir.name.replace('ubuntu-', '')
+
+            # Check for required and optional files
+            capabilities = {
+                "kernel": (ubuntu_dir / "vmlinuz").exists(),
+                "initrd": (ubuntu_dir / "initrd").exists(),
+                "iso": (ubuntu_dir / f"ubuntu-{version}-live-server-amd64.iso").exists(),
+                "preseed": (ubuntu_dir / "preseed.cfg").exists()
+            }
+
+            # Only include if basic files exist
+            if capabilities["kernel"] and capabilities["initrd"]:
+                versions[version] = capabilities
+
+        return versions
+
+    @staticmethod
+    def get_boot_options_for_version(version: str, capabilities: Dict[str, bool]) -> List[str]:
+        """Get available boot options for a specific Ubuntu version"""
+        options = []
+
+        # Always available if kernel+initrd exist
+        if capabilities.get("kernel") and capabilities.get("initrd"):
+            options.append("netboot")
+            options.append("rescue")
+
+        # Available if preseed exists
+        if capabilities.get("preseed"):
+            options.append("preseed")
+
+        # Available if ISO exists
+        if capabilities.get("iso"):
+            options.append("live")
+
+        return options
+
+
 class iPXEGenerator:
     """iPXE menu file generators"""
 
     @staticmethod
     def generate_ipxe_script(menu: iPXEMenu) -> str:
-        """Generate iPXE script content"""
+        """Generate iPXE script content with enhanced multi-mode support"""
         script_lines = [
             "#!ipxe",
             "",
-            "# iPXE Boot Menu",
+            "# iPXE Boot Menu - Enhanced Multi-Mode Support",
             f"# Generated by PXE Boot Station at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
         ]
@@ -175,23 +301,35 @@ class iPXEGenerator:
                 ""
             ])
 
-        # Menu definition
+        # Menu definition with color support
         script_lines.extend([
             ":start",
             "menu",
             f"item --gap -- {menu.title}",
-            "item --gap -- ────────────────────────────────────────",
+            "item --gap -- ════════════════════════════════════════════════",
         ])
 
-        # Add menu entries
+        # Add menu entries with smart formatting
         for entry in menu.entries:
             if not entry.enabled:
                 continue
 
             if entry.entry_type == "separator":
-                script_lines.append("item --gap --")
+                if "header" in entry.name:
+                    script_lines.append(f"item --gap -- {entry.title}")
+                else:
+                    script_lines.append(f"item --gap -- {entry.title}")
             elif entry.entry_type == "boot":
-                script_lines.append(f"item {entry.name} {entry.title}")
+                # Add boot mode indicator
+                mode_indicator = {
+                    "netboot": "🌐",
+                    "live": "💿",
+                    "rescue": "🔧",
+                    "preseed": "⚡",
+                    "tool": "🛠️"
+                }.get(entry.boot_mode, "📀")
+
+                script_lines.append(f"item {entry.name} {mode_indicator} {entry.title}")
             elif entry.entry_type == "menu":
                 script_lines.append(f"item {entry.name} {entry.title} -->")
             elif entry.entry_type == "action":
@@ -200,13 +338,13 @@ class iPXEGenerator:
         # Add standard menu items
         script_lines.extend([
             "item --gap --",
-            "item shell Drop to iPXE shell",
-            "item reboot Reboot computer",
-            "item exit Exit to BIOS",
+            "item shell 🖥️  Drop to iPXE shell",
+            "item reboot 🔄 Reboot computer",
+            "item exit ❌ Exit to BIOS",
             ""
         ])
 
-        # Set default and timeout - FIXED f-string issue
+        # Set default and timeout
         if menu.default_entry:
             script_lines.append(
                 f"choose --default {menu.default_entry} --timeout {menu.timeout} target && goto ${{target}}")
@@ -225,15 +363,21 @@ class iPXEGenerator:
                 f"echo Booting {entry.title}...",
             ])
 
-            # Add description if provided
+            # Add description and requirements info
             if entry.description:
                 script_lines.append(f"echo {entry.description}")
 
-            # Determine kernel URL - FIXED to include /http/ path
+            if entry.requires_internet:
+                script_lines.append("echo Note: Internet connection required")
+
+            if entry.requires_iso:
+                script_lines.append("echo Note: Local ISO file required")
+
+            # Determine kernel URL
             kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
             script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
 
-            # Add initrd if provided - FIXED to include /http/ path
+            # Add initrd if provided
             if entry.initrd:
                 initrd_url = iPXEGenerator._resolve_kernel_url(entry.initrd, menu.server_ip, menu.http_port)
                 script_lines.append(f"initrd {initrd_url}")
@@ -276,15 +420,15 @@ class iPXEGenerator:
 
     @staticmethod
     def _resolve_kernel_url(path: str, server_ip: str, port: int) -> str:
-        """Resolve kernel path to full URL - FIXED to include /http/ path"""
+        """Resolve kernel path to full URL"""
         if path.startswith(('http://', 'https://', 'tftp://')):
             return path
         elif path.startswith('/'):
-            # Absolute path - convert to HTTP URL with /http/ prefix
-            return f"http://{server_ip}:{port}/http{path}"
+            # Absolute path - convert to HTTP URL
+            return f"http://{server_ip}:{port}{path}"
         else:
-            # Relative path - convert to HTTP URL with /http/ prefix
-            return f"http://{server_ip}:{port}/http/{path.lstrip('/')}"
+            # Relative path - convert to HTTP URL
+            return f"http://{server_ip}:{port}/{path.lstrip('/')}"
 
     @staticmethod
     def generate_grub_config(menu: iPXEMenu) -> str:
@@ -319,18 +463,18 @@ class iPXEGenerator:
 
 
 class iPXETemplateManager:
-    """Pre-defined iPXE menu templates"""
+    """Pre-defined iPXE menu templates with enhanced multi-mode support"""
 
     @staticmethod
     def get_ubuntu_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
-        """Ubuntu installation template"""
+        """Original Ubuntu installation template"""
         entries = [
             iPXEEntry(
                 name="ubuntu_install",
                 title="Install Ubuntu 22.04 LTS",
                 kernel="ubuntu/vmlinuz",
                 initrd="ubuntu/initrd",
-                cmdline="ip=dhcp url=http://{server_ip}:{port}/http/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/http/cloud-init/",
+                cmdline="ip=dhcp url=http://{server_ip}:{port}/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/cloud-init/",
                 description="Automated Ubuntu Server installation",
                 order=1
             ),
@@ -367,6 +511,198 @@ class iPXETemplateManager:
             http_port=port,
             header_text="Welcome to Ubuntu PXE Boot Station",
             footer_text="Use arrow keys to navigate, Enter to select"
+        )
+
+    @staticmethod
+    def get_ubuntu_multi_template(server_ip: str = "localhost", port: int = 8000,
+                                  available_versions: List[str] = None) -> iPXEMenu:
+        """Enhanced Ubuntu template with multiple boot options per version"""
+
+        if available_versions is None:
+            # Auto-detect available versions
+            detector = UbuntuVersionDetector()
+            available_versions = list(detector.scan_available_versions().keys())
+            if not available_versions:
+                available_versions = ["24.04", "22.04", "20.04"]
+
+        entries = []
+        order = 1
+
+        # Header separator
+        entries.append(iPXEEntry(
+            name="ubuntu_header",
+            title="Ubuntu Installation Options",
+            entry_type="separator",
+            order=order
+        ))
+        order += 1
+
+        # Generate entries for each available Ubuntu version
+        for version in available_versions:
+            # Check if files exist for this version
+            version_path = Path(f"/srv/http/ubuntu-{version}")
+            iso_path = version_path / f"ubuntu-{version}-live-server-amd64.iso"
+            kernel_path = version_path / "vmlinuz"
+            initrd_path = version_path / "initrd"
+            preseed_path = version_path / "preseed.cfg"
+
+            files_exist = kernel_path.exists() and initrd_path.exists()
+            iso_exists = iso_path.exists()
+            preseed_exists = preseed_path.exists()
+
+            if not files_exist:
+                continue  # Skip if basic files don't exist
+
+            # Ubuntu version separator
+            entries.append(iPXEEntry(
+                name=f"separator_ubuntu_{version.replace('.', '_')}",
+                title=f"── Ubuntu {version} LTS ──",
+                entry_type="separator",
+                order=order
+            ))
+            order += 1
+
+            # 1. Netboot installation (always available if kernel+initrd exist)
+            netboot_config = UbuntuBootModes.get_netboot_config(version, server_ip, port)
+            entries.append(iPXEEntry(
+                name=f"ubuntu_{version.replace('.', '_')}_netboot",
+                title=f"Ubuntu {version} - Network Install",
+                kernel=netboot_config["kernel"],
+                initrd=netboot_config["initrd"],
+                cmdline=netboot_config["cmdline"],
+                description=netboot_config["description"],
+                order=order,
+                boot_mode="netboot",
+                requires_iso=False,
+                requires_internet=True
+            ))
+            order += 1
+
+            # 2. Live boot (only if ISO exists)
+            if iso_exists:
+                live_config = UbuntuBootModes.get_live_config(version, server_ip, port)
+                entries.append(iPXEEntry(
+                    name=f"ubuntu_{version.replace('.', '_')}_live",
+                    title=f"Ubuntu {version} - Live Boot",
+                    kernel=live_config["kernel"],
+                    initrd=live_config["initrd"],
+                    cmdline=live_config["cmdline"],
+                    description=live_config["description"],
+                    order=order,
+                    boot_mode="live",
+                    requires_iso=True,
+                    requires_internet=False
+                ))
+                order += 1
+
+            # 3. Preseed installation (only if preseed.cfg exists)
+            if preseed_exists:
+                preseed_config = UbuntuBootModes.get_preseed_config(version, server_ip, port)
+                entries.append(iPXEEntry(
+                    name=f"ubuntu_{version.replace('.', '_')}_preseed",
+                    title=f"Ubuntu {version} - Auto Install",
+                    kernel=preseed_config["kernel"],
+                    initrd=preseed_config["initrd"],
+                    cmdline=preseed_config["cmdline"],
+                    description=preseed_config["description"],
+                    order=order,
+                    boot_mode="preseed",
+                    requires_iso=False,
+                    requires_internet=True
+                ))
+                order += 1
+
+            # 4. Rescue mode (always available)
+            rescue_config = UbuntuBootModes.get_rescue_config(version, server_ip, port)
+            entries.append(iPXEEntry(
+                name=f"ubuntu_{version.replace('.', '_')}_rescue",
+                title=f"Ubuntu {version} - Rescue Mode",
+                kernel=rescue_config["kernel"],
+                initrd=rescue_config["initrd"],
+                cmdline=rescue_config["cmdline"],
+                description=rescue_config["description"],
+                order=order,
+                boot_mode="rescue",
+                requires_iso=False,
+                requires_internet=False
+            ))
+            order += 1
+
+        # Tools separator
+        entries.append(iPXEEntry(
+            name="tools_header",
+            title="System Tools",
+            entry_type="separator",
+            order=order
+        ))
+        order += 1
+
+        # Memory test
+        entries.append(iPXEEntry(
+            name="memtest",
+            title="Memory Test (Memtest86+)",
+            kernel="tools/memtest86+.bin",
+            description="Test system memory for errors",
+            order=order,
+            boot_mode="tool"
+        ))
+
+        # Set default to first netboot option
+        default_entry = None
+        for entry in entries:
+            if entry.boot_mode == "netboot":
+                default_entry = entry.name
+                break
+
+        return iPXEMenu(
+            title="Ubuntu Multi-Mode PXE Boot",
+            timeout=45000,
+            default_entry=default_entry,
+            entries=entries,
+            server_ip=server_ip,
+            http_port=port,
+            header_text="Multiple Ubuntu Installation Options Available",
+            footer_text="Use arrow keys to navigate, Enter to select"
+        )
+
+    @staticmethod
+    def get_quick_ubuntu_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
+        """Quick Ubuntu template with just netboot options"""
+
+        available_versions = []
+
+        # Auto-detect available versions
+        for version in ["24.04", "22.04", "20.04"]:
+            version_path = Path(f"/srv/http/ubuntu-{version}")
+            if (version_path / "vmlinuz").exists() and (version_path / "initrd").exists():
+                available_versions.append(version)
+
+        entries = []
+        order = 1
+
+        for version in available_versions:
+            netboot_config = UbuntuBootModes.get_netboot_config(version, server_ip, port)
+            entries.append(iPXEEntry(
+                name=f"ubuntu_{version.replace('.', '_')}",
+                title=f"Ubuntu {version} LTS",
+                kernel=netboot_config["kernel"],
+                initrd=netboot_config["initrd"],
+                cmdline=netboot_config["cmdline"],
+                description=f"Install Ubuntu {version} from network",
+                order=order,
+                boot_mode="netboot"
+            ))
+            order += 1
+
+        return iPXEMenu(
+            title="Ubuntu Quick Install",
+            timeout=30000,
+            default_entry=entries[0].name if entries else None,
+            entries=entries,
+            server_ip=server_ip,
+            http_port=port,
+            header_text="Quick Ubuntu Network Installation",
+            footer_text="Select Ubuntu version to install"
         )
 
     @staticmethod
@@ -429,7 +765,7 @@ class iPXETemplateManager:
                 title="CentOS Stream 9",
                 kernel="centos/vmlinuz",
                 initrd="centos/initrd.img",
-                cmdline="ip=dhcp inst.repo=http://{server_ip}:{port}/http/centos/",
+                cmdline="ip=dhcp inst.repo=http://{server_ip}:{port}/centos/",
                 order=3
             ),
             iPXEEntry(
@@ -474,13 +810,14 @@ class iPXETemplateManager:
 
 
 class iPXEManager:
-    """Main iPXE menu management class"""
+    """Main iPXE menu management class with enhanced capabilities"""
 
     def __init__(self, config_path: str = "/srv/ipxe/boot.ipxe"):
         self.config_path = Path(config_path)
         self.validator = iPXEValidator()
         self.generator = iPXEGenerator()
         self.templates = iPXETemplateManager()
+        self.detector = UbuntuVersionDetector()
 
     def create_menu(self, title: str = "PXE Boot Menu", server_ip: str = "localhost",
                     port: int = 8000) -> iPXEMenu:
@@ -575,6 +912,8 @@ class iPXEManager:
         """Get pre-defined template"""
         templates = {
             "ubuntu": self.templates.get_ubuntu_template,
+            "ubuntu_multi": self.templates.get_ubuntu_multi_template,
+            "ubuntu_quick": self.templates.get_quick_ubuntu_template,
             "diagnostic": self.templates.get_diagnostic_template,
             "multi_os": self.templates.get_multi_os_template
         }
@@ -583,6 +922,39 @@ class iPXEManager:
             return templates[template_name](server_ip, port)
 
         return None
+
+    def create_adaptive_ubuntu_menu(self, server_ip: str = "localhost",
+                                    port: int = 8000, template_type: str = "multi") -> iPXEMenu:
+        """Create Ubuntu menu based on available files"""
+
+        # Detect available Ubuntu versions
+        available_versions = self.detector.scan_available_versions()
+        version_list = sorted(available_versions.keys(), reverse=True)  # Latest first
+
+        if template_type == "quick":
+            return self.templates.get_quick_ubuntu_template(server_ip, port)
+        else:
+            return self.templates.get_ubuntu_multi_template(server_ip, port, version_list)
+
+    def get_version_status(self) -> Dict[str, Any]:
+        """Get status of all Ubuntu versions and their capabilities"""
+        versions = self.detector.scan_available_versions()
+
+        status = {
+            "versions_found": len(versions),
+            "versions": {}
+        }
+
+        for version, capabilities in versions.items():
+            boot_options = self.detector.get_boot_options_for_version(version, capabilities)
+
+            status["versions"][version] = {
+                "capabilities": capabilities,
+                "boot_options": boot_options,
+                "recommended": "netboot" if "netboot" in boot_options else boot_options[0] if boot_options else None
+            }
+
+        return status
 
     def export_menu_json(self, menu: iPXEMenu) -> str:
         """Export menu configuration to JSON"""
@@ -605,10 +977,28 @@ class iPXEManager:
                     "enabled": entry.enabled,
                     "order": entry.order,
                     "entry_type": entry.entry_type,
-                    "url": entry.url
+                    "url": entry.url,
+                    "boot_mode": entry.boot_mode,
+                    "requires_iso": entry.requires_iso,
+                    "requires_internet": entry.requires_internet
                 }
                 for entry in menu.entries
             ]
         }
 
         return json.dumps(menu_dict, indent=2)
+
+
+# Convenience functions for backward compatibility and enhanced features
+def create_smart_ubuntu_menu(server_ip: str = "localhost", port: int = 8000,
+                             template_type: str = "multi") -> str:
+    """Create smart Ubuntu menu based on available files"""
+    manager = iPXEManager()
+    menu = manager.create_adaptive_ubuntu_menu(server_ip, port, template_type)
+    return manager.generator.generate_ipxe_script(menu)
+
+
+def get_ubuntu_status() -> Dict[str, Any]:
+    """Get Ubuntu versions status"""
+    detector = UbuntuVersionDetector()
+    return detector.scan_available_versions()

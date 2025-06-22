@@ -539,6 +539,183 @@ goto start
         except Exception as e:
             return f"❌ Error getting summary: {str(e)}"
 
+    def create_smart_ubuntu_menu(self, template_type: str = "multi", server_ip: str = "localhost",
+                                 port: int = 8000) -> Tuple[str, str]:
+        """Create smart Ubuntu menu with multiple boot options"""
+        try:
+            if not self.ipxe_manager:
+                return "❌ iPXE manager module not available", ""
+
+            # Create adaptive menu based on available files
+            menu = self.ipxe_manager.create_adaptive_ubuntu_menu(server_ip, port, template_type)
+
+            # Generate script
+            is_valid, message, script_content = self.ipxe_manager.validate_and_generate(menu)
+
+            if not is_valid:
+                return message, ""
+
+            # Get status info
+            version_status = self.ipxe_manager.get_version_status()
+
+            status_msg = f"✅ Smart Ubuntu menu created!\n"
+            status_msg += f"📊 Found {version_status['versions_found']} Ubuntu versions\n\n"
+
+            for version, info in version_status['versions'].items():
+                status_msg += f"🐧 **Ubuntu {version}**:\n"
+                status_msg += f"   • Boot options: {', '.join(info['boot_options'])}\n"
+                status_msg += f"   • Recommended: {info['recommended']}\n"
+
+                caps = info['capabilities']
+                if caps['iso']:
+                    status_msg += f"   • ✅ Live boot available (ISO found)\n"
+                else:
+                    status_msg += f"   • ❌ Live boot unavailable (ISO missing)\n"
+
+                if caps['preseed']:
+                    status_msg += f"   • ✅ Auto-install available (preseed found)\n"
+                else:
+                    status_msg += f"   • ❌ Auto-install unavailable (preseed missing)\n"
+                status_msg += "\n"
+
+            return status_msg, script_content
+
+        except Exception as e:
+            return f"❌ Smart menu creation failed: {str(e)}", ""
+
+    def get_ubuntu_capabilities_status(self) -> str:
+        """Get detailed Ubuntu capabilities status"""
+        try:
+            if not self.ipxe_manager:
+                return "❌ iPXE manager module not available"
+
+            versions = self.ipxe_manager.detector.scan_available_versions()
+
+            if not versions:
+                return "❌ No Ubuntu versions found in /srv/http/"
+
+            status = "🐧 **Ubuntu Versions Analysis**\n"
+            status += "=" * 50 + "\n\n"
+
+            for version, capabilities in versions.items():
+                status += f"📦 **Ubuntu {version} LTS**\n"
+                status += f"   📁 Path: /srv/http/ubuntu-{version}/\n"
+
+                # File status
+                file_status = []
+                if capabilities['kernel']:
+                    file_status.append("✅ Kernel")
+                else:
+                    file_status.append("❌ Kernel")
+
+                if capabilities['initrd']:
+                    file_status.append("✅ Initrd")
+                else:
+                    file_status.append("❌ Initrd")
+
+                if capabilities['iso']:
+                    file_status.append("✅ ISO")
+                else:
+                    file_status.append("❌ ISO")
+
+                if capabilities['preseed']:
+                    file_status.append("✅ Preseed")
+                else:
+                    file_status.append("❌ Preseed")
+
+                status += f"   📋 Files: {' | '.join(file_status)}\n"
+
+                # Boot options
+                boot_options = self.ipxe_manager.detector.get_boot_options_for_version(version, capabilities)
+
+                status += f"   🚀 **Available Boot Modes:**\n"
+                for option in boot_options:
+                    mode_info = {
+                        "netboot": "🌐 Network Install (requires internet)",
+                        "live": "💿 Live Boot (requires ISO)",
+                        "rescue": "🔧 Rescue Mode",
+                        "preseed": "⚡ Auto Install (requires preseed)"
+                    }
+                    status += f"      • {mode_info.get(option, option)}\n"
+
+                if not boot_options:
+                    status += f"      ❌ No boot options available (missing kernel/initrd)\n"
+
+                status += "\n"
+
+            # Summary recommendations
+            status += "💡 **Recommendations:**\n"
+
+            working_versions = [v for v, c in versions.items() if c['kernel'] and c['initrd']]
+            if working_versions:
+                status += f"✅ Working versions: {', '.join(working_versions)}\n"
+
+            iso_missing = [v for v, c in versions.items() if c['kernel'] and c['initrd'] and not c['iso']]
+            if iso_missing:
+                status += f"💿 To enable Live Boot, download ISO files for: {', '.join(iso_missing)}\n"
+
+            preseed_missing = [v for v, c in versions.items() if c['kernel'] and c['initrd'] and not c['preseed']]
+            if preseed_missing:
+                status += f"⚡ To enable Auto Install, add preseed.cfg for: {', '.join(preseed_missing)}\n"
+
+            return status
+
+        except Exception as e:
+            return f"❌ Analysis failed: {str(e)}"
+
+    def create_ubuntu_iso_download_suggestions(self) -> str:
+        """Generate suggestions for downloading missing ISO files"""
+        try:
+            if not self.ipxe_manager:
+                return "❌ iPXE manager module not available"
+
+            versions = self.ipxe_manager.detector.scan_available_versions()
+
+            suggestions = "💿 **Ubuntu ISO Download Suggestions**\n"
+            suggestions += "=" * 50 + "\n\n"
+
+            iso_needed = []
+            for version, capabilities in versions.items():
+                if capabilities['kernel'] and capabilities['initrd'] and not capabilities['iso']:
+                    iso_needed.append(version)
+
+            if not iso_needed:
+                suggestions += "✅ All available Ubuntu versions have ISO files!\n"
+                return suggestions
+
+            suggestions += "📥 **Missing ISO files for:**\n\n"
+
+            for version in iso_needed:
+                suggestions += f"🐧 **Ubuntu {version} LTS**\n"
+
+                # ISO download URLs
+                if version == "24.04":
+                    iso_url = "https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso"
+                elif version == "22.04":
+                    iso_url = "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-live-server-amd64.iso"
+                elif version == "20.04":
+                    iso_url = "https://releases.ubuntu.com/focal/ubuntu-20.04.6-live-server-amd64.iso"
+                else:
+                    iso_url = f"https://releases.ubuntu.com/ubuntu-{version}-live-server-amd64.iso"
+
+                target_path = f"/srv/http/ubuntu-{version}/ubuntu-{version}-live-server-amd64.iso"
+
+                suggestions += f"   📎 URL: {iso_url}\n"
+                suggestions += f"   📁 Target: {target_path}\n"
+                suggestions += f"   📦 Size: ~2.5GB\n"
+                suggestions += f"   ⚡ Command: `wget {iso_url} -O {target_path}`\n\n"
+
+            suggestions += "💡 **Benefits of having ISO files:**\n"
+            suggestions += "   • 💿 Enable Live Boot mode (test without installing)\n"
+            suggestions += "   • 🚀 Faster installation (no internet download)\n"
+            suggestions += "   • 🔒 Offline installation capability\n"
+            suggestions += "   • 🎯 Complete Ubuntu experience\n"
+
+            return suggestions
+
+        except Exception as e:
+            return f"❌ Suggestion generation failed: {str(e)}"
+
 
 def build_gradio_ui():
     """Build the main Gradio interface with enhanced Ubuntu management"""
@@ -776,19 +953,24 @@ def build_gradio_ui():
                     )
 
             # =========================
-            # iPXE MENU TAB
+            # iPXE MENU TAB - ENHANCED
             # =========================
             with gr.Tab("📋 iPXE Menu", elem_id="ipxe-tab"):
-                gr.Markdown("## 📋 iPXE Boot Menu Configuration")
+                gr.Markdown("## 📋 Enhanced iPXE Boot Menu Configuration")
 
                 with gr.Row():
                     with gr.Column():
-                        gr.Markdown("### Template Selection")
-                        template_choice = gr.Dropdown(
-                            choices=["ubuntu", "diagnostic", "multi_os"],
-                            value="ubuntu",
-                            label="Menu Template"
+                        gr.Markdown("### Smart Menu Generation")
+
+                        menu_type = gr.Dropdown(
+                            choices=[
+                                ("Multi-Mode Menu (All Options)", "multi"),
+                                ("Quick Menu (Netboot Only)", "quick")
+                            ],
+                            value="multi",
+                            label="Menu Type"
                         )
+
                         ipxe_server_ip = gr.Textbox(
                             value="192.168.1.10",
                             label="PXE Server IP"
@@ -800,27 +982,71 @@ def build_gradio_ui():
                         )
 
                         with gr.Row():
-                            create_template_btn = gr.Button("🎨 Create from Template", variant="primary")
-                            validate_btn = gr.Button("✅ Validate Script", variant="secondary")
-                            save_ipxe_btn = gr.Button("💾 Save Menu", variant="primary")
+                            create_smart_btn = gr.Button("🎨 Create Smart Menu", variant="primary")
+                            analyze_btn = gr.Button("🔍 Analyze Ubuntu Files", variant="secondary")
+                            suggest_iso_btn = gr.Button("💿 ISO Suggestions", variant="secondary")
 
-                ipxe_status = gr.Textbox(
-                    label="Status",
-                    lines=2,
-                    interactive=False
-                )
+                # Status and output areas
+                with gr.Row():
+                    with gr.Column():
+                        ipxe_status = gr.Textbox(
+                            label="Menu Status",
+                            lines=8,
+                            interactive=False
+                        )
 
+                    with gr.Column():
+                        ubuntu_analysis = gr.Textbox(
+                            label="Ubuntu Analysis",
+                            lines=8,
+                            interactive=False
+                        )
+
+                # iPXE script output
                 ipxe_script_output = gr.Code(
-                    label="iPXE Boot Script",
+                    label="Generated iPXE Boot Script",
                     language="shell",
-                    lines=20,
+                    lines=25,
                     interactive=True
                 )
 
-                create_template_btn.click(
-                    fn=ui.create_ipxe_menu_from_template,
-                    inputs=[template_choice, ipxe_server_ip, ipxe_port],
+                with gr.Row():
+                    validate_btn = gr.Button("✅ Validate Script", variant="secondary")
+                    save_ipxe_btn = gr.Button("💾 Save Menu", variant="primary")
+
+                # Original template section for backward compatibility
+                with gr.Accordion("🎨 Classic Templates", open=False):
+                    gr.Markdown("### Original Template Selection")
+
+                    template_choice = gr.Dropdown(
+                        choices=["ubuntu", "diagnostic", "multi_os"],
+                        value="ubuntu",
+                        label="Classic Template"
+                    )
+
+                    create_template_btn = gr.Button("🎨 Create from Classic Template")
+
+                    create_template_btn.click(
+                        fn=ui.create_ipxe_menu_from_template,
+                        inputs=[template_choice, ipxe_server_ip, ipxe_port],
+                        outputs=[ipxe_status, ipxe_script_output]
+                    )
+
+                # Event handlers for new buttons
+                create_smart_btn.click(
+                    fn=ui.create_smart_ubuntu_menu,
+                    inputs=[menu_type, ipxe_server_ip, ipxe_port],
                     outputs=[ipxe_status, ipxe_script_output]
+                )
+
+                analyze_btn.click(
+                    fn=ui.get_ubuntu_capabilities_status,
+                    outputs=ubuntu_analysis
+                )
+
+                suggest_iso_btn.click(
+                    fn=ui.create_ubuntu_iso_download_suggestions,
+                    outputs=ubuntu_analysis
                 )
 
                 validate_btn.click(
@@ -835,6 +1061,7 @@ def build_gradio_ui():
                     outputs=ipxe_status
                 )
 
+                # Keep existing custom entry section
                 with gr.Accordion("➕ Add Custom Entry", open=False):
                     gr.Markdown("### Add Custom Boot Entry")
                     with gr.Row():
@@ -856,6 +1083,40 @@ def build_gradio_ui():
                                 entry_initrd, entry_cmdline, entry_description],
                         outputs=ipxe_script_output
                     )
+
+                # Sample menu preview
+                with gr.Accordion("📋 Sample Multi-Mode Menu", open=False):
+                    gr.Markdown("""
+                    ### Example of Generated Smart Menu:
+
+                    ```
+                    Ubuntu Multi-Mode PXE Boot
+                    ════════════════════════════════════════════════
+                    Ubuntu Installation Options
+                    ── Ubuntu 24.04 LTS ──
+                    🌐 Ubuntu 24.04 - Network Install
+                    💿 Ubuntu 24.04 - Live Boot         (if ISO available)
+                    ⚡ Ubuntu 24.04 - Auto Install      (if preseed available)
+                    🔧 Ubuntu 24.04 - Rescue Mode
+
+                    ── Ubuntu 22.04 LTS ──  
+                    🌐 Ubuntu 22.04 - Network Install
+                    🔧 Ubuntu 22.04 - Rescue Mode
+
+                    System Tools
+                    🛠️ Memory Test (Memtest86+)
+
+                    🖥️  Drop to iPXE shell
+                    🔄 Reboot computer
+                    ❌ Exit to BIOS
+                    ```
+
+                    **Boot Mode Indicators:**
+                    - 🌐 Network Install: Downloads from Ubuntu repositories (requires internet)
+                    - 💿 Live Boot: Boots from local ISO file (requires ISO)
+                    - ⚡ Auto Install: Uses preseed configuration (requires preseed.cfg)
+                    - 🔧 Rescue Mode: Recovery and repair tools (always available)
+                    """)
 
             # =========================
             # UBUNTU DOWNLOAD TAB - ENHANCED
