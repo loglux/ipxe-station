@@ -112,21 +112,64 @@ def build_gradio_ui():
             return f"❌ Error downloading iPXE files: {str(e)}"
 
     def download_ubuntu_files():
-        errors = []
+        """Download Ubuntu 24.04.2 LTS files"""
+        try:
+            http_dir = Path("/srv/http/ubuntu")
+            http_dir.mkdir(parents=True, exist_ok=True)
 
-        # Попытка скачать kernel
-        if not download_kernel():
-            errors.append("❌ Failed to download Kernel")
+            status = "🔄 Downloading Ubuntu 24.04.2 LTS files...\n"
 
-        # Попытка скачать initrd
-        if not download_initrd():
-            errors.append("❌ Failed to download Initial RAM disk")
+            # Ubuntu URLs (network installer)
+            base_url = "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64"
+            kernel_url = f"{base_url}/linux"
+            initrd_url = f"{base_url}/initrd.gz"
 
-        # ПРОВЕРЯЕМ РЕЗУЛЬТАТ:
-        if errors:
-            return "\n".join(errors) + "\n❌ Ubuntu download failed!"
-        else:
-            return "🎉 Ubuntu 24.04.2 LTS files downloaded!"
+            errors = []
+
+            # Download kernel
+            status += "📥 Downloading Kernel...\n"
+            try:
+                response = requests.get(kernel_url, timeout=60)
+                if response.status_code == 200:
+                    with open(http_dir / "vmlinuz", "wb") as f:
+                        f.write(response.content)
+                    status += "✅ Kernel downloaded successfully\n"
+                else:
+                    status += "❌ Failed to download Kernel\n"
+                    errors.append("kernel")
+            except Exception as e:
+                status += f"❌ Failed to download Kernel: {str(e)}\n"
+                errors.append("kernel")
+
+            # Download initrd
+            status += "📥 Downloading Initial RAM disk...\n"
+            try:
+                response = requests.get(initrd_url, timeout=60)
+                if response.status_code == 200:
+                    with open(http_dir / "initrd", "wb") as f:
+                        f.write(response.content)
+                    status += "✅ Initial RAM disk downloaded successfully\n"
+                else:
+                    status += "❌ Failed to download Initial RAM disk\n"
+                    errors.append("initrd")
+            except Exception as e:
+                status += f"❌ Failed to download Initial RAM disk: {str(e)}\n"
+                errors.append("initrd")
+
+            # Create preseed file
+            preseed_content = """# Ubuntu Preseed Configuration
+    d-i debian-installer/locale string en_US
+    d-i keyboard-configuration/xkb-keymap select us
+    d-i netcfg/choose_interface select auto
+    d-i mirror/country string manual
+    d-i mirror/http/hostname string archive.ubuntu.com
+    d-i mirror/http/directory string /ubuntu
+    d-i mirror/http/proxy string
+    """
+
+            with open(http_dir / "preseed.cfg", "w") as f:
+                f.write(preseed_content)
+            status += "✅ Preseed configuration created\
 
     def create_ipxe_menu():
         """Create iPXE boot menu"""
