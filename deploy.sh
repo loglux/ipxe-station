@@ -226,16 +226,21 @@ show_results() {
 
 
 # Main deployment function
+# Main deployment function
 deploy() {
     print_header
 
     # Prerequisites checks
     check_docker
     check_requirements
+
+    # ⚡ CLEANUP ПЕРВЫМ ДЕЛОМ - до проверки портов!
+    cleanup_existing
+
+    # Теперь проверяем порты (после освобождения)
     check_ports
 
-    # Cleanup and deploy
-    cleanup_existing
+    # Deploy
     build_image
     run_container
 
