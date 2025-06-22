@@ -635,7 +635,7 @@ def build_gradio_ui():
 
                 dhcp_config_output = gr.Code(
                     label="Generated DHCP Configuration",
-                    language="bash",
+                    language="shell",
                     lines=15,
                     interactive=False
                 )
@@ -709,7 +709,7 @@ def build_gradio_ui():
 
                 ipxe_script_output = gr.Code(
                     label="iPXE Boot Script",
-                    language="bash",
+                    language="shell",
                     lines=20,
                     interactive=True
                 )
