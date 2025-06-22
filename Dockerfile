@@ -28,6 +28,5 @@ RUN cd /srv/tftp && \
 # Expose ports
 EXPOSE 69/udp 8000 9005
 
-# Start services
-CMD service tftpd-hpa start && \
-    python main.py
+# Start services - JSON формат для корректной обработки сигналов
+CMD ["sh", "-c", "service tftpd-hpa start && python main.py"]
