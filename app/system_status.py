@@ -428,7 +428,7 @@ class PXEServiceMonitor:
             # Try to test Gradio endpoint specifically
             try:
                 import requests
-                response = requests.get(f"http://localhost:{port}/gradio", timeout=2)
+                response = requests.get(f"http://localhost:{port}/pxe-station", timeout=2)
                 if response.status_code in [200, 302]:  # 302 for redirects
                     service.status = ServiceStatus.RUNNING
                     service.error_message = "Gradio UI accessible"

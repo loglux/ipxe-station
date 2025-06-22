@@ -266,7 +266,7 @@ class SystemTester:
         results.append(http_result)
 
         # Test Gradio UI - use correct internal port
-        gradio_result = self.http_tester.test_endpoint("http://localhost:8000/gradio")
+        gradio_result = self.http_tester.test_endpoint("http://localhost:8000/pxe-station")
         if "OK" in gradio_result:
             results.append("✅ Gradio UI: Running (accessible via HTTP)")
         else:

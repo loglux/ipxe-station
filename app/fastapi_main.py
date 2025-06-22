@@ -18,10 +18,10 @@ app = FastAPI(
 @app.get("/", include_in_schema=False)
 def root():
     # Redirect root URL to the Gradio interface
-    return RedirectResponse("/gradio")
+    return RedirectResponse("/pxe-station")
 
 # Mount Gradio UI at /gradio
-app = gr.mount_gradio_app(app, demo, path="/gradio")
+app = gr.mount_gradio_app(app, demo, path="/pxe-station")
 
 @app.get("/api/ping")
 def ping():
@@ -30,6 +30,6 @@ def ping():
 if __name__ == "__main__":
     import uvicorn
     print("🚀 iPXE Station (FastAPI + Gradio)")
-    print("🌐 UI: http://localhost:8000/gradio")
+    print("🌐 UI: http://localhost:8000/pxe-station")
     print("📄 API docs: http://localhost:8000/api/docs")
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -32,7 +32,7 @@ async def serve_tftp(filename: str):
 @app.get("/")
 async def root():
     """Redirect to Gradio UI"""
-    return RedirectResponse(url="/gradio")
+    return RedirectResponse(url="/pxe-station")
 
 @app.get("/status")
 async def status():
@@ -47,9 +47,9 @@ async def status():
 print("Creating Gradio UI...")
 gradio_app = build_gradio_ui()
 
-# Mount Gradio at /gradio
+# Mount Gradio at /pxe-station
 print("Mounting Gradio app...")
-app = gr.mount_gradio_app(app, gradio_app, path="/gradio")
+app = gr.mount_gradio_app(app, gradio_app, path="/pxe-station")
 
 if __name__ == "__main__":
     import uvicorn
