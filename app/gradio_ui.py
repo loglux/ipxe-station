@@ -319,7 +319,7 @@ class PXEBootStationUI:
                             title=f"Ubuntu {version} LTS",
                             kernel=f"ubuntu-{version}/vmlinuz",
                             initrd=f"ubuntu-{version}/initrd",
-                            cmdline=f"ip=dhcp url=http://{server_ip}:{port}/ubuntu-{version}/preseed.cfg",
+                            cmdline=f"ip=dhcp url=http://{server_ip}:{port}/http/ubuntu-{version}/preseed.cfg",
                             description=f"Ubuntu {version} automated installation",
                             order=i + 1
                         )

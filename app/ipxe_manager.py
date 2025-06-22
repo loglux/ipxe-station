@@ -96,7 +96,7 @@ class iPXEValidator:
                 return False, f"File not found: {kernel}"
         else:
             # Relative path - assume it's served via HTTP
-            full_url = f"http://{server_ip}:{port}/{kernel.lstrip('/')}"
+            full_url = f"http://{server_ip}:{port}/http/{kernel.lstrip('/')}"
             return True, f"Will be served as: {full_url}"
 
     @staticmethod
@@ -206,12 +206,12 @@ class iPXEGenerator:
             ""
         ])
 
-        # Set default and timeout
+        # Set default and timeout - FIXED f-string issue
         if menu.default_entry:
             script_lines.append(
-                f"choose --default {menu.default_entry} --timeout {menu.timeout} target && goto ${target}")
+                f"choose --default {menu.default_entry} --timeout {menu.timeout} target && goto ${{target}}")
         else:
-            script_lines.append(f"choose --timeout {menu.timeout} target && goto ${target}")
+            script_lines.append(f"choose --timeout {menu.timeout} target && goto ${{target}}")
 
         script_lines.append("")
 
@@ -229,11 +229,11 @@ class iPXEGenerator:
             if entry.description:
                 script_lines.append(f"echo {entry.description}")
 
-            # Determine kernel URL
+            # Determine kernel URL - FIXED to include /http/ path
             kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
             script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
 
-            # Add initrd if provided
+            # Add initrd if provided - FIXED to include /http/ path
             if entry.initrd:
                 initrd_url = iPXEGenerator._resolve_kernel_url(entry.initrd, menu.server_ip, menu.http_port)
                 script_lines.append(f"initrd {initrd_url}")
@@ -276,15 +276,15 @@ class iPXEGenerator:
 
     @staticmethod
     def _resolve_kernel_url(path: str, server_ip: str, port: int) -> str:
-        """Resolve kernel path to full URL"""
+        """Resolve kernel path to full URL - FIXED to include /http/ path"""
         if path.startswith(('http://', 'https://', 'tftp://')):
             return path
         elif path.startswith('/'):
-            # Absolute path - convert to HTTP URL
-            return f"http://{server_ip}:{port}{path}"
+            # Absolute path - convert to HTTP URL with /http/ prefix
+            return f"http://{server_ip}:{port}/http{path}"
         else:
-            # Relative path - convert to HTTP URL
-            return f"http://{server_ip}:{port}/{path.lstrip('/')}"
+            # Relative path - convert to HTTP URL with /http/ prefix
+            return f"http://{server_ip}:{port}/http/{path.lstrip('/')}"
 
     @staticmethod
     def generate_grub_config(menu: iPXEMenu) -> str:
@@ -330,7 +330,7 @@ class iPXETemplateManager:
                 title="Install Ubuntu 22.04 LTS",
                 kernel="ubuntu/vmlinuz",
                 initrd="ubuntu/initrd",
-                cmdline="ip=dhcp url=http://{server_ip}:{port}/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/cloud-init/",
+                cmdline="ip=dhcp url=http://{server_ip}:{port}/http/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/http/cloud-init/",
                 description="Automated Ubuntu Server installation",
                 order=1
             ),
@@ -429,7 +429,7 @@ class iPXETemplateManager:
                 title="CentOS Stream 9",
                 kernel="centos/vmlinuz",
                 initrd="centos/initrd.img",
-                cmdline="ip=dhcp inst.repo=http://{server_ip}:{port}/centos/",
+                cmdline="ip=dhcp inst.repo=http://{server_ip}:{port}/http/centos/",
                 order=3
             ),
             iPXEEntry(
