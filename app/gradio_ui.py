@@ -238,8 +238,34 @@ goto menu
             return f"❌ Error saving iPXE menu: {str(e)}"
 
     def test_http_endpoints():
-        """Test HTTP endpoints"""
+        """Test HTTP endpoints and TFTP server"""
         results = []
+
+        # Test TFTP server
+        try:
+            import subprocess
+            result = subprocess.run(['systemctl', 'is-active', 'tftpd-hpa'],
+                                    capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and 'active' in result.stdout:
+                results.append("✅ TFTP server (tftpd-hpa): Running")
+            else:
+                results.append("❌ TFTP server (tftpd-hpa): Not running")
+        except Exception as e:
+            results.append(f"❓ TFTP server status: {str(e)}")
+
+        # Check TFTP port
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('localhost', 69))
+            if result == 0:
+                results.append("✅ TFTP port 69/UDP: Open")
+            else:
+                results.append("❌ TFTP port 69/UDP: Closed")
+            sock.close()
+        except Exception as e:
+            results.append(f"❓ TFTP port check: {str(e)}")
 
         # Test main server
         try:
@@ -296,12 +322,14 @@ goto menu
         ipxe_uefi = tftp_dir / "ipxe.efi"
 
         if ipxe_bios.exists():
-            results.append("✅ iPXE BIOS: Found")
+            size_kb = ipxe_bios.stat().st_size / 1024
+            results.append(f"✅ iPXE BIOS: Found ({size_kb:.1f} KB)")
         else:
             results.append("❌ iPXE BIOS: Missing")
 
         if ipxe_uefi.exists():
-            results.append("✅ iPXE UEFI: Found")
+            size_kb = ipxe_uefi.stat().st_size / 1024
+            results.append(f"✅ iPXE UEFI: Found ({size_kb:.1f} KB)")
         else:
             results.append("❌ iPXE UEFI: Missing")
 
