@@ -21,7 +21,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/ipxe-station.git
+git clone https://github.com/loglux/ipxe-station.git
 cd ipxe-station
 docker build -t ipxe-station .
 docker run -it -p 7860:7860 -p 8000:8000 -p 69:69/udp -v $PWD/srv:/srv ipxe-station
