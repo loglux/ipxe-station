@@ -1,9 +1,0 @@
-#!ipxe
-
-# iPXE menu will be created via Web UI
-# Go to "Ubuntu Setup" tab and click "Create iPXE Menu"
-
-echo iPXE menu not configured yet
-echo Please use the Web UI to set up the menu
-sleep 5
-exit
