@@ -656,7 +656,7 @@ class iPXETemplateManager:
         # Set default to first netboot option
         default_entry = None
         for entry in entries:
-            if entry.boot_mode == "netboot":
+            if entry.entry_type == "boot" and entry.boot_mode == "netboot":
                 default_entry = entry.name
                 break
 
