@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  ipxe-station:
+    build: .
+    image: ipxe-station:latest
+    container_name: ipxe-station
+    restart: unless-stopped
+
+    ports:
+      - "9005:8000"     # Web interface
+      - "69:69/udp"     # TFTP
+
+    volumes:
+      # Persistent storage for all PXE data
+      - ./data/srv/tftp:/srv/tftp:rw    # TFTP boot files
+      - ./data/srv/http:/srv/http:rw    # HTTP boot files (Ubuntu versions)
+      - ./data/srv/ipxe:/srv/ipxe:rw    # iPXE scripts
+      - ./data/srv/dhcp:/srv/dhcp:rw    # DHCP configurations
+
+    environment:
+      # Application settings
+      - PYTHONUNBUFFERED=1
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=8000
+
+      # PXE settings
+      - PXE_SERVER_IP=192.168.1.10
+      - HTTP_PORT=8000
+      - TFTP_PORT=69
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - ipxe-network
+
+    labels:
+      - "com.ipxe-station.description=PXE Boot Station with multi-version Ubuntu support"
+      - "com.ipxe-station.version=2.0"
+
+networks:
+  ipxe-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Named volumes for backup/restore operations
+volumes:
+  ipxe-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
