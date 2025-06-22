@@ -105,7 +105,7 @@ cleanup_existing() {
 check_requirements() {
     print_info "Checking project requirements..."
 
-    local required_files=("Dockerfile" "requirements.txt" "app/fastapi_main.py")
+    local required_files=("Dockerfile" "requirements.txt" "app/main.py" "app/gradio_ui.py")
 
     for file in "${required_files[@]}"; do
         if [ ! -f "$file" ]; then
@@ -116,6 +116,7 @@ check_requirements() {
 
     print_success "All required files found"
 }
+
 
 # Check port availability
 check_ports() {
@@ -176,11 +177,12 @@ wait_for_service() {
 
     while [ $attempt -le $max_attempts ]; do
         if command_exists curl; then
-            if curl -s http://localhost:${EXTERNAL_PORT}/api/ping >/dev/null 2>&1; then
+            # Проверяем главную страницу вместо /api/ping
+            if curl -s http://localhost:${EXTERNAL_PORT}/ >/dev/null 2>&1; then
                 break
             fi
         elif command_exists wget; then
-            if wget -q --spider http://localhost:${EXTERNAL_PORT}/api/ping >/dev/null 2>&1; then
+            if wget -q --spider http://localhost:${EXTERNAL_PORT}/ >/dev/null 2>&1; then
                 break
             fi
         else
@@ -200,14 +202,15 @@ wait_for_service() {
     done
 }
 
+
 # Show deployment results
 show_results() {
     print_success "iPXE Station deployed successfully!"
     echo
     echo "🌐 Application URLs:"
+    echo "  • Main page:  http://localhost:${EXTERNAL_PORT}/"
     echo "  • Web UI:     http://localhost:${EXTERNAL_PORT}/gradio"
-    echo "  • API docs:   http://localhost:${EXTERNAL_PORT}/api/docs"
-    echo "  • API ping:   http://localhost:${EXTERNAL_PORT}/api/ping"
+    echo "  • Status:     http://localhost:${EXTERNAL_PORT}/status"
     echo "  • TFTP:       localhost:${TFTP_PORT}/UDP"
     echo
     echo "📋 Container management:"
@@ -220,6 +223,7 @@ show_results() {
     print_info "Container status:"
     docker ps --filter "name=${CONTAINER_NAME}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 }
+
 
 # Main deployment function
 deploy() {
