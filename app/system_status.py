@@ -374,7 +374,7 @@ class PXEServiceMonitor:
                 service.uptime = self.service_checker.get_process_uptime(pid)
             else:
                 service.status = ServiceStatus.RUNNING
-                service.error_message = "Port listening but process not found"
+                service.error_message = "TFTP service active"
         else:
             service.status = ServiceStatus.STOPPED
             service.error_message = "Port 69/UDP not listening"
@@ -382,7 +382,7 @@ class PXEServiceMonitor:
         return service
 
     def check_http_service(self, port: int = 8000) -> ServiceInfo:
-        """Check HTTP service status"""
+        """Check HTTP service status (FastAPI + Gradio)"""
         service = ServiceInfo(
             name="HTTP Server",
             status=ServiceStatus.UNKNOWN,
@@ -401,17 +401,18 @@ class PXEServiceMonitor:
                 service.status = ServiceStatus.RUNNING
                 service.pid = pid
                 service.uptime = self.service_checker.get_process_uptime(pid)
+                service.error_message = "FastAPI + Gradio running"
             else:
                 service.status = ServiceStatus.RUNNING
-                service.error_message = "Port listening but process not found"
+                service.error_message = "HTTP service active"
         else:
             service.status = ServiceStatus.STOPPED
             service.error_message = f"Port {port}/TCP not listening"
 
         return service
 
-    def check_gradio_service(self, port: int = 9005) -> ServiceInfo:
-        """Check Gradio UI service status"""
+    def check_gradio_service(self, port: int = 8000) -> ServiceInfo:
+        """Check Gradio UI service status (part of FastAPI)"""
         service = ServiceInfo(
             name="Gradio UI",
             status=ServiceStatus.UNKNOWN,
@@ -420,15 +421,30 @@ class PXEServiceMonitor:
             description="Gradio web interface"
         )
 
-        # Check if port is listening
-        is_listening = self.service_checker.check_port_listening(port, "tcp")
+        # Check if HTTP service is running first
+        http_listening = self.service_checker.check_port_listening(port, "tcp")
 
-        if is_listening:
-            service.status = ServiceStatus.RUNNING
-            service.error_message = "Currently running (you're using it now!)"
+        if http_listening:
+            # Try to test Gradio endpoint specifically
+            try:
+                import requests
+                response = requests.get(f"http://localhost:{port}/gradio", timeout=2)
+                if response.status_code in [200, 302]:  # 302 for redirects
+                    service.status = ServiceStatus.RUNNING
+                    service.error_message = "Gradio UI accessible"
+                else:
+                    service.status = ServiceStatus.ERROR
+                    service.error_message = f"Gradio endpoint returned HTTP {response.status_code}"
+            except ImportError:
+                # Fallback if requests not available
+                service.status = ServiceStatus.RUNNING
+                service.error_message = "HTTP service running (Gradio likely available)"
+            except Exception as e:
+                service.status = ServiceStatus.ERROR
+                service.error_message = f"Gradio endpoint test failed: {str(e)}"
         else:
             service.status = ServiceStatus.STOPPED
-            service.error_message = f"Port {port}/TCP not listening"
+            service.error_message = f"HTTP service not running on port {port}"
 
         return service
 
@@ -476,7 +492,7 @@ class FileSystemMonitor:
 
     @staticmethod
     def check_pxe_files() -> Dict[str, Dict[str, Any]]:
-        """Check status of PXE boot files"""
+        """Check status of PXE boot files with support for versioned Ubuntu structure"""
         # Cross-platform file paths
         if os.name == 'nt':  # Windows
             base_tftp = "C:/srv/tftp"
@@ -487,41 +503,132 @@ class FileSystemMonitor:
             base_http = "/srv/http"
             base_ipxe = "/srv/ipxe"
 
-        files_to_check = {
-            "iPXE BIOS": f"{base_tftp}/undionly.kpxe",
-            "iPXE UEFI": f"{base_tftp}/ipxe.efi",
-            "iPXE Menu": f"{base_ipxe}/boot.ipxe",
-            "Ubuntu Kernel": f"{base_http}/ubuntu/vmlinuz",
-            "Ubuntu Initrd": f"{base_http}/ubuntu/initrd",
-            "Ubuntu ISO": f"{base_http}/ubuntu/ubuntu-22.04-live-server-amd64.iso"
-        }
-
         file_status = {}
 
-        for name, path in files_to_check.items():
-            file_path = Path(path)
-            status = {
-                "path": path,
-                "exists": file_path.exists(),
+        # Check iPXE boot files
+        ipxe_files = {
+            "iPXE BIOS": f"{base_tftp}/undionly.kpxe",
+            "iPXE UEFI": f"{base_tftp}/ipxe.efi",
+            "iPXE Menu": f"{base_ipxe}/boot.ipxe"
+        }
+
+        # Process iPXE files
+        for name, path in ipxe_files.items():
+            file_status[name] = FileSystemMonitor._get_file_info(path)
+
+        # Check Ubuntu files - scan for versioned directories
+        ubuntu_base = Path(base_http)
+        ubuntu_found = False
+
+        if ubuntu_base.exists():
+            # Look for ubuntu-* directories
+            ubuntu_dirs = [d for d in ubuntu_base.iterdir()
+                           if d.is_dir() and d.name.startswith('ubuntu-')]
+
+            if ubuntu_dirs:
+                # Found versioned Ubuntu directories
+                latest_version = None
+                latest_kernel = None
+                latest_initrd = None
+
+                for ubuntu_dir in sorted(ubuntu_dirs, reverse=True):  # Sort to get latest first
+                    kernel_path = ubuntu_dir / "vmlinuz"
+                    initrd_path = ubuntu_dir / "initrd"
+
+                    if kernel_path.exists() and initrd_path.exists():
+                        if latest_version is None:  # First (latest) valid version found
+                            latest_version = ubuntu_dir.name
+                            latest_kernel = str(kernel_path)
+                            latest_initrd = str(initrd_path)
+                            ubuntu_found = True
+
+                        # Add version-specific entries
+                        version = ubuntu_dir.name.replace('ubuntu-', '')
+                        file_status[f"Ubuntu {version} Kernel"] = FileSystemMonitor._get_file_info(str(kernel_path))
+                        file_status[f"Ubuntu {version} Initrd"] = FileSystemMonitor._get_file_info(str(initrd_path))
+
+                # Add latest as primary entries for compatibility
+                if ubuntu_found:
+                    file_status["Ubuntu Kernel"] = FileSystemMonitor._get_file_info(latest_kernel)
+                    file_status["Ubuntu Initrd"] = FileSystemMonitor._get_file_info(latest_initrd)
+            else:
+                # Fallback to old single ubuntu directory
+                old_ubuntu_dir = ubuntu_base / "ubuntu"
+                if old_ubuntu_dir.exists():
+                    kernel_path = old_ubuntu_dir / "vmlinuz"
+                    initrd_path = old_ubuntu_dir / "initrd"
+                    file_status["Ubuntu Kernel"] = FileSystemMonitor._get_file_info(str(kernel_path))
+                    file_status["Ubuntu Initrd"] = FileSystemMonitor._get_file_info(str(initrd_path))
+                    ubuntu_found = kernel_path.exists() and initrd_path.exists()
+
+        # If no Ubuntu files found, add missing entries
+        if not ubuntu_found:
+            file_status["Ubuntu Kernel"] = {
+                "path": f"{base_http}/ubuntu*/vmlinuz",
+                "exists": False,
+                "size": 0,
+                "size_human": "0 B",
+                "modified": None,
+                "readable": False
+            }
+            file_status["Ubuntu Initrd"] = {
+                "path": f"{base_http}/ubuntu*/initrd",
+                "exists": False,
                 "size": 0,
                 "size_human": "0 B",
                 "modified": None,
                 "readable": False
             }
 
-            if file_path.exists():
-                try:
-                    stat = file_path.stat()
-                    status["size"] = stat.st_size
-                    status["size_human"] = FileSystemMonitor._format_size(stat.st_size)
-                    status["modified"] = datetime.fromtimestamp(stat.st_mtime)
-                    status["readable"] = os.access(path, os.R_OK)
-                except Exception:
-                    pass
+        # Check for Ubuntu ISO (optional)
+        iso_found = False
+        if ubuntu_base.exists():
+            iso_patterns = ["*.iso"]
+            for pattern in iso_patterns:
+                iso_files = list(ubuntu_base.rglob(pattern))
+                if iso_files:
+                    # Use first found ISO
+                    iso_file = iso_files[0]
+                    file_status["Ubuntu ISO"] = FileSystemMonitor._get_file_info(str(iso_file))
+                    iso_found = True
+                    break
 
-            file_status[name] = status
+        if not iso_found:
+            file_status["Ubuntu ISO"] = {
+                "path": f"{base_http}/ubuntu*/ubuntu-*.iso",
+                "exists": False,
+                "size": 0,
+                "size_human": "0 B",
+                "modified": None,
+                "readable": False
+            }
 
         return file_status
+
+    @staticmethod
+    def _get_file_info(path: str) -> Dict[str, Any]:
+        """Get file information for a given path"""
+        file_path = Path(path)
+        status = {
+            "path": path,
+            "exists": file_path.exists(),
+            "size": 0,
+            "size_human": "0 B",
+            "modified": None,
+            "readable": False
+        }
+
+        if file_path.exists():
+            try:
+                stat = file_path.stat()
+                status["size"] = stat.st_size
+                status["size_human"] = FileSystemMonitor._format_size(stat.st_size)
+                status["modified"] = datetime.fromtimestamp(stat.st_mtime)
+                status["readable"] = os.access(path, os.R_OK)
+            except Exception:
+                pass
+
+        return status
 
     @staticmethod
     def _format_size(size_bytes: int) -> str:
@@ -551,11 +658,11 @@ class SystemStatusManager:
         # System information
         system_info = self.system_monitor.get_system_info()
 
-        # Service status
+        # Service status - updated to use correct ports
         services = {
             "tftp": self.pxe_monitor.check_tftp_service(),
-            "http": self.pxe_monitor.check_http_service(),
-            "gradio": self.pxe_monitor.check_gradio_service(),
+            "http": self.pxe_monitor.check_http_service(8000),  # Fixed: internal container port
+            "gradio": self.pxe_monitor.check_gradio_service(8000),  # Fixed: same as HTTP
             "dhcp": self.pxe_monitor.check_dhcp_service()
         }
 
@@ -565,7 +672,7 @@ class SystemStatusManager:
         # Network interfaces
         network_interfaces = self.system_monitor.get_network_interfaces()
 
-        # PXE files status
+        # PXE files status - now supports versioned Ubuntu
         pxe_files = self.filesystem_monitor.check_pxe_files()
 
         # Overall health score
@@ -640,11 +747,26 @@ class SystemStatusManager:
             elif service.status == ServiceStatus.UNKNOWN:
                 score -= 10
 
-        # File penalties
-        critical_files = ["iPXE BIOS", "iPXE Menu", "Ubuntu Kernel", "Ubuntu Initrd"]
+        # File penalties - check for ANY Ubuntu version
+        critical_files = ["iPXE BIOS", "iPXE Menu"]
         for file_name in critical_files:
             if file_name in pxe_files and not pxe_files[file_name]["exists"]:
                 score -= 15
+
+        # Check if any Ubuntu kernel/initrd exists (any version)
+        ubuntu_kernel_exists = any(
+            "Ubuntu" in name and "Kernel" in name and pxe_files[name]["exists"]
+            for name in pxe_files
+        )
+        ubuntu_initrd_exists = any(
+            "Ubuntu" in name and "Initrd" in name and pxe_files[name]["exists"]
+            for name in pxe_files
+        )
+
+        if not ubuntu_kernel_exists:
+            score -= 10
+        if not ubuntu_initrd_exists:
+            score -= 10
 
         # System resource penalties
         if system_info.memory_percent > 90:
@@ -672,16 +794,31 @@ class SystemStatusManager:
         if services["http"].status != ServiceStatus.RUNNING:
             recommendations.append("🔧 Start HTTP server for serving boot files")
 
+        if services["gradio"].status != ServiceStatus.RUNNING:
+            recommendations.append("🔧 Check Gradio web interface accessibility")
+
         if services["dhcp"].status != ServiceStatus.RUNNING:
             recommendations.append("⚠️ Configure DHCP server with PXE options")
 
-        # File recommendations
-        critical_files = ["iPXE BIOS", "iPXE Menu", "Ubuntu Kernel", "Ubuntu Initrd"]
+        # File recommendations - check for missing critical files
+        critical_files = ["iPXE BIOS", "iPXE Menu"]
         missing_files = [name for name in critical_files
                          if name in pxe_files and not pxe_files[name]["exists"]]
 
         if missing_files:
             recommendations.append(f"📁 Install missing files: {', '.join(missing_files)}")
+
+        # Check Ubuntu files - any version
+        ubuntu_versions_found = [
+            name.replace("Ubuntu ", "").replace(" Kernel", "")
+            for name in pxe_files
+            if "Ubuntu" in name and "Kernel" in name and pxe_files[name]["exists"]
+        ]
+
+        if not ubuntu_versions_found:
+            recommendations.append("🐧 Download Ubuntu boot files (kernel + initrd)")
+        else:
+            recommendations.append(f"✅ Ubuntu versions available: {', '.join(ubuntu_versions_found)}")
 
         # System recommendations
         if system_info.memory_percent > 85:
@@ -691,7 +828,7 @@ class SystemStatusManager:
             recommendations.append("⚡ High CPU usage detected - system may be under load")
 
         # Add positive recommendations
-        if not recommendations:
+        if len([r for r in recommendations if not r.startswith("✅")]) == 0:
             recommendations.append("✅ System is running optimally!")
 
         return recommendations
@@ -771,8 +908,8 @@ def check_services() -> Dict[str, ServiceInfo]:
     monitor = PXEServiceMonitor()
     return {
         "tftp": monitor.check_tftp_service(),
-        "http": monitor.check_http_service(),
-        "gradio": monitor.check_gradio_service(),
+        "http": monitor.check_http_service(8000),  # Fixed port
+        "gradio": monitor.check_gradio_service(8000),  # Fixed port
         "dhcp": monitor.check_dhcp_service()
     }
 
