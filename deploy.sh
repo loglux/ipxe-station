@@ -76,31 +76,29 @@ check_port() {
 }
 
 # Stop and remove existing container
+
+# Stop and remove existing container - ПРИНУДИТЕЛЬНО
 cleanup_existing() {
-    print_info "Checking for existing containers..."
+    print_info "Cleaning up existing containers..."
 
-    if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
-        print_warning "Found existing container: ${CONTAINER_NAME}"
+    # Force stop and remove container if exists (без проверок!)
+    print_info "Force stopping any existing '${CONTAINER_NAME}' container..."
+    docker stop ${CONTAINER_NAME} >/dev/null 2>&1 || true
 
-        # Stop if running
-        if docker ps --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
-            print_info "Stopping running container..."
-            docker stop ${CONTAINER_NAME} >/dev/null 2>&1
-            print_success "Container stopped"
-        fi
+    print_info "Force removing any existing '${CONTAINER_NAME}' container..."
+    docker rm -f ${CONTAINER_NAME} >/dev/null 2>&1 || true
 
-        # Remove container
-        print_info "Removing old container..."
-        docker rm ${CONTAINER_NAME} >/dev/null 2>&1
-        print_success "Container removed"
-    fi
+    print_success "Cleanup completed"
 
-    # Clean up old images (optional)
-    if docker images ${IMAGE_NAME} --format "table {{.Repository}}" | grep -q "^${IMAGE_NAME}$"; then
-        print_info "Removing old image..."
-        docker rmi ${IMAGE_NAME} >/dev/null 2>&1 || true
-        print_success "Old image removed"
-    fi
+    # Remove old image to force rebuild
+    print_info "Removing old Docker image..."
+    docker rmi ${IMAGE_NAME} >/dev/null 2>&1 || true
+    print_success "Old image removed"
+
+    # Clean up unused Docker resources
+    print_info "Cleaning up Docker system..."
+    docker system prune -f >/dev/null 2>&1 || true
+    print_success "Docker cleanup completed"
 }
 
 # Check required files
