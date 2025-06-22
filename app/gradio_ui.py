@@ -1,668 +1,717 @@
+"""
+Gradio Web UI for PXE Boot Station
+Refactored to use modular architecture
+"""
+
 import gradio as gr
-import os
-import subprocess
-from pathlib import Path
-import requests
-from ubuntu_downloader import download_ubuntu_netboot, check_ubuntu_files
+import json
+from typing import Dict, List, Tuple, Optional, Any
+
+# Import our new modular components
+from tests import SystemTester, test_http_endpoints as legacy_test_http_endpoints
+from dhcp_config import DHCPConfigManager, DHCPConfig, create_simple_config
+from ipxe_manager import iPXEManager, iPXEMenu, iPXEEntry, iPXETemplateManager
+from system_status import SystemStatusManager, get_system_status
+from ubuntu_downloader import UbuntuDownloader
+from file_utils import FileManager
+
+
+class PXEBootStationUI:
+    """Main UI controller class"""
+
+    def __init__(self):
+        self.system_tester = SystemTester()
+        self.dhcp_manager = DHCPConfigManager()
+        self.ipxe_manager = iPXEManager()
+        self.status_manager = SystemStatusManager()
+        self.ubuntu_downloader = UbuntuDownloader()
+        self.file_manager = FileManager()
+        self.ipxe_templates = iPXETemplateManager()
+
+    # =========================
+    # SYSTEM STATUS TAB
+    # =========================
+
+    def get_system_status_display(self) -> str:
+        """Get formatted system status for display"""
+        try:
+            status = self.status_manager.get_complete_status()
+
+            output = []
+            output.append("🖥️ **SYSTEM STATUS**")
+            output.append("=" * 50)
+
+            # System info
+            sys_info = status['system']
+            output.append(f"🏠 **Hostname:** {sys_info['hostname']}")
+            output.append(f"💻 **Platform:** {sys_info['platform']} ({sys_info['architecture']})")
+            output.append(f"⚡ **CPU:** {sys_info['cpu_count']} cores, {sys_info['cpu_percent']:.1f}% used")
+            output.append(
+                f"🧠 **Memory:** {sys_info['memory_available_gb']:.1f}GB free / {sys_info['memory_total_gb']:.1f}GB total ({sys_info['memory_percent']:.1f}% used)")
+            output.append(f"⏰ **Uptime:** {sys_info['uptime']}")
+            output.append("")
+
+            # Services status
+            output.append("🔧 **SERVICES STATUS**")
+            output.append("-" * 30)
+            for name, service in status['services'].items():
+                status_icon = {
+                    'running': '✅',
+                    'stopped': '❌',
+                    'error': '🔥',
+                    'unknown': '❓'
+                }.get(service['status'], '❓')
+
+                output.append(f"{status_icon} **{service['description']}**")
+                output.append(f"   Status: {service['status'].upper()}")
+                if service['pid']:
+                    output.append(f"   PID: {service['pid']}")
+                if service['port']:
+                    output.append(f"   Port: {service['port']}/{service['protocol'].upper()}")
+                if service['uptime']:
+                    output.append(f"   Uptime: {service['uptime']}")
+                if service['error_message']:
+                    output.append(f"   Info: {service['error_message']}")
+                output.append("")
+
+            # Disk usage
+            output.append("💾 **DISK USAGE**")
+            output.append("-" * 20)
+            for disk in status['disk_usage']:
+                output.append(f"📁 **{disk['path']}**")
+                output.append(f"   Total: {disk['total_gb']:.1f}GB")
+                output.append(f"   Used: {disk['used_gb']:.1f}GB ({disk['percent']:.1f}%)")
+                output.append(f"   Free: {disk['free_gb']:.1f}GB")
+                output.append("")
+
+            # PXE files status
+            output.append("📋 **PXE FILES STATUS**")
+            output.append("-" * 25)
+            for name, file_info in status['pxe_files'].items():
+                status_icon = '✅' if file_info['exists'] else '❌'
+                output.append(f"{status_icon} **{name}**")
+                output.append(f"   Path: {file_info['path']}")
+                if file_info['exists']:
+                    output.append(f"   Size: {file_info['size_human']}")
+                    if file_info['modified']:
+                        output.append(f"   Modified: {file_info['modified'].strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    output.append(f"   Status: Missing")
+                output.append("")
+
+            # Health score and recommendations
+            output.append("🏥 **SYSTEM HEALTH**")
+            output.append("-" * 20)
+            health_score = status['health_score']
+            health_emoji = '🟢' if health_score >= 80 else '🟡' if health_score >= 60 else '🔴'
+            output.append(f"{health_emoji} **Overall Health Score: {health_score}/100**")
+            output.append("")
+
+            output.append("💡 **RECOMMENDATIONS**")
+            output.append("-" * 20)
+            for rec in status['recommendations']:
+                output.append(f"• {rec}")
+
+            return "\n".join(output)
+
+        except Exception as e:
+            return f"❌ Error getting system status: {str(e)}"
+
+    def refresh_system_status(self) -> str:
+        """Refresh system status"""
+        return self.get_system_status_display()
+
+    # =========================
+    # TESTING TAB
+    # =========================
+
+    def run_full_system_test(self) -> str:
+        """Run comprehensive system test"""
+        try:
+            return self.system_tester.run_full_system_test()
+        except Exception as e:
+            return f"❌ Test failed: {str(e)}"
+
+    def test_tftp_connection(self, host: str = "localhost", port: int = 69,
+                             filename: str = "undionly.kpxe", timeout: int = 5) -> str:
+        """Test TFTP connection with custom parameters"""
+        try:
+            return self.system_tester.tftp_tester.test_tftp_connection(host, port, filename, timeout)
+        except Exception as e:
+            return f"❌ TFTP test failed: {str(e)}"
+
+    def test_http_endpoint(self, url: str = "http://localhost:8000/status", timeout: int = 5) -> str:
+        """Test HTTP endpoint"""
+        try:
+            return self.system_tester.http_tester.test_endpoint(url, timeout)
+        except Exception as e:
+            return f"❌ HTTP test failed: {str(e)}"
+
+    def check_file_exists(self, filepath: str) -> str:
+        """Check if file exists"""
+        try:
+            return self.system_tester.file_checker.check_file_exists(filepath)
+        except Exception as e:
+            return f"❌ File check failed: {str(e)}"
+
+    # =========================
+    # DHCP CONFIGURATION TAB
+    # =========================
+
+    def generate_dhcp_config(self, server_ip: str, subnet: str, netmask: str,
+                             router_ip: str, dns_servers: str, config_type: str,
+                             lease_time: int = 86400, domain_name: str = "") -> Tuple[str, str]:
+        """Generate DHCP configuration"""
+        try:
+            # Parse DNS servers
+            dns_list = [dns.strip() for dns in dns_servers.split(",") if dns.strip()]
+
+            # Create config object
+            config = self.dhcp_manager.create_config(
+                server_ip=server_ip,
+                subnet=subnet,
+                netmask=netmask,
+                router_ip=router_ip,
+                dns_servers=dns_list,
+                lease_time=lease_time,
+                domain_name=domain_name if domain_name else None
+            )
+
+            # Validate and generate
+            is_valid, message, config_content = self.dhcp_manager.validate_and_generate(config, config_type)
+
+            return message, config_content if is_valid else ""
+
+        except Exception as e:
+            return f"❌ DHCP config generation failed: {str(e)}", ""
+
+    def save_dhcp_config(self, config_content: str, config_type: str) -> str:
+        """Save DHCP configuration to file"""
+        try:
+            if not config_content:
+                return "❌ No configuration content to save"
+
+            filename_map = {
+                "isc": "/srv/dhcp/dhcpd.conf",
+                "dnsmasq": "/srv/dhcp/dnsmasq.conf",
+                "mikrotik": "/srv/dhcp/mikrotik_commands.txt"
+            }
+
+            filepath = filename_map.get(config_type.lower(), f"/srv/dhcp/{config_type}.conf")
+            is_saved, message = self.dhcp_manager.save_config(config_content, filepath)
+
+            return message
+
+        except Exception as e:
+            return f"❌ Failed to save DHCP config: {str(e)}"
+
+    def create_simple_dhcp_config(self, server_ip: str, network_cidr: str) -> Tuple[str, str]:
+        """Create simple DHCP configuration from CIDR"""
+        try:
+            config = create_simple_config(server_ip, network_cidr)
+            is_valid, message, config_content = self.dhcp_manager.validate_and_generate(config, "isc")
+            return message, config_content if is_valid else ""
+        except Exception as e:
+            return f"❌ Simple config failed: {str(e)}", ""
+
+    # =========================
+    # iPXE MENU TAB
+    # =========================
+
+    def create_ipxe_menu_from_template(self, template_name: str, server_ip: str = "localhost",
+                                       port: int = 8000) -> Tuple[str, str]:
+        """Create iPXE menu from template"""
+        try:
+            menu = self.ipxe_manager.get_template(template_name, server_ip, port)
+            if not menu:
+                return f"❌ Template '{template_name}' not found", ""
+
+            is_valid, message, script_content = self.ipxe_manager.validate_and_generate(menu)
+            return message, script_content if is_valid else ""
+
+        except Exception as e:
+            return f"❌ Template creation failed: {str(e)}", ""
+
+    def save_ipxe_menu(self, script_content: str) -> str:
+        """Save iPXE menu script"""
+        try:
+            if not script_content:
+                return "❌ No script content to save"
+
+            # Save to default location
+            with open("/srv/ipxe/boot.ipxe", "w") as f:
+                f.write(script_content)
+
+            return "✅ iPXE menu saved to /srv/ipxe/boot.ipxe"
+
+        except Exception as e:
+            return f"❌ Failed to save iPXE menu: {str(e)}"
+
+    def add_custom_ipxe_entry(self, menu_script: str, entry_name: str, entry_title: str,
+                              kernel_path: str, initrd_path: str = "", cmdline: str = "",
+                              description: str = "") -> str:
+        """Add custom entry to iPXE menu"""
+        try:
+            # This is a simplified version - in practice you'd parse the existing script
+            # and add the new entry properly
+
+            new_entry_section = f"""
+:{entry_name}
+echo Booting {entry_title}...
+"""
+            if description:
+                new_entry_section += f"echo {description}\n"
+
+            new_entry_section += f"kernel {kernel_path} {cmdline}\n"
+
+            if initrd_path:
+                new_entry_section += f"initrd {initrd_path}\n"
+
+            new_entry_section += """boot
+goto start
+
+"""
+
+            # Add menu item (simplified)
+            menu_item = f"item {entry_name} {entry_title}\n"
+
+            # Insert into script (this is a basic implementation)
+            if "item --gap --" in menu_script:
+                updated_script = menu_script.replace(
+                    "item --gap --\nitem shell",
+                    f"item --gap --\n{menu_item}item shell"
+                )
+                updated_script += new_entry_section
+                return updated_script
+            else:
+                return menu_script + new_entry_section
+
+        except Exception as e:
+            return f"❌ Failed to add entry: {str(e)}"
+
+    def validate_ipxe_script(self, script_content: str) -> str:
+        """Validate iPXE script"""
+        try:
+            if not script_content:
+                return "❌ No script content to validate"
+
+            # Basic validation
+            if not script_content.startswith("#!ipxe"):
+                return "⚠️ Script should start with '#!ipxe'"
+
+            if ":start" not in script_content:
+                return "⚠️ Script should contain ':start' label"
+
+            if "choose" not in script_content:
+                return "⚠️ Script should contain 'choose' command"
+
+            return "✅ iPXE script validation passed"
+
+        except Exception as e:
+            return f"❌ Validation failed: {str(e)}"
+
+    # =========================
+    # UBUNTU DOWNLOAD TAB
+    # =========================
+
+    def download_ubuntu_files(self, version: str = "22.04", progress=gr.Progress()) -> str:
+        """Download Ubuntu files with progress tracking"""
+        try:
+            def progress_callback(current: int, total: int, filename: str):
+                if total > 0:
+                    percent = (current / total) * 100
+                    progress(percent / 100, desc=f"Downloading {filename}")
+
+            result = self.ubuntu_downloader.download_all_files(
+                version=version,
+                progress_callback=progress_callback
+            )
+
+            return result
+
+        except Exception as e:
+            return f"❌ Ubuntu download failed: {str(e)}"
+
+    def check_ubuntu_files(self) -> str:
+        """Check Ubuntu files status"""
+        try:
+            return self.ubuntu_downloader.check_files_status()
+        except Exception as e:
+            return f"❌ Ubuntu check failed: {str(e)}"
 
 
 def build_gradio_ui():
-    def get_tftp_files():
-        """Get list of files in TFTP directory"""
-        tftp_dir = Path("/srv/tftp")
-        if tftp_dir.exists():
-            files = []
-            for f in tftp_dir.iterdir():
-                if f.is_file():
-                    size_mb = f.stat().st_size / (1024 * 1024)
-                    files.append(f"{f.name} ({size_mb:.1f} MB)")
-            return "\n".join(files) if files else "No files found"
-        return "TFTP directory not found"
-
-    def get_http_structure():
-        """Get HTTP directory structure"""
-        http_dir = Path("/srv/http")
-        if not http_dir.exists():
-            return "HTTP directory not found"
-
-        structure = []
-        for root, dirs, files in os.walk(http_dir):
-            level = root.replace(str(http_dir), '').count(os.sep)
-            indent = ' ' * 2 * level
-            structure.append(f"{indent}{os.path.basename(root)}/")
-            subindent = ' ' * 2 * (level + 1)
-            for file in files:
-                size = os.path.getsize(os.path.join(root, file))
-                size_mb = size / (1024 * 1024)
-                structure.append(f"{subindent}{file} ({size_mb:.1f} MB)")
-
-        return "\n".join(structure) if structure else "No files found"
-
-    def get_server_status():
-        """Get server status information"""
-        status = """🌐 iPXE Station Status:
-• HTTP Server: ✅ Running (FastAPI)
-• Web UI: ✅ Running (port 9005)
-• TFTP Port: 69/UDP
-• iPXE Menu: http://SERVER_IP:9005/ipxe/boot.ipxe
-
-📋 Setup Status:
-"""
-
-        # Check if iPXE files exist
-        ipxe_boot = Path("/srv/ipxe/boot.ipxe")
-        if ipxe_boot.exists():
-            status += "• iPXE Menu: ✅ Created\n"
-        else:
-            status += "• iPXE Menu: ❌ Missing\n"
-
-        # Check TFTP files
-        tftp_files = Path("/srv/tftp")
-        if tftp_files.exists() and any(tftp_files.iterdir()):
-            status += "• TFTP Files: ✅ Available\n"
-        else:
-            status += "• TFTP Files: ❌ Missing\n"
-
-        # Check Ubuntu files
-        ubuntu_kernel = Path("/srv/http/ubuntu/vmlinuz")
-        ubuntu_initrd = Path("/srv/http/ubuntu/initrd")
-        if ubuntu_kernel.exists() and ubuntu_initrd.exists():
-            status += "• Ubuntu 24.04.2: ✅ Ready\n"
-        else:
-            status += "• Ubuntu 24.04.2: ❌ Not downloaded\n"
-
-        status += "\n🔧 Next Steps:\n"
-        status += "1. Download iPXE binaries (TFTP tab)\n"
-        status += "2. Download Ubuntu files (Ubuntu tab)\n"
-        status += "3. Configure DHCP server (DHCP tab)\n"
-
-        return status
-
-    def download_ipxe_files():
-        """Download iPXE binaries"""
-        try:
-            tftp_dir = Path("/srv/tftp")
-            tftp_dir.mkdir(parents=True, exist_ok=True)
-
-            status = "🔄 Downloading iPXE binaries...\n"
-
-            # Download undionly.kpxe (BIOS/Legacy)
-            url1 = "http://boot.ipxe.org/undionly.kpxe"
-            response1 = requests.get(url1, timeout=30)
-            if response1.status_code == 200:
-                with open(tftp_dir / "undionly.kpxe", "wb") as f:
-                    f.write(response1.content)
-                status += "✅ Downloaded undionly.kpxe (BIOS/Legacy)\n"
-            else:
-                status += "❌ Failed to download undionly.kpxe\n"
-
-            # Download ipxe.efi (UEFI)
-            url2 = "http://boot.ipxe.org/ipxe.efi"
-            response2 = requests.get(url2, timeout=30)
-            if response2.status_code == 200:
-                with open(tftp_dir / "ipxe.efi", "wb") as f:
-                    f.write(response2.content)
-                status += "✅ Downloaded ipxe.efi (UEFI)\n"
-            else:
-                status += "❌ Failed to download ipxe.efi\n"
-
-            status += "\n🎉 iPXE binaries downloaded successfully!"
-            return status
-
-        except Exception as e:
-            return f"❌ Error downloading iPXE files: {str(e)}"
-
-    def download_ubuntu_files():
-        """Download Ubuntu 24.04.2 LTS netboot files"""
-        return download_ubuntu_netboot()
-
-    def get_ubuntu_status():
-        """Get Ubuntu files status"""
-        return check_ubuntu_files()
-
-    def create_ipxe_menu():
-        """Create iPXE boot menu"""
-        try:
-            ipxe_dir = Path("/srv/ipxe")
-            ipxe_dir.mkdir(parents=True, exist_ok=True)
-
-            menu_content = """#!ipxe
-
-# iPXE Station - Ubuntu 24.04.2 LTS Boot Menu
-echo
-echo ========================================
-echo     iPXE Station - Network Boot
-echo          Ubuntu 24.04.2 LTS
-echo ========================================
-echo
-
-# Get network info
-echo Network: ${net0/ip} / ${net0/netmask}
-echo Gateway: ${net0/gateway}
-echo DNS: ${net0/dns}
-echo Server: ${next-server}
-echo
-
-# Set menu timeout (30 seconds)
-set menu-timeout 30000
-
-# Main menu
-:menu
-menu iPXE Station - Select Boot Option
-item --gap -- ----- Ubuntu 24.04.2 LTS -----
-item ubuntu_install  Ubuntu 24.04.2 LTS Installer
-item ubuntu_rescue   Ubuntu Recovery Mode
-item --gap -- ----- Utilities -----
-item memtest         Memory Test (Memtest86+)
-item shell           iPXE Shell
-item reboot          Reboot System
-item exit            Exit to BIOS
-choose --timeout ${menu-timeout} --default ubuntu_install selected || goto cancel
-goto ${selected}
-
-:ubuntu_install
-echo Booting Ubuntu 24.04.2 LTS Installer...
-kernel http://${next-server}:8000/http/ubuntu/vmlinuz
-initrd http://${next-server}:8000/http/ubuntu/initrd
-imgargs vmlinuz initrd=initrd auto=true priority=critical preseed/url=http://${next-server}:8000/http/ubuntu/preseed.cfg
-boot || goto failed
-
-:ubuntu_rescue
-echo Booting Ubuntu Recovery Mode...
-kernel http://${next-server}:8000/http/ubuntu/vmlinuz
-initrd http://${next-server}:8000/http/ubuntu/initrd
-imgargs vmlinuz initrd=initrd rescue/enable=true
-boot || goto failed
-
-:memtest
-echo Starting Memory Test...
-# Note: Download memtest86+ binary to /srv/http/memtest/memtest86+
-kernel http://${next-server}:8000/http/memtest/memtest86+ || goto failed
-boot || goto failed
-
-:shell
-echo Entering iPXE shell...
-echo Type 'exit' to return to menu
-shell
-goto menu
-
-:reboot
-reboot
-
-:exit
-exit
-
-:cancel
-echo Boot cancelled, returning to menu...
-sleep 2
-goto menu
-
-:failed
-echo Boot failed! Check:
-echo 1. Files are downloaded
-echo 2. HTTP server is running  
-echo 3. Network connectivity
-echo
-echo Returning to menu in 5 seconds...
-sleep 5
-goto menu
-"""
-
-            with open(ipxe_dir / "boot.ipxe", "w") as f:
-                f.write(menu_content)
-
-            return "✅ iPXE boot menu created successfully!"
-
-        except Exception as e:
-            return f"❌ Error creating iPXE menu: {str(e)}"
-
-    def get_ipxe_menu_content():
-        """Get current iPXE menu content"""
-        ipxe_file = Path("/srv/ipxe/boot.ipxe")
-        if ipxe_file.exists():
-            with open(ipxe_file, 'r') as f:
-                return f.read()
-        return "# iPXE menu not created yet\n# Click 'Create iPXE Menu' to generate default menu"
-
-    def save_ipxe_menu(content):
-        """Save iPXE menu content"""
-        try:
-            ipxe_dir = Path("/srv/ipxe")
-            ipxe_dir.mkdir(parents=True, exist_ok=True)
-
-            with open(ipxe_dir / "boot.ipxe", "w") as f:
-                f.write(content)
-
-            return "✅ iPXE menu saved successfully!"
-        except Exception as e:
-            return f"❌ Error saving iPXE menu: {str(e)}"
-
-    def test_tftp_connection():
-        """Test TFTP connection using Python socket"""
-        try:
-            import socket
-            import struct
-
-            # TFTP Read Request (RRQ) for undionly.kpxe
-            filename = b'undionly.kpxe'
-            mode = b'octet'
-
-            # Create TFTP RRQ packet
-            # Opcode 1 = Read Request
-            packet = struct.pack('!H', 1) + filename + b'\x00' + mode + b'\x00'
-
-            # Send request
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(5)
-            sock.sendto(packet, ('localhost', 69))
-
-            # Receive response
-            data, addr = sock.recvfrom(1024)
-            sock.close()
-
-            # Check response
-            if len(data) >= 4:
-                opcode = struct.unpack('!H', data[:2])[0]
-                if opcode == 3:  # Data packet
-                    block_num = struct.unpack('!H', data[2:4])[0]
-                    data_size = len(data) - 4
-                    return f"✅ TFTP test: SUCCESS (Block #{block_num}, {data_size} bytes)"
-                elif opcode == 5:  # Error packet
-                    error_code = struct.unpack('!H', data[2:4])[0]
-                    return f"❌ TFTP test: Error {error_code}"
-                else:
-                    return f"❓ TFTP test: Unknown opcode {opcode}"
-            else:
-                return "❌ TFTP test: Invalid response"
-
-        except socket.timeout:
-            return "❌ TFTP test: Timeout (server not responding)"
-        except Exception as e:
-            return f"❌ TFTP test: {str(e)}"
-
-    def test_http_endpoints():
-        """Test HTTP endpoints and services"""
-        results = []
-
-        # Test TFTP via Python socket
-        tftp_result = test_tftp_connection()
-        results.append(tftp_result)
-
-        # Check if TFTP daemon is running (Docker-friendly)
-        try:
-            import os
-            # Check PID files or processes via /proc
-            pid_files = ['/var/run/tftpd-hpa.pid', '/run/tftpd-hpa.pid']
-            tftp_running = False
-
-            for pid_file in pid_files:
-                if os.path.exists(pid_file):
-                    with open(pid_file, 'r') as f:
-                        pid = f.read().strip()
-                        if os.path.exists(f'/proc/{pid}'):
-                            tftp_running = True
-                            break
-
-            if tftp_running:
-                results.append("✅ TFTP daemon: Running")
-            else:
-                # Alternative check via netstat
-                try:
-                    import subprocess
-                    result = subprocess.run(['netstat', '-ulnp'],
-                                            capture_output=True, text=True, timeout=5)
-                    if ':69 ' in result.stdout:
-                        results.append("✅ TFTP daemon: Listening on port 69")
-                    else:
-                        results.append("❓ TFTP daemon: Port 69 status unknown")
-                except:
-                    results.append("✅ TFTP daemon: Likely running (port responding)")
-
-        except Exception as e:
-            results.append(f"❓ TFTP daemon check: {str(e)}")
-
-        # Test main server
-        try:
-            response = requests.get("http://localhost:8000/status", timeout=5)
-            if response.status_code == 200:
-                results.append("✅ Main server (port 8000): OK")
-            else:
-                results.append(f"❌ Main server: HTTP {response.status_code}")
-        except Exception as e:
-            results.append(f"❌ Main server: {str(e)}")
-
-        # Test Gradio UI
-        results.append("✅ Gradio UI (port 9005): Running (you're using it now!)")
-
-        # Test iPXE menu
-        ipxe_file = Path("/srv/ipxe/boot.ipxe")
-        if ipxe_file.exists():
-            results.append("✅ iPXE menu file: Found")
-            try:
-                response = requests.get("http://localhost:8000/ipxe/boot.ipxe", timeout=5)
-                if response.status_code == 200:
-                    results.append("✅ iPXE menu HTTP: Accessible")
-                else:
-                    results.append(f"❌ iPXE menu HTTP: {response.status_code}")
-            except Exception as e:
-                results.append(f"❌ iPXE menu HTTP: {str(e)}")
-        else:
-            results.append("❌ iPXE menu file: Missing")
-
-        # Test Ubuntu files
-        ubuntu_kernel = Path("/srv/http/ubuntu/vmlinuz")
-        ubuntu_initrd = Path("/srv/http/ubuntu/initrd")
-
-        if ubuntu_kernel.exists():
-            size_mb = ubuntu_kernel.stat().st_size / (1024 * 1024)
-            results.append(f"✅ Ubuntu kernel: Found ({size_mb:.1f} MB)")
-        else:
-            results.append("❌ Ubuntu kernel: Missing")
-
-        if ubuntu_initrd.exists():
-            size_mb = ubuntu_initrd.stat().st_size / (1024 * 1024)
-            results.append(f"✅ Ubuntu initrd: Found ({size_mb:.1f} MB)")
-        else:
-            results.append("❌ Ubuntu initrd: Missing")
-
-        # Test TFTP files
-        tftp_dir = Path("/srv/tftp")
-        ipxe_bios = tftp_dir / "undionly.kpxe"
-        ipxe_uefi = tftp_dir / "ipxe.efi"
-
-        if ipxe_bios.exists():
-            size_kb = ipxe_bios.stat().st_size / 1024
-            results.append(f"✅ iPXE BIOS: Found ({size_kb:.1f} KB)")
-        else:
-            results.append("❌ iPXE BIOS: Missing")
-
-        if ipxe_uefi.exists():
-            size_kb = ipxe_uefi.stat().st_size / 1024
-            results.append(f"✅ iPXE UEFI: Found ({size_kb:.1f} KB)")
-        else:
-            results.append("❌ iPXE UEFI: Missing")
-
-        # Final status
-        results.append("")
-        results.append("🎉 READY FOR PXE BOOT TESTING!")
-        results.append("📋 All main components are working")
-        results.append("")
-        results.append("🔍 Next steps:")
-        results.append("1. Configure DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe")
-        results.append("2. Boot test computer via network (PXE)")
-        results.append("3. Or test with QEMU emulator")
-
-        return "\n".join(results)
-
-    def generate_test_instructions():
-        """Generate testing instructions"""
-        return """🧪 Как протестировать iPXE Station:
-
-## 1. 🔧 Локальное тестирование (без DHCP):
-
-### Простой способ - HTTP проверка:
-curl http://YOUR_SERVER_IP:8000/status
-curl http://YOUR_SERVER_IP:8000/ipxe/boot.ipxe
-curl -I http://YOUR_SERVER_IP:8000/http/ubuntu/vmlinuz
-
-### Эмулятор QEMU:
-sudo apt install qemu-system-x86
-qemu-system-x86_64 -m 1024 -boot n -netdev user,id=net0,tftp=/srv/tftp,bootfile=undionly.kpxe -device e1000,netdev=net0
-
-## 2. 🌐 Полное тестирование (с DHCP):
-
-### Настройка роутера:
-- DHCP Option 66: IP_ВАШЕГО_СЕРВЕРА
-- DHCP Option 67: undionly.kpxe
-
-### Что должно происходить:
-1. Компьютер загружается по сети (PXE)
-2. Скачивает iPXE с TFTP сервера
-3. iPXE загружает меню с HTTP сервера
-4. Показывает меню с опциями Ubuntu
-5. При выборе Ubuntu скачивает kernel и initrd
-
-## 3. 🔍 Отладка порты:
-- 69/UDP - TFTP
-- 8000/TCP - HTTP сервер
-- 9005/TCP - Web UI
-"""
-
-    def generate_dhcp_config():
-        """Generate DHCP configuration"""
-        config = """# DHCP Configuration for iPXE Station
-# Replace YOUR_SERVER_IP with your actual server IP
-
-# ISC DHCP Server (dhcpd.conf):
-subnet 192.168.1.0 netmask 255.255.255.0 {
-  range 192.168.1.100 192.168.1.200;
-  option routers 192.168.1.1;
-  option domain-name-servers 8.8.8.8;
-
-  # iPXE Configuration
-  next-server YOUR_SERVER_IP;
-
-  if exists user-class and option user-class = "iPXE" {
-    filename "http://YOUR_SERVER_IP:8000/ipxe/boot.ipxe";
-  } else if substring(option vendor-class-identifier, 0, 20) = "PXEClient:Arch:00000" {
-    filename "undionly.kpxe";  # BIOS
-  } else if substring(option vendor-class-identifier, 0, 20) = "PXEClient:Arch:00007" {
-    filename "ipxe.efi";       # UEFI
-  } else {
-    filename "undionly.kpxe";  # Default
-  }
-}
-
-# pfSense DHCP Setup:
-# 1. Services > DHCP Server > LAN
-# 2. TFTP Server: YOUR_SERVER_IP
-# 3. Boot File Name: undionly.kpxe
-
-# Windows DHCP Server:
-# 1. DHCP Console > Scope Options
-# 2. Option 66: YOUR_SERVER_IP
-# 3. Option 67: undionly.kpxe
-
-# Mikrotik RouterOS:
-/ip dhcp-server option
-add code=66 name=tftp-server value="'YOUR_SERVER_IP'"
-add code=67 name=boot-file value="'undionly.kpxe'"
-
-/ip dhcp-server network
-set 0 dhcp-option=tftp-server,boot-file
-"""
-        return config
-
-    # Gradio Interface
-    with gr.Blocks(title="iPXE Station", theme=gr.themes.Soft()) as demo:
-        gr.Markdown("# 🌐 iPXE Station - Ubuntu 24.04.2 LTS")
-        gr.Markdown("Network boot server with TFTP, HTTP, and iPXE support")
+    """Build the main Gradio interface"""
+
+    # Initialize UI controller
+    ui = PXEBootStationUI()
+
+    # Custom CSS for better styling
+    custom_css = """
+    .gradio-container {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .tab-nav {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    }
+    .status-good { color: #28a745; }
+    .status-warning { color: #ffc107; }
+    .status-error { color: #dc3545; }
+    """
+
+    with gr.Blocks(
+            title="🚀 PXE Boot Station",
+            theme=gr.themes.Soft(),
+            css=custom_css
+    ) as demo:
+        gr.HTML("""
+        <div style="text-align: center; padding: 20px; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin-bottom: 20px;">
+            <h1>🚀 PXE Boot Station Control Panel</h1>
+            <p>Complete PXE network boot management solution</p>
+        </div>
+        """)
 
         with gr.Tabs():
-            # Status Tab
-            with gr.TabItem("📊 Status"):
+            # =========================
+            # SYSTEM STATUS TAB
+            # =========================
+            with gr.Tab("📊 System Status", elem_id="status-tab"):
+                gr.Markdown("## 🖥️ System Status & Health Monitor")
+
+                with gr.Row():
+                    refresh_btn = gr.Button("🔄 Refresh Status", variant="primary")
+                    export_btn = gr.Button("📄 Export JSON", variant="secondary")
+
                 status_output = gr.Textbox(
-                    label="Server Status",
-                    value=get_server_status(),
-                    lines=12,
-                    interactive=False
-                )
-                refresh_status_btn = gr.Button("🔄 Refresh Status", variant="secondary")
-                refresh_status_btn.click(get_server_status, outputs=status_output)
-
-            # TFTP Setup Tab
-            with gr.TabItem("📡 TFTP Setup"):
-                gr.Markdown("### Download iPXE Binaries")
-                gr.Markdown("These files are needed for initial network boot")
-
-                tftp_output = gr.Textbox(
-                    label="TFTP Files Status",
-                    value=get_tftp_files(),
-                    lines=6,
-                    interactive=False
+                    label="System Status",
+                    value=ui.get_system_status_display(),
+                    lines=25,
+                    max_lines=50,
+                    interactive=False,
+                    show_label=False
                 )
 
-                download_ipxe_btn = gr.Button("📥 Download iPXE Binaries", variant="primary")
-                refresh_tftp_btn = gr.Button("🔄 Refresh TFTP List", variant="secondary")
-
-                download_ipxe_btn.click(download_ipxe_files, outputs=tftp_output)
-                refresh_tftp_btn.click(get_tftp_files, outputs=tftp_output)
-
-            # Ubuntu Tab
-            with gr.TabItem("🐧 Ubuntu Setup"):
-                gr.Markdown("### Ubuntu 24.04.2 LTS Netboot Download")
-                gr.Markdown("Network installer from official Ubuntu netboot tarball (82 MB)")
-
-                ubuntu_output = gr.Textbox(
-                    label="Ubuntu Files Status",
-                    value=get_ubuntu_status(),
-                    lines=8,
-                    interactive=False
+                refresh_btn.click(
+                    fn=ui.refresh_system_status,
+                    outputs=status_output
                 )
+
+                export_btn.click(
+                    fn=lambda: ui.status_manager.export_status_json(),
+                    outputs=gr.File(label="System Status JSON")
+                )
+
+            # =========================
+            # TESTING TAB
+            # =========================
+            with gr.Tab("🧪 System Testing", elem_id="testing-tab"):
+                gr.Markdown("## 🧪 System & Network Testing")
+
+                with gr.Column():
+                    with gr.Row():
+                        full_test_btn = gr.Button("🚀 Run Full System Test", variant="primary")
+                        quick_test_btn = gr.Button("⚡ Quick Network Test", variant="secondary")
+
+                    test_output = gr.Textbox(
+                        label="Test Results",
+                        lines=15,
+                        max_lines=30,
+                        interactive=False
+                    )
+
+                    full_test_btn.click(
+                        fn=ui.run_full_system_test,
+                        outputs=test_output
+                    )
+
+                    quick_test_btn.click(
+                        fn=lambda: legacy_test_http_endpoints(),
+                        outputs=test_output
+                    )
+
+                with gr.Accordion("🔧 Manual Testing Tools", open=False):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("### TFTP Test")
+                            tftp_host = gr.Textbox(value="localhost", label="TFTP Host")
+                            tftp_port = gr.Number(value=69, label="TFTP Port", precision=0)
+                            tftp_file = gr.Textbox(value="undionly.kpxe", label="Test File")
+                            tftp_test_btn = gr.Button("Test TFTP")
+
+                        with gr.Column():
+                            gr.Markdown("### HTTP Test")
+                            http_url = gr.Textbox(value="http://localhost:8000/status", label="HTTP URL")
+                            http_timeout = gr.Number(value=5, label="Timeout (s)", precision=0)
+                            http_test_btn = gr.Button("Test HTTP")
+
+                        with gr.Column():
+                            gr.Markdown("### File Check")
+                            file_path = gr.Textbox(value="/srv/tftp/undionly.kpxe", label="File Path")
+                            file_test_btn = gr.Button("Check File")
+
+                    manual_test_output = gr.Textbox(
+                        label="Manual Test Results",
+                        lines=5,
+                        interactive=False
+                    )
+
+                    tftp_test_btn.click(
+                        fn=ui.test_tftp_connection,
+                        inputs=[tftp_host, tftp_port, tftp_file],
+                        outputs=manual_test_output
+                    )
+
+                    http_test_btn.click(
+                        fn=ui.test_http_endpoint,
+                        inputs=[http_url, http_timeout],
+                        outputs=manual_test_output
+                    )
+
+                    file_test_btn.click(
+                        fn=ui.check_file_exists,
+                        inputs=[file_path],
+                        outputs=manual_test_output
+                    )
+
+            # =========================
+            # DHCP CONFIGURATION TAB
+            # =========================
+            with gr.Tab("🌐 DHCP Configuration", elem_id="dhcp-tab"):
+                gr.Markdown("## 🌐 DHCP Server Configuration Generator")
 
                 with gr.Row():
-                    download_ubuntu_btn = gr.Button("📥 Download Ubuntu Netboot", variant="primary")
-                    create_menu_btn = gr.Button("📋 Create iPXE Menu", variant="secondary")
-                    refresh_ubuntu_btn = gr.Button("🔄 Refresh Ubuntu Status", variant="secondary")
+                    with gr.Column():
+                        gr.Markdown("### Network Configuration")
+                        server_ip = gr.Textbox(
+                            value="192.168.1.10",
+                            label="PXE Server IP Address",
+                            placeholder="192.168.1.10"
+                        )
+                        subnet = gr.Textbox(
+                            value="192.168.1.0",
+                            label="Subnet Address",
+                            placeholder="192.168.1.0"
+                        )
+                        netmask = gr.Textbox(
+                            value="255.255.255.0",
+                            label="Subnet Mask",
+                            placeholder="255.255.255.0"
+                        )
+                        router_ip = gr.Textbox(
+                            value="192.168.1.1",
+                            label="Default Gateway",
+                            placeholder="192.168.1.1"
+                        )
+                        dns_servers = gr.Textbox(
+                            value="8.8.8.8, 8.8.4.4",
+                            label="DNS Servers (comma-separated)",
+                            placeholder="8.8.8.8, 8.8.4.4"
+                        )
 
-                download_ubuntu_btn.click(download_ubuntu_files, outputs=ubuntu_output)
-                create_menu_btn.click(create_ipxe_menu, outputs=ubuntu_output)
-                refresh_ubuntu_btn.click(get_ubuntu_status, outputs=ubuntu_output)
+                    with gr.Column():
+                        gr.Markdown("### DHCP Settings")
+                        config_type = gr.Dropdown(
+                            choices=["isc", "dnsmasq", "mikrotik"],
+                            value="isc",
+                            label="DHCP Server Type"
+                        )
+                        lease_time = gr.Number(
+                            value=86400,
+                            label="Lease Time (seconds)",
+                            precision=0
+                        )
+                        domain_name = gr.Textbox(
+                            value="",
+                            label="Domain Name (optional)",
+                            placeholder="example.com"
+                        )
 
-            # iPXE Menu Tab
-            with gr.TabItem("📋 iPXE Menu"):
-                gr.Markdown("### View and Edit iPXE Boot Menu")
+                        with gr.Row():
+                            generate_btn = gr.Button("🔧 Generate Config", variant="primary")
+                            save_btn = gr.Button("💾 Save Config", variant="secondary")
 
-                ipxe_content = gr.Textbox(
-                    label="iPXE Menu Content",
-                    value=get_ipxe_menu_content(),
-                    lines=20,
-                    interactive=True,
-                    info="Edit the iPXE menu script here"
-                )
-
-                with gr.Row():
-                    load_menu_btn = gr.Button("🔄 Reload Menu", variant="secondary")
-                    save_menu_btn = gr.Button("💾 Save Menu", variant="primary")
-                    create_default_btn = gr.Button("📋 Create Default", variant="secondary")
-
-                menu_status = gr.Textbox(
-                    label="Menu Status",
+                dhcp_status = gr.Textbox(
+                    label="Status",
                     lines=2,
                     interactive=False
                 )
 
-                load_menu_btn.click(get_ipxe_menu_content, outputs=ipxe_content)
-                save_menu_btn.click(save_ipxe_menu, inputs=ipxe_content, outputs=menu_status)
-                create_default_btn.click(
-                    lambda: (create_ipxe_menu(), get_ipxe_menu_content()),
-                    outputs=[menu_status, ipxe_content]
-                )
-
-             # Testing Tab
-            with gr.TabItem("🧪 Testing"):
-                gr.Markdown("### Test Your iPXE Station")
-
-                test_results = gr.Textbox(
-                    label="Test Results",
-                    lines=12,
-                    interactive=False
-                )
-
-                with gr.Row():
-                    test_btn = gr.Button("🔍 Run All Tests", variant="primary")
-                    tftp_test_btn = gr.Button("📡 Test TFTP Only", variant="secondary")
-
-                # Привязываем кнопки к функциям
-                test_btn.click(test_http_endpoints, outputs=test_results)
-                tftp_test_btn.click(test_tftp_connection, outputs=test_results)
-
-                gr.Markdown("### Testing Instructions")
-                instructions = gr.Textbox(
-                    label="How to Test",
-                    value=generate_test_instructions(),
+                dhcp_config_output = gr.Code(
+                    label="Generated DHCP Configuration",
+                    language="bash",
                     lines=15,
                     interactive=False
                 )
 
-            # Files Tab
-            with gr.TabItem("📁 Files"):
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("### TFTP Files")
-                        tftp_files = gr.Textbox(
-                            label="/srv/tftp",
-                            value=get_tftp_files(),
-                            lines=6,
-                            interactive=False
-                        )
-
-                    with gr.Column():
-                        gr.Markdown("### HTTP Files")
-                        http_files = gr.Textbox(
-                            label="/srv/http",
-                            value=get_http_structure(),
-                            lines=6,
-                            interactive=False
-                        )
-
-                refresh_files_btn = gr.Button("🔄 Refresh All Files", variant="secondary")
-                refresh_files_btn.click(
-                    lambda: (get_tftp_files(), get_http_structure()),
-                    outputs=[tftp_files, http_files]
+                generate_btn.click(
+                    fn=ui.generate_dhcp_config,
+                    inputs=[server_ip, subnet, netmask, router_ip, dns_servers,
+                            config_type, lease_time, domain_name],
+                    outputs=[dhcp_status, dhcp_config_output]
                 )
 
-            # DHCP Tab
-            with gr.TabItem("⚙️ DHCP Config"):
-                gr.Markdown("### DHCP Server Configuration")
-                gr.Markdown("**Replace YOUR_SERVER_IP with your actual server IP address**")
+                save_btn.click(
+                    fn=ui.save_dhcp_config,
+                    inputs=[dhcp_config_output, config_type],
+                    outputs=dhcp_status
+                )
 
-                dhcp_config = gr.Textbox(
-                    label="DHCP Configuration Examples",
-                    value=generate_dhcp_config(),
-                    lines=20,
+                with gr.Accordion("🚀 Quick Setup", open=False):
+                    gr.Markdown("### Simple Network Configuration")
+                    with gr.Row():
+                        simple_server_ip = gr.Textbox(
+                            value="192.168.1.10",
+                            label="Server IP"
+                        )
+                        simple_network = gr.Textbox(
+                            value="192.168.1.0/24",
+                            label="Network CIDR"
+                        )
+                        simple_generate_btn = gr.Button("⚡ Quick Generate")
+
+                    simple_generate_btn.click(
+                        fn=ui.create_simple_dhcp_config,
+                        inputs=[simple_server_ip, simple_network],
+                        outputs=[dhcp_status, dhcp_config_output]
+                    )
+
+            # =========================
+            # iPXE MENU TAB
+            # =========================
+            with gr.Tab("📋 iPXE Menu", elem_id="ipxe-tab"):
+                gr.Markdown("## 📋 iPXE Boot Menu Configuration")
+
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("### Template Selection")
+                        template_choice = gr.Dropdown(
+                            choices=["ubuntu", "diagnostic", "multi_os"],
+                            value="ubuntu",
+                            label="Menu Template"
+                        )
+                        ipxe_server_ip = gr.Textbox(
+                            value="192.168.1.10",
+                            label="PXE Server IP"
+                        )
+                        ipxe_port = gr.Number(
+                            value=8000,
+                            label="HTTP Port",
+                            precision=0
+                        )
+
+                        with gr.Row():
+                            create_template_btn = gr.Button("🎨 Create from Template", variant="primary")
+                            validate_btn = gr.Button("✅ Validate Script", variant="secondary")
+                            save_ipxe_btn = gr.Button("💾 Save Menu", variant="primary")
+
+                ipxe_status = gr.Textbox(
+                    label="Status",
+                    lines=2,
                     interactive=False
                 )
 
-            # Help Tab
-            with gr.TabItem("❓ Help"):
-                gr.Markdown("""
-                ### 🚀 Quick Setup Guide
+                ipxe_script_output = gr.Code(
+                    label="iPXE Boot Script",
+                    language="bash",
+                    lines=20,
+                    interactive=True
+                )
 
-                **1. Download Files:**
-                - Go to "TFTP Setup" → Download iPXE Binaries
-                - Go to "Ubuntu Setup" → Download Ubuntu Netboot
-                - Go to "Ubuntu Setup" → Create iPXE Menu
+                create_template_btn.click(
+                    fn=ui.create_ipxe_menu_from_template,
+                    inputs=[template_choice, ipxe_server_ip, ipxe_port],
+                    outputs=[ipxe_status, ipxe_script_output]
+                )
 
-                **2. Configure DHCP:**
-                - Copy config from "DHCP Config" tab
-                - Replace YOUR_SERVER_IP with your server's IP
-                - Apply to your DHCP server
+                validate_btn.click(
+                    fn=ui.validate_ipxe_script,
+                    inputs=[ipxe_script_output],
+                    outputs=ipxe_status
+                )
 
-                **3. Test:**
-                - Go to "Testing" tab → Run Tests
-                - Boot a computer from network
-                - Should see iPXE menu with Ubuntu option
+                save_ipxe_btn.click(
+                    fn=ui.save_ipxe_menu,
+                    inputs=[ipxe_script_output],
+                    outputs=ipxe_status
+                )
 
-                ### 📝 What gets installed:
-                - **TFTP Files**: iPXE binaries for network boot
-                - **Ubuntu Files**: Official netboot installer (82 MB)
-                - **iPXE Menu**: Boot menu with Ubuntu installer
+                with gr.Accordion("➕ Add Custom Entry", open=False):
+                    gr.Markdown("### Add Custom Boot Entry")
+                    with gr.Row():
+                        with gr.Column():
+                            entry_name = gr.Textbox(label="Entry Name (ID)", placeholder="my_custom_os")
+                            entry_title = gr.Textbox(label="Display Title", placeholder="My Custom OS")
+                            entry_description = gr.Textbox(label="Description (optional)")
 
-                ### 🔧 Troubleshooting:
-                - Check all files are downloaded (Files tab)
-                - Verify DHCP points to correct server IP
-                - Ensure ports 69/UDP and 8000/TCP are open
-                """)
+                        with gr.Column():
+                            entry_kernel = gr.Textbox(label="Kernel Path", placeholder="custom/vmlinuz")
+                            entry_initrd = gr.Textbox(label="Initrd Path (optional)", placeholder="custom/initrd")
+                            entry_cmdline = gr.Textbox(label="Kernel Command Line", placeholder="ip=dhcp root=/dev/nfs")
+
+                    add_entry_btn = gr.Button("➕ Add Entry to Menu")
+
+                    add_entry_btn.click(
+                        fn=ui.add_custom_ipxe_entry,
+                        inputs=[ipxe_script_output, entry_name, entry_title, entry_kernel,
+                                entry_initrd, entry_cmdline, entry_description],
+                        outputs=ipxe_script_output
+                    )
+
+            # =========================
+            # UBUNTU DOWNLOAD TAB
+            # =========================
+            with gr.Tab("🐧 Ubuntu Download", elem_id="ubuntu-tab"):
+                gr.Markdown("## 🐧 Ubuntu Files Download & Management")
+
+                with gr.Row():
+                    with gr.Column():
+                        ubuntu_version = gr.Dropdown(
+                            choices=["22.04", "20.04", "24.04"],
+                            value="22.04",
+                            label="Ubuntu Version"
+                        )
+
+                        with gr.Row():
+                            download_btn = gr.Button("⬇️ Download Ubuntu Files", variant="primary")
+                            check_btn = gr.Button("🔍 Check Files", variant="secondary")
+
+                ubuntu_status = gr.Textbox(
+                    label="Download Status",
+                    lines=10,
+                    interactive=False
+                )
+
+                download_btn.click(
+                    fn=ui.download_ubuntu_files,
+                    inputs=[ubuntu_version],
+                    outputs=ubuntu_status,
+                    show_progress=True
+                )
+
+                check_btn.click(
+                    fn=ui.check_ubuntu_files,
+                    outputs=ubuntu_status
+                )
+
+        # Footer
+        gr.HTML("""
+        <div style="text-align: center; padding: 20px; margin-top: 30px; border-top: 1px solid #ddd;">
+            <p>🚀 <strong>PXE Boot Station</strong> - Network Boot Management Made Easy</p>
+            <p style="color: #666;">Modular Architecture • Clean Code • Enterprise Ready</p>
+        </div>
+        """)
 
     return demo
 
 
+# Create the demo instance
+demo = build_gradio_ui()
+
 if __name__ == "__main__":
-    demo = build_gradio_ui()
     demo.launch(
         server_name="0.0.0.0",
         server_port=9005,
         share=False,
-        inbrowser=False
+        show_error=True,
+        debug=False
     )
