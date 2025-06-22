@@ -12,38 +12,44 @@ import os
 from typing import Callable, Optional, Dict, Any
 from datetime import datetime
 
+import requests
+import tarfile
+import tempfile
+from pathlib import Path
+import shutil
+import os
+import subprocess
+from typing import Callable, Optional, Dict, Any
+from datetime import datetime
+
 
 class UbuntuDownloader:
-    """Ubuntu files downloader and manager"""
+    """Ubuntu files downloader optimized for Docker environment"""
 
     def __init__(self, base_path: str = None):
-        # Cross-platform base path
         if base_path is None:
-            if os.name == 'nt':  # Windows
-                base_path = "C:/srv/http"
-            else:  # Unix-like
-                base_path = "/srv/http"
+            base_path = "/srv/http"  # Docker стандарт
 
         self.base_path = Path(base_path)
         self.ubuntu_dir = self.base_path / "ubuntu"
 
-        # URLs
+        # Конфигурация оптимизированная для Docker
         self.versions = {
             "24.04": {
                 "name": "Ubuntu 24.04.2 LTS (Noble)",
-                "method": "iso_extract",  # Extracting from ISO
+                "method": "iso_extract",
                 "iso_url": "https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso",
-                "size_mb": 2800  # ~2.8GB ISO
+                "size_mb": 2800
             },
             "22.04": {
                 "name": "Ubuntu 22.04.5 LTS (Jammy)",
-                "method": "iso_extract",  # Extracting from ISO
+                "method": "iso_extract",
                 "iso_url": "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-live-server-amd64.iso",
-                "size_mb": 2400  # ~2.4GB ISO
+                "size_mb": 2400
             },
             "20.04": {
                 "name": "Ubuntu 20.04.6 LTS (Focal)",
-                "method": "netboot",  # Legacy netboot
+                "method": "netboot",
                 "netboot_url": "http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/netboot.tar.gz",
                 "size_mb": 35
             }
@@ -51,7 +57,7 @@ class UbuntuDownloader:
 
     def download_all_files(self, version: str = "20.04",
                            progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
-        """Download all Ubuntu files for specified version"""
+        """Download Ubuntu files - Docker optimized"""
         try:
             if version not in self.versions:
                 return f"❌ Unsupported Ubuntu version: {version}"
@@ -63,17 +69,17 @@ class UbuntuDownloader:
 
             status = f"🔄 Downloading {version_info['name']}...\n"
 
-            # Choosing a downloading method
+            # Выбираем метод
             if version_info["method"] == "netboot":
                 result = self._download_netboot(version, progress_callback)
             elif version_info["method"] == "iso_extract":
-                result = self._download_and_extract_iso(version, progress_callback)
+                result = self._download_and_extract_iso_docker(version, progress_callback)
             else:
                 result = "❌ Unknown download method"
 
             status += result + "\n"
 
-            # Create preseed file
+            # Create preseed
             preseed_result = self._create_preseed_config(version)
             status += preseed_result + "\n"
 
@@ -85,6 +91,152 @@ class UbuntuDownloader:
 
         except Exception as e:
             return f"❌ Error downloading Ubuntu files: {str(e)}"
+
+    def _download_and_extract_iso_docker(self, version: str,
+                                         progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+        """Download and extract ISO - Docker optimized with system tools"""
+        try:
+            version_info = self.versions[version]
+            iso_url = version_info["iso_url"]
+
+            status = f"📥 Downloading Ubuntu ISO ({version_info['size_mb']} MB)...\n"
+
+            # Download ISO
+            iso_path = f"/tmp/ubuntu-{version}.iso"
+            download_result = self._download_file_fast(iso_url, iso_path, f"ubuntu-{version}.iso", progress_callback)
+            status += download_result + "\n"
+
+            if "✅" not in download_result:
+                return status
+
+            status += "📦 Extracting files from ISO using 7-Zip...\n"
+
+            # Extract using 7-zip (быстро и надежно)
+            extract_result = self._extract_iso_with_7zip(iso_path, version)
+            status += extract_result
+
+            # Cleanup
+            try:
+                os.unlink(iso_path)
+                status += "🧹 Temporary ISO cleaned up\n"
+            except:
+                pass
+
+            return status
+
+        except Exception as e:
+            return f"❌ Error in Docker ISO processing: {str(e)}"
+
+    def _download_file_fast(self, url: str, filepath: str, filename: str,
+                            progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+        """Fast download with proper chunking for large files"""
+        try:
+            # Use requests with optimized settings
+            response = requests.get(url, stream=True, timeout=(30, 300))  # 30s connect, 5min read
+            if response.status_code != 200:
+                return f"❌ Failed to download {filename}: HTTP {response.status_code}"
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            # Larger chunks for big files (1MB)
+            chunk_size = 1024 * 1024
+
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        if progress_callback and total_size > 0:
+                            progress_callback(downloaded, total_size, filename)
+
+            # Verify download
+            if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                return f"❌ Download failed: {filename}"
+
+            size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            return f"✅ Downloaded {filename}: {size_mb:.1f} MB"
+
+        except Exception as e:
+            return f"❌ Error downloading {filename}: {str(e)}"
+
+    def _extract_iso_with_7zip(self, iso_path: str, version: str) -> str:
+        """Extract ISO using 7-zip - fast and reliable"""
+        try:
+            status = ""
+            extract_dir = f"/tmp/extract-{version}"
+
+            # Create extraction directory
+            os.makedirs(extract_dir, exist_ok=True)
+
+            # Extract ISO with 7-zip
+            cmd = ['7z', 'x', iso_path, f'-o{extract_dir}', '-y']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+            if result.returncode != 0:
+                return f"❌ 7-Zip extraction failed: {result.stderr}"
+
+            status += "✅ ISO extracted with 7-Zip\n"
+
+            # Find kernel and initrd
+            search_paths = [
+                ("casper/vmlinuz", "casper/initrd"),
+                ("casper/vmlinuz.efi", "casper/initrd.lz"),
+                ("install/vmlinuz", "install/initrd.gz"),
+                ("live/vmlinuz", "live/initrd"),
+            ]
+
+            kernel_found = False
+            initrd_found = False
+
+            for kernel_rel, initrd_rel in search_paths:
+                kernel_path = os.path.join(extract_dir, kernel_rel)
+                initrd_path = os.path.join(extract_dir, initrd_rel)
+
+                if os.path.exists(kernel_path) and os.path.exists(initrd_path):
+                    # Copy files
+                    shutil.copy2(kernel_path, self.ubuntu_dir / "vmlinuz")
+                    shutil.copy2(initrd_path, self.ubuntu_dir / "initrd")
+
+                    status += f"✅ Extracted kernel: {kernel_rel}\n"
+                    status += f"✅ Extracted initrd: {initrd_rel}\n"
+
+                    kernel_found = True
+                    initrd_found = True
+                    break
+
+            # Cleanup extraction directory
+            try:
+                shutil.rmtree(extract_dir)
+                status += "🧹 Extraction directory cleaned up\n"
+            except:
+                pass
+
+            if kernel_found and initrd_found:
+                status += "🎉 ISO extraction completed successfully!\n"
+            else:
+                # List available files for debugging
+                status += "❌ Could not find kernel/initrd files\n"
+                try:
+                    available_files = []
+                    for root, dirs, files in os.walk(extract_dir):
+                        for file in files:
+                            if any(pattern in file.lower() for pattern in ['vmlinuz', 'linux', 'initrd', 'kernel']):
+                                rel_path = os.path.relpath(os.path.join(root, file), extract_dir)
+                                available_files.append(rel_path)
+                    status += f"🔍 Available files: {available_files[:10]}\n"
+                except:
+                    pass
+
+            return status
+
+        except subprocess.TimeoutExpired:
+            return "❌ 7-Zip extraction timed out (>5 minutes)"
+        except Exception as e:
+            return f"❌ Error extracting ISO: {str(e)}"
+
+    # ... the other methods remain unchanged (netboot, preseed, check_files) ...
 
     def _download_and_extract_iso(self, version: str,
                                   progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:

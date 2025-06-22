@@ -1,19 +1,23 @@
 
 FROM python:3.12-slim
 
-# Install system dependencies INCLUDING ISO tools
+# Install ALL needed system tools
 RUN apt-get update && \
     apt-get install -y \
+        # TFTP server
         tftpd-hpa \
-        wget \
-        curl \
-        p7zip-full \
-        unzip \
-        mount \
-        sudo \
-        cpio \
-        gzip \
-        file \
+        # Download tools
+        wget curl \
+        # ISO/Archive tools
+        p7zip-full unzip gzip cpio \
+        # Mount tools
+        mount util-linux \
+        # File system tools
+        file tree \
+        # System tools
+        sudo procps \
+        # Debug tools (опционально)
+        htop nano \
         && \
     rm -rf /var/lib/apt/lists/*
 
@@ -24,13 +28,13 @@ COPY app/ /app/
 COPY tftpd-hpa /etc/default/tftpd-hpa
 COPY srv/ /srv/
 
-# Install Python dependencies
+# Install Python dependencies (mininum)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create directories with proper permissions
-RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /mnt/iso && \
-    chmod 755 /srv/tftp /srv/http /srv/ipxe /mnt/iso
+RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /mnt/iso /tmp/extract && \
+    chmod 755 /srv/tftp /srv/http /srv/ipxe /mnt/iso /tmp/extract
 
 # Download iPXE binaries
 RUN cd /srv/tftp && \
@@ -38,11 +42,11 @@ RUN cd /srv/tftp && \
     wget -q http://boot.ipxe.org/ipxe.efi && \
     ls -la /srv/tftp/
 
-# Configure sudo for root (needed for ISO mounting in Docker)
+# Configure sudo
 RUN echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
 # Expose ports
 EXPOSE 69/udp 8000 9005
 
-# Start services with proper signal handling
+# Start services
 CMD ["sh", "-c", "service tftpd-hpa start && python main.py"]
