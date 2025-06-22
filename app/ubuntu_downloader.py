@@ -27,26 +27,31 @@ class UbuntuDownloader:
         self.base_path = Path(base_path)
         self.ubuntu_dir = self.base_path / "ubuntu"
 
-        # Ubuntu versions configuration
+        # Ubuntu versions configuration with FIXED URLs
         self.versions = {
             "24.04": {
                 "name": "Ubuntu 24.04.2 LTS (Noble)",
-                "netboot_url": "https://releases.ubuntu.com/noble/ubuntu-24.04.2-netboot-amd64.tar.gz",
-                "size_mb": 82
+                "method": "netboot",  # Есть netboot
+                "netboot_url": "https://cdimage.ubuntu.com/netboot/noble/ubuntu-installer-amd64.tar.gz",
+                "size_mb": 45
             },
             "22.04": {
                 "name": "Ubuntu 22.04.5 LTS (Jammy)",
-                "netboot_url": "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-netboot-amd64.tar.gz",
-                "size_mb": 78
+                "method": "live",  # Нет netboot, используем live installer
+                "live_url": "https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso",
+                "kernel_url": "https://cdimage.ubuntu.com/netboot/jammy/ubuntu-installer/amd64/linux",
+                "initrd_url": "https://cdimage.ubuntu.com/netboot/jammy/ubuntu-installer/amd64/initrd.gz",
+                "size_mb": 25  # Kernel + initrd
             },
             "20.04": {
                 "name": "Ubuntu 20.04.6 LTS (Focal)",
-                "netboot_url": "https://releases.ubuntu.com/focal/ubuntu-20.04.6-netboot-amd64.tar.gz",
-                "size_mb": 72
+                "method": "netboot",  # Есть legacy netboot
+                "netboot_url": "http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/netboot.tar.gz",
+                "size_mb": 35
             }
         }
 
-    def download_all_files(self, version: str = "22.04",
+    def download_all_files(self, version: str = "24.04",
                            progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
         """Download all Ubuntu files for specified version"""
         try:
@@ -60,9 +65,15 @@ class UbuntuDownloader:
 
             status = f"🔄 Downloading {version_info['name']}...\n"
 
-            # Download netboot files
-            netboot_result = self._download_netboot(version, progress_callback)
-            status += netboot_result + "\n"
+            # Выбираем метод загрузки в зависимости от версии
+            if version_info["method"] == "netboot":
+                result = self._download_netboot(version, progress_callback)
+            elif version_info["method"] == "live":
+                result = self._download_live_installer(version, progress_callback)
+            else:
+                result = "❌ Unknown download method"
+
+            status += result + "\n"
 
             # Create preseed file
             preseed_result = self._create_preseed_config(version)
@@ -77,9 +88,67 @@ class UbuntuDownloader:
         except Exception as e:
             return f"❌ Error downloading Ubuntu files: {str(e)}"
 
+    def _download_live_installer(self, version: str,
+                                 progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+        """Download kernel and initrd for versions without netboot (22.04+)"""
+        try:
+            version_info = self.versions[version]
+
+            status = f"📥 Downloading live installer components ({version_info['size_mb']} MB)...\n"
+
+            # Download kernel
+            kernel_result = self._download_file(
+                version_info["kernel_url"],
+                self.ubuntu_dir / "vmlinuz",
+                "kernel",
+                progress_callback
+            )
+            status += kernel_result + "\n"
+
+            # Download initrd
+            initrd_result = self._download_file(
+                version_info["initrd_url"],
+                self.ubuntu_dir / "initrd",
+                "initrd",
+                progress_callback
+            )
+            status += initrd_result + "\n"
+
+            status += "✅ Live installer components downloaded\n"
+
+            return status
+
+        except Exception as e:
+            return f"❌ Error downloading live installer: {str(e)}"
+
+    def _download_file(self, url: str, filepath: Path, filename: str,
+                       progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+        """Download a single file with progress tracking"""
+        try:
+            response = requests.get(url, timeout=120, stream=True)
+            if response.status_code != 200:
+                return f"❌ Failed to download {filename}: HTTP {response.status_code}"
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+                    if progress_callback and total_size > 0:
+                        progress_callback(downloaded, total_size, filename)
+
+            size_mb = filepath.stat().st_size / (1024 * 1024)
+            return f"✅ Downloaded {filename}: {size_mb:.1f} MB"
+
+        except Exception as e:
+            return f"❌ Error downloading {filename}: {str(e)}"
+
     def _download_netboot(self, version: str,
                           progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
-        """Download netboot tarball and extract files"""
+        """Download traditional netboot tarball (20.04, 24.04)"""
         try:
             version_info = self.versions[version]
             netboot_url = version_info["netboot_url"]
@@ -122,7 +191,7 @@ class UbuntuDownloader:
             return f"❌ Error downloading netboot: {str(e)}"
 
     def _extract_netboot(self, tar_path: str, version: str) -> str:
-        """Extract netboot files from tarball"""
+        """Extract netboot files from tarball with IMPROVED logic"""
         try:
             status = ""
             kernel_found = False
@@ -133,48 +202,72 @@ class UbuntuDownloader:
                 all_files = [member.name for member in tar.getmembers() if member.isfile()]
                 status += f"📋 Found {len(all_files)} files in archive\n"
 
+                # УЛУЧШЕННАЯ ЛОГИКА: сначала найдем лучшие кандидаты
+                kernel_candidates = []
+                initrd_candidates = []
+
                 for member in tar.getmembers():
                     if not member.isfile():
                         continue
 
-                    member_name_lower = member.name.lower()
+                    member_name = member.name.lower()
+                    member_basename = member.name.split('/')[-1].lower()  # Только имя файла
 
-                    # Extract kernel file
-                    if (any(pattern in member_name_lower for pattern in ['vmlinuz', 'linux', 'kernel']) and
-                            not any(
-                                pattern in member_name_lower for pattern in ['initrd', 'initramfs', '.txt', '.cfg'])):
+                    # Ищем initrd файлы
+                    if any(pattern in member_basename for pattern in ['initrd', 'initramfs']):
+                        initrd_candidates.append((member, len(member_basename)))  # Приоритет по длине имени
 
-                        with tar.extractfile(member) as kernel_file:
-                            with open(self.ubuntu_dir / "vmlinuz", "wb") as f:
-                                shutil.copyfileobj(kernel_file, f)
-                        status += f"✅ Extracted kernel: {member.name}\n"
-                        kernel_found = True
+                    # Ищем kernel файлы с ТОЧНЫМИ критериями
+                    elif (
+                            # Должен содержать linux/vmlinuz/kernel
+                            any(pattern in member_basename for pattern in ['linux', 'vmlinuz', 'kernel']) and
+                            # НЕ должен содержать исключения
+                            not any(pattern in member_basename for pattern in [
+                                'initrd', 'initramfs', '.txt', '.cfg', '.md5', 'ldlinux', 'pxelinux',
+                                '.c32', '.0', 'syslinux', 'menu', 'chain', 'mboot'
+                            ]) and
+                            # Предпочитаем файлы без расширения или с расширением .bin
+                            (('.' not in member_basename) or member_basename.endswith('.bin'))
+                    ):
+                        # Приоритет: точное имя "linux" > "vmlinuz" > остальные
+                        priority = 0
+                        if member_basename == 'linux':
+                            priority = 100
+                        elif member_basename.startswith('vmlinuz'):
+                            priority = 90
+                        elif 'kernel' in member_basename:
+                            priority = 80
+                        else:
+                            priority = 70
 
-                    # Extract initrd file
-                    elif any(pattern in member_name_lower for pattern in ['initrd', 'initramfs']):
-                        with tar.extractfile(member) as initrd_file:
-                            with open(self.ubuntu_dir / "initrd", "wb") as f:
-                                shutil.copyfileobj(initrd_file, f)
-                        status += f"✅ Extracted initrd: {member.name}\n"
-                        initrd_found = True
+                        kernel_candidates.append((member, priority))
 
-                # Fallback search if kernel not found
-                if not kernel_found:
-                    status += "🔍 Searching for kernel files...\n"
-                    kernel_candidates = [f for f in all_files if
-                                         any(pattern in f.lower() for pattern in ['vmlinuz', 'linux', 'kernel'])]
+                # Сортируем кандидатов по приоритету
+                kernel_candidates.sort(key=lambda x: x[1], reverse=True)
+                initrd_candidates.sort(key=lambda x: x[1])  # Более короткие имена предпочтительнее
 
-                    if kernel_candidates:
-                        status += f"📁 Kernel candidates: {kernel_candidates[:3]}\n"
-                        # Try first candidate
-                        for member in tar.getmembers():
-                            if member.name == kernel_candidates[0]:
-                                with tar.extractfile(member) as kernel_file:
-                                    with open(self.ubuntu_dir / "vmlinuz", "wb") as f:
-                                        shutil.copyfileobj(kernel_file, f)
-                                status += f"✅ Extracted kernel (fallback): {member.name}\n"
-                                kernel_found = True
-                                break
+                # Извлекаем ЛУЧШИЙ kernel
+                if kernel_candidates:
+                    best_kernel = kernel_candidates[0][0]
+                    with tar.extractfile(best_kernel) as kernel_file:
+                        with open(self.ubuntu_dir / "vmlinuz", "wb") as f:
+                            shutil.copyfileobj(kernel_file, f)
+                    status += f"✅ Extracted kernel: {best_kernel.name}\n"
+                    kernel_found = True
+
+                    # Показываем отклоненных кандидатов для отладки
+                    if len(kernel_candidates) > 1:
+                        rejected = [k[0].name for k in kernel_candidates[1:]]
+                        status += f"🔍 Rejected kernel candidates: {rejected}\n"
+
+                # Извлекаем ЛУЧШИЙ initrd
+                if initrd_candidates:
+                    best_initrd = initrd_candidates[0][0]
+                    with tar.extractfile(best_initrd) as initrd_file:
+                        with open(self.ubuntu_dir / "initrd", "wb") as f:
+                            shutil.copyfileobj(initrd_file, f)
+                    status += f"✅ Extracted initrd: {best_initrd.name}\n"
+                    initrd_found = True
 
             # Report results
             if kernel_found and initrd_found:
@@ -183,8 +276,10 @@ class UbuntuDownloader:
                 missing = []
                 if not kernel_found:
                     missing.append("kernel")
+                    status += f"❌ No valid kernel found. Files in archive: {all_files}\n"
                 if not initrd_found:
                     missing.append("initrd")
+                    status += f"❌ No valid initrd found. Files in archive: {all_files}\n"
                 status += f"⚠️ Extraction incomplete. Missing: {', '.join(missing)}\n"
 
             return status
@@ -321,7 +416,7 @@ d-i finish-install/reboot_in_progress note
 
 
 # Legacy functions for backward compatibility
-def download_ubuntu_netboot(version: str = "22.04") -> str:
+def download_ubuntu_netboot(version: str = "24.04") -> str:
     """Legacy function - download Ubuntu netboot files"""
     downloader = UbuntuDownloader()
     return downloader.download_all_files(version)

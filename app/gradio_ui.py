@@ -764,7 +764,7 @@ def build_gradio_ui():
                     with gr.Column():
                         ubuntu_version = gr.Dropdown(
                             choices=["22.04", "20.04", "24.04"],
-                            value="22.04",
+                            value="24.04",
                             label="Ubuntu Version"
                         )
 
