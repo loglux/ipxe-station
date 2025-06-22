@@ -4,6 +4,12 @@ import tempfile
 from pathlib import Path
 import shutil
 
+import requests
+import tarfile
+import tempfile
+from pathlib import Path
+import shutil
+
 
 def download_ubuntu_netboot():
     """Download Ubuntu 24.04.2 LTS netboot files"""
@@ -32,32 +38,65 @@ def download_ubuntu_netboot():
         status += "✅ Netboot tarball downloaded\n"
         status += "📦 Extracting netboot files...\n"
 
-        # Extract tarball
+        # Extract tarball and list all files first
         with tarfile.open(tmp_path, 'r:gz') as tar:
             # Find kernel and initrd files
             kernel_found = False
             initrd_found = False
 
+            # List all members for debugging
+            all_files = []
             for member in tar.getmembers():
-                # Look for kernel file (vmlinuz)
-                if member.name.endswith('vmlinuz') or 'vmlinuz' in member.name:
+                if member.isfile():
+                    all_files.append(member.name)
+
+            status += f"📋 Found {len(all_files)} files in archive\n"
+
+            for member in tar.getmembers():
+                if not member.isfile():
+                    continue
+
+                member_name_lower = member.name.lower()
+
+                # Look for kernel file (more flexible patterns)
+                if (any(pattern in member_name_lower for pattern in ['vmlinuz', 'linux', 'kernel']) and
+                        not any(pattern in member_name_lower for pattern in
+                                ['initrd', 'initramfs', '.txt', '.cfg', '.md'])):
+
                     with tar.extractfile(member) as kernel_file:
                         with open(http_dir / "vmlinuz", "wb") as f:
                             shutil.copyfileobj(kernel_file, f)
                     status += f"✅ Extracted kernel: {member.name}\n"
                     kernel_found = True
 
-                # Look for initrd file
-                elif member.name.endswith('initrd') or member.name.endswith('initrd.gz') or 'initrd' in member.name:
+                # Look for initrd file (more flexible patterns)
+                elif any(pattern in member_name_lower for pattern in ['initrd', 'initramfs']):
                     with tar.extractfile(member) as initrd_file:
                         with open(http_dir / "initrd", "wb") as f:
                             shutil.copyfileobj(initrd_file, f)
                     status += f"✅ Extracted initrd: {member.name}\n"
                     initrd_found = True
 
-                # Stop when both files found
-                if kernel_found and initrd_found:
-                    break
+            # If kernel still not found, show some file names for debugging
+            if not kernel_found:
+                status += "🔍 Searching for kernel files...\n"
+                kernel_candidates = [f for f in all_files if
+                                     any(pattern in f.lower() for pattern in ['vmlinuz', 'linux', 'kernel'])]
+                if kernel_candidates:
+                    status += f"📁 Kernel candidates found: {kernel_candidates[:5]}\n"
+
+                    # Try the first candidate
+                    for member in tar.getmembers():
+                        if member.name == kernel_candidates[0]:
+                            with tar.extractfile(member) as kernel_file:
+                                with open(http_dir / "vmlinuz", "wb") as f:
+                                    shutil.copyfileobj(kernel_file, f)
+                            status += f"✅ Extracted kernel (fallback): {member.name}\n"
+                            kernel_found = True
+                            break
+                else:
+                    # Show first 10 files for debugging
+                    status += f"📁 Sample files: {all_files[:10]}\n"
 
         # Clean up temp file
         Path(tmp_path).unlink()
@@ -128,12 +167,46 @@ d-i finish-install/reboot_in_progress note
             status += "📝 Files: vmlinuz, initrd, preseed.cfg\n"
             status += "💾 Total size: ~82 MB extracted"
         else:
-            status += f"\n❌ Ubuntu download failed! Missing: {', '.join(errors)}"
+            status += f"\n❌ Ubuntu download incomplete! Missing: {', '.join(errors)}\n"
+            status += "🔍 Check the file list above for debugging"
 
         return status
 
     except Exception as e:
         return f"❌ Error downloading Ubuntu netboot: {str(e)}"
+
+
+def check_ubuntu_files():
+    """Check if Ubuntu files exist and get their info"""
+    http_dir = Path("/srv/http/ubuntu")
+
+    files_info = []
+
+    # Check kernel
+    kernel_path = http_dir / "vmlinuz"
+    if kernel_path.exists():
+        size_mb = kernel_path.stat().st_size / (1024 * 1024)
+        files_info.append(f"✅ vmlinuz ({size_mb:.1f} MB)")
+    else:
+        files_info.append("❌ vmlinuz (missing)")
+
+    # Check initrd
+    initrd_path = http_dir / "initrd"
+    if initrd_path.exists():
+        size_mb = initrd_path.stat().st_size / (1024 * 1024)
+        files_info.append(f"✅ initrd ({size_mb:.1f} MB)")
+    else:
+        files_info.append("❌ initrd (missing)")
+
+    # Check preseed
+    preseed_path = http_dir / "preseed.cfg"
+    if preseed_path.exists():
+        size_kb = preseed_path.stat().st_size / 1024
+        files_info.append(f"✅ preseed.cfg ({size_kb:.1f} KB)")
+    else:
+        files_info.append("❌ preseed.cfg (missing)")
+
+    return "\n".join(files_info)
 
 
 def check_ubuntu_files():
