@@ -1,6 +1,7 @@
 """
 Testing utilities for PXE Boot Station
 Handles all testing logic including TFTP, HTTP, and system checks
+Enhanced to support versioned Ubuntu structure
 """
 
 import os
@@ -132,7 +133,7 @@ class HTTPTester:
 
 
 class FileChecker:
-    """File and directory checking utilities"""
+    """File and directory checking utilities with Ubuntu version support"""
 
     @staticmethod
     def check_file_exists(filepath: str, show_size: bool = True) -> str:
@@ -156,9 +157,111 @@ class FileChecker:
         else:
             return f"❌ {path.name}: Missing"
 
+    @staticmethod
+    def scan_ubuntu_versions(base_path: str = "/srv/http") -> Dict[str, Dict[str, Any]]:
+        """Scan for Ubuntu versions and their files"""
+        base_dir = Path(base_path)
+        versions = {}
+
+        if not base_dir.exists():
+            return versions
+
+        # Look for ubuntu-* directories
+        for ubuntu_dir in base_dir.iterdir():
+            if not ubuntu_dir.is_dir() or not ubuntu_dir.name.startswith('ubuntu-'):
+                continue
+
+            version = ubuntu_dir.name.replace('ubuntu-', '')
+
+            # Check files
+            kernel_path = ubuntu_dir / "vmlinuz"
+            initrd_path = ubuntu_dir / "initrd"
+            preseed_path = ubuntu_dir / "preseed.cfg"
+            iso_path = ubuntu_dir / f"ubuntu-{version}-live-server-amd64.iso"
+
+            versions[version] = {
+                "path": str(ubuntu_dir),
+                "kernel": {
+                    "exists": kernel_path.exists(),
+                    "path": str(kernel_path),
+                    "size": kernel_path.stat().st_size if kernel_path.exists() else 0
+                },
+                "initrd": {
+                    "exists": initrd_path.exists(),
+                    "path": str(initrd_path),
+                    "size": initrd_path.stat().st_size if initrd_path.exists() else 0
+                },
+                "preseed": {
+                    "exists": preseed_path.exists(),
+                    "path": str(preseed_path),
+                    "size": preseed_path.stat().st_size if preseed_path.exists() else 0
+                },
+                "iso": {
+                    "exists": iso_path.exists(),
+                    "path": str(iso_path),
+                    "size": iso_path.stat().st_size if iso_path.exists() else 0
+                },
+                "complete": kernel_path.exists() and initrd_path.exists()
+            }
+
+        return versions
+
+    @staticmethod
+    def check_ubuntu_files() -> str:
+        """Check Ubuntu files with version support"""
+        versions = FileChecker.scan_ubuntu_versions()
+
+        if not versions:
+            return "❌ No Ubuntu versions found in /srv/http/"
+
+        results = []
+        working_versions = []
+
+        for version, info in versions.items():
+            results.append(f"\n🐧 **Ubuntu {version} LTS**:")
+
+            # Check kernel
+            if info['kernel']['exists']:
+                size_mb = info['kernel']['size'] / (1024 * 1024)
+                results.append(f"✅ vmlinuz: Found ({size_mb:.1f} MB)")
+            else:
+                results.append(f"❌ vmlinuz: Missing")
+
+            # Check initrd
+            if info['initrd']['exists']:
+                size_mb = info['initrd']['size'] / (1024 * 1024)
+                results.append(f"✅ initrd: Found ({size_mb:.1f} MB)")
+            else:
+                results.append(f"❌ initrd: Missing")
+
+            # Check preseed
+            if info['preseed']['exists']:
+                size_kb = info['preseed']['size'] / 1024
+                results.append(f"✅ preseed.cfg: Found ({size_kb:.1f} KB)")
+            else:
+                results.append(f"❌ preseed.cfg: Missing")
+
+            # Check ISO
+            if info['iso']['exists']:
+                size_gb = info['iso']['size'] / (1024 * 1024 * 1024)
+                results.append(f"✅ ISO: Found ({size_gb:.1f} GB)")
+            else:
+                results.append(f"❌ ISO: Missing")
+
+            if info['complete']:
+                working_versions.append(version)
+
+        # Summary
+        if working_versions:
+            results.append(f"\n✅ **Working Ubuntu versions**: {', '.join(working_versions)}")
+        else:
+            results.append(f"\n❌ **No complete Ubuntu installations found**")
+
+        return "\n".join(results)
+
 
 class SystemTester:
-    """Main system testing orchestrator"""
+    """Main system testing orchestrator with enhanced Ubuntu support"""
 
     def __init__(self):
         self.tftp_tester = TFTPTester()
@@ -167,7 +270,7 @@ class SystemTester:
         self.file_checker = FileChecker()
 
     def run_full_system_test(self) -> str:
-        """Run complete system test and return formatted results"""
+        """Run complete system test with Ubuntu version support"""
         results = []
 
         # Test TFTP connection
@@ -186,8 +289,12 @@ class SystemTester:
         http_result = self.http_tester.test_endpoint("http://localhost:8000/status")
         results.append(http_result)
 
-        # Test Gradio UI
-        results.append("✅ Gradio UI (port 9005): Running (you're using it now!)")
+        # Test Gradio UI - use correct internal port
+        gradio_result = self.http_tester.test_endpoint("http://localhost:8000/gradio")
+        if "OK" in gradio_result:
+            results.append("✅ Gradio UI: Running (accessible via HTTP)")
+        else:
+            results.append("❌ Gradio UI: Not accessible")
 
         # Test iPXE menu
         ipxe_file_result = self.file_checker.check_file_exists("/srv/ipxe/boot.ipxe", False)
@@ -197,12 +304,9 @@ class SystemTester:
             ipxe_http_result = self.http_tester.test_endpoint("http://localhost:8000/ipxe/boot.ipxe")
             results.append(ipxe_http_result)
 
-        # Test Ubuntu files
-        ubuntu_kernel_result = self.file_checker.check_file_exists("/srv/http/ubuntu/vmlinuz")
-        results.append(ubuntu_kernel_result)
-
-        ubuntu_initrd_result = self.file_checker.check_file_exists("/srv/http/ubuntu/initrd")
-        results.append(ubuntu_initrd_result)
+        # Test Ubuntu files with version support
+        ubuntu_results = self.file_checker.check_ubuntu_files()
+        results.append("\n" + ubuntu_results)
 
         # Test iPXE files
         ipxe_bios_result = self.file_checker.check_file_exists("/srv/tftp/undionly.kpxe")
@@ -211,49 +315,94 @@ class SystemTester:
         ipxe_uefi_result = self.file_checker.check_file_exists("/srv/tftp/ipxe.efi")
         results.append(ipxe_uefi_result)
 
-        # Add final status
-        results.extend(self._generate_final_status(results))
+        # Add final status with Ubuntu awareness
+        results.extend(self._generate_final_status_with_ubuntu(results))
 
         return "\n".join(results)
 
-    def _generate_final_status(self, test_results: List[str]) -> List[str]:
-        """Generate final status based on test results"""
-        critical_tests = [
-            "Ubuntu kernel: Found",
-            "Ubuntu initrd: Found",
-            "iPXE BIOS: Found",
-            "iPXE menu file: Found"
-        ]
-
-        critical_passed = all(
-            any(critical in result for result in test_results)
-            for critical in critical_tests
-        )
-
+    def _generate_final_status_with_ubuntu(self, test_results: List[str]) -> List[str]:
+        """Generate final status with Ubuntu version awareness"""
         status_lines = [""]
 
-        if critical_passed:
+        # Check for working Ubuntu versions
+        ubuntu_versions_working = any("Working Ubuntu versions" in result for result in test_results)
+        critical_files_present = all(
+            any(file_check in result for result in test_results)
+            for file_check in ["iPXE BIOS: Found", "iPXE menu file: Found"]
+        )
+
+        if ubuntu_versions_working and critical_files_present:
             status_lines.extend([
                 "🎉 READY FOR PXE BOOT TESTING!",
-                "📋 All main components are working",
+                "📋 Ubuntu installations and iPXE components are working",
                 "",
                 "🔍 Next steps:",
                 "1. Configure DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe",
                 "2. Boot test computer via network (PXE)",
-                "3. Or test with QEMU emulator"
+                "3. Use 'Create Smart Menu' to generate multi-mode iPXE menu",
+                "4. Or test with QEMU emulator"
+            ])
+        elif ubuntu_versions_working:
+            status_lines.extend([
+                "⚠️ PARTIALLY READY",
+                "✅ Ubuntu files found, but some iPXE components missing",
+                "",
+                "🔧 Please check:",
+                "1. Verify iPXE files (undionly.kpxe, ipxe.efi)",
+                "2. Generate iPXE menu configuration"
             ])
         else:
             status_lines.extend([
                 "⚠️ SYSTEM NOT READY",
-                "❌ Some critical components are missing",
+                "❌ No complete Ubuntu installations found",
                 "",
                 "🔧 Please check:",
-                "1. Download Ubuntu files",
-                "2. Generate iPXE menu",
-                "3. Verify file permissions"
+                "1. Download Ubuntu files using Ubuntu Download tab",
+                "2. Verify Ubuntu files are in /srv/http/ubuntu-XX.XX/ structure",
+                "3. Generate iPXE menu",
+                "4. Verify file permissions"
             ])
 
         return status_lines
+
+    def run_ubuntu_specific_tests(self) -> str:
+        """Run Ubuntu-specific tests"""
+        results = []
+        results.append("🐧 **Ubuntu-Specific Tests**")
+        results.append("=" * 40)
+
+        # Scan Ubuntu versions
+        versions = self.file_checker.scan_ubuntu_versions()
+
+        if not versions:
+            results.append("❌ No Ubuntu versions found")
+            return "\n".join(results)
+
+        for version, info in versions.items():
+            results.append(f"\n📦 **Testing Ubuntu {version}**:")
+
+            if info['complete']:
+                # Test HTTP access to kernel
+                kernel_url = f"http://localhost:8000/ubuntu-{version}/vmlinuz"
+                kernel_test = self.http_tester.test_endpoint(kernel_url)
+                results.append(f"   {kernel_test}")
+
+                # Test HTTP access to initrd
+                initrd_url = f"http://localhost:8000/ubuntu-{version}/initrd"
+                initrd_test = self.http_tester.test_endpoint(initrd_url)
+                results.append(f"   {initrd_test}")
+
+                # Test preseed if exists
+                if info['preseed']['exists']:
+                    preseed_url = f"http://localhost:8000/ubuntu-{version}/preseed.cfg"
+                    preseed_test = self.http_tester.test_endpoint(preseed_url)
+                    results.append(f"   {preseed_test}")
+
+                results.append(f"   ✅ Ubuntu {version} is ready for PXE boot")
+            else:
+                results.append(f"   ❌ Ubuntu {version} incomplete (missing kernel or initrd)")
+
+        return "\n".join(results)
 
 
 # Convenience functions for backward compatibility
@@ -263,6 +412,18 @@ def test_tftp_connection() -> str:
 
 
 def test_http_endpoints() -> str:
-    """Legacy function for HTTP testing"""
+    """Enhanced HTTP testing with Ubuntu version support"""
     tester = SystemTester()
     return tester.run_full_system_test()
+
+
+def test_ubuntu_files() -> str:
+    """Test Ubuntu files with version support"""
+    checker = FileChecker()
+    return checker.check_ubuntu_files()
+
+
+def run_ubuntu_tests() -> str:
+    """Run comprehensive Ubuntu tests"""
+    tester = SystemTester()
+    return tester.run_ubuntu_specific_tests()
