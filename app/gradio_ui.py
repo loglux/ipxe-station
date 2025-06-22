@@ -243,24 +243,24 @@ goto menu
             import socket
             import struct
 
-            # TFTP Read Request (RRQ) для undionly.kpxe
+            # TFTP Read Request (RRQ) for undionly.kpxe
             filename = b'undionly.kpxe'
             mode = b'octet'
 
-            # Создаем TFTP RRQ пакет
+            # Create TFTP RRQ packet
             # Opcode 1 = Read Request
             packet = struct.pack('!H', 1) + filename + b'\x00' + mode + b'\x00'
 
-            # Отправляем запрос
+            # Send request
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(5)
             sock.sendto(packet, ('localhost', 69))
 
-            # Получаем ответ
+            # Receive response
             data, addr = sock.recvfrom(1024)
             sock.close()
 
-            # Проверяем ответ
+            # Check response
             if len(data) >= 4:
                 opcode = struct.unpack('!H', data[:2])[0]
                 if opcode == 3:  # Data packet
@@ -291,7 +291,7 @@ goto menu
         # Check if TFTP daemon is running (Docker-friendly)
         try:
             import os
-            # Проверяем PID файлы или процессы через /proc
+            # Check PID files or processes via /proc
             pid_files = ['/var/run/tftpd-hpa.pid', '/run/tftpd-hpa.pid']
             tftp_running = False
 
@@ -306,7 +306,7 @@ goto menu
             if tftp_running:
                 results.append("✅ TFTP daemon: Running")
             else:
-                # Альтернативная проверка через netstat
+                # Alternative check via netstat
                 try:
                     import subprocess
                     result = subprocess.run(['netstat', '-ulnp'],
@@ -382,15 +382,15 @@ goto menu
         else:
             results.append("❌ iPXE UEFI: Missing")
 
-        # Итоговый статус
+        # Final status
         results.append("")
-        results.append("🎉 ГОТОВО К ТЕСТИРОВАНИЮ PXE ЗАГРУЗКИ!")
-        results.append("📋 Все основные компоненты работают")
+        results.append("🎉 READY FOR PXE BOOT TESTING!")
+        results.append("📋 All main components are working")
         results.append("")
-        results.append("🔍 Следующие шаги:")
-        results.append("1. Настройте DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe")
-        results.append("2. Загрузите тестовый компьютер по сети (PXE)")
-        results.append("3. Или протестируйте с QEMU эмулятором")
+        results.append("🔍 Next steps:")
+        results.append("1. Configure DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe")
+        results.append("2. Boot test computer via network (PXE)")
+        results.append("3. Or test with QEMU emulator")
 
         return "\n".join(results)
 
