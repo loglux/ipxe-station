@@ -112,7 +112,6 @@ def build_gradio_ui():
         except Exception as e:
             return f"❌ Error downloading iPXE files: {str(e)}"
 
-    # Use the new Ubuntu downloader
     def download_ubuntu_files():
         """Download Ubuntu 24.04.2 LTS netboot files"""
         return download_ubuntu_netboot()
@@ -121,7 +120,6 @@ def build_gradio_ui():
         """Get Ubuntu files status"""
         return check_ubuntu_files()
 
-    # Rest of the functions remain the same...
     def create_ipxe_menu():
         """Create iPXE boot menu"""
         try:
@@ -164,22 +162,22 @@ goto ${selected}
 
 :ubuntu_install
 echo Booting Ubuntu 24.04.2 LTS Installer...
-kernel http://${next-server}:9005/http/ubuntu/vmlinuz
-initrd http://${next-server}:9005/http/ubuntu/initrd
-imgargs vmlinuz initrd=initrd auto=true priority=critical preseed/url=http://${next-server}:9005/http/ubuntu/preseed.cfg
+kernel http://${next-server}:8000/http/ubuntu/vmlinuz
+initrd http://${next-server}:8000/http/ubuntu/initrd
+imgargs vmlinuz initrd=initrd auto=true priority=critical preseed/url=http://${next-server}:8000/http/ubuntu/preseed.cfg
 boot || goto failed
 
 :ubuntu_rescue
 echo Booting Ubuntu Recovery Mode...
-kernel http://${next-server}:9005/http/ubuntu/vmlinuz
-initrd http://${next-server}:9005/http/ubuntu/initrd
+kernel http://${next-server}:8000/http/ubuntu/vmlinuz
+initrd http://${next-server}:8000/http/ubuntu/initrd
 imgargs vmlinuz initrd=initrd rescue/enable=true
 boot || goto failed
 
 :memtest
 echo Starting Memory Test...
 # Note: Download memtest86+ binary to /srv/http/memtest/memtest86+
-kernel http://${next-server}:9005/http/memtest/memtest86+ || goto failed
+kernel http://${next-server}:8000/http/memtest/memtest86+ || goto failed
 boot || goto failed
 
 :shell
@@ -218,6 +216,131 @@ goto menu
         except Exception as e:
             return f"❌ Error creating iPXE menu: {str(e)}"
 
+    def get_ipxe_menu_content():
+        """Get current iPXE menu content"""
+        ipxe_file = Path("/srv/ipxe/boot.ipxe")
+        if ipxe_file.exists():
+            with open(ipxe_file, 'r') as f:
+                return f.read()
+        return "# iPXE menu not created yet\n# Click 'Create iPXE Menu' to generate default menu"
+
+    def save_ipxe_menu(content):
+        """Save iPXE menu content"""
+        try:
+            ipxe_dir = Path("/srv/ipxe")
+            ipxe_dir.mkdir(parents=True, exist_ok=True)
+
+            with open(ipxe_dir / "boot.ipxe", "w") as f:
+                f.write(content)
+
+            return "✅ iPXE menu saved successfully!"
+        except Exception as e:
+            return f"❌ Error saving iPXE menu: {str(e)}"
+
+    def test_http_endpoints():
+        """Test HTTP endpoints"""
+        results = []
+
+        # Test main server
+        try:
+            response = requests.get("http://localhost:8000/status", timeout=5)
+            if response.status_code == 200:
+                results.append("✅ Main server (port 8000): OK")
+            else:
+                results.append(f"❌ Main server: HTTP {response.status_code}")
+        except Exception as e:
+            results.append(f"❌ Main server: {str(e)}")
+
+        # Test Gradio UI
+        try:
+            response = requests.get("http://localhost:9005", timeout=5)
+            if response.status_code == 200:
+                results.append("✅ Gradio UI (port 9005): OK")
+            else:
+                results.append(f"❌ Gradio UI: HTTP {response.status_code}")
+        except Exception as e:
+            results.append(f"❌ Gradio UI: {str(e)}")
+
+        # Test iPXE menu
+        ipxe_file = Path("/srv/ipxe/boot.ipxe")
+        if ipxe_file.exists():
+            results.append("✅ iPXE menu file: Found")
+            try:
+                response = requests.get("http://localhost:8000/ipxe/boot.ipxe", timeout=5)
+                if response.status_code == 200:
+                    results.append("✅ iPXE menu HTTP: Accessible")
+                else:
+                    results.append(f"❌ iPXE menu HTTP: {response.status_code}")
+            except Exception as e:
+                results.append(f"❌ iPXE menu HTTP: {str(e)}")
+        else:
+            results.append("❌ iPXE menu file: Missing")
+
+        # Test Ubuntu files
+        ubuntu_kernel = Path("/srv/http/ubuntu/vmlinuz")
+        ubuntu_initrd = Path("/srv/http/ubuntu/initrd")
+
+        if ubuntu_kernel.exists():
+            results.append("✅ Ubuntu kernel: Found")
+        else:
+            results.append("❌ Ubuntu kernel: Missing")
+
+        if ubuntu_initrd.exists():
+            results.append("✅ Ubuntu initrd: Found")
+        else:
+            results.append("❌ Ubuntu initrd: Missing")
+
+        # Test TFTP files
+        tftp_dir = Path("/srv/tftp")
+        ipxe_bios = tftp_dir / "undionly.kpxe"
+        ipxe_uefi = tftp_dir / "ipxe.efi"
+
+        if ipxe_bios.exists():
+            results.append("✅ iPXE BIOS: Found")
+        else:
+            results.append("❌ iPXE BIOS: Missing")
+
+        if ipxe_uefi.exists():
+            results.append("✅ iPXE UEFI: Found")
+        else:
+            results.append("❌ iPXE UEFI: Missing")
+
+        return "\n".join(results)
+
+    def generate_test_instructions():
+        """Generate testing instructions"""
+        return """🧪 Как протестировать iPXE Station:
+
+## 1. 🔧 Локальное тестирование (без DHCP):
+
+### Простой способ - HTTP проверка:
+curl http://YOUR_SERVER_IP:8000/status
+curl http://YOUR_SERVER_IP:8000/ipxe/boot.ipxe
+curl -I http://YOUR_SERVER_IP:8000/http/ubuntu/vmlinuz
+
+### Эмулятор QEMU:
+sudo apt install qemu-system-x86
+qemu-system-x86_64 -m 1024 -boot n -netdev user,id=net0,tftp=/srv/tftp,bootfile=undionly.kpxe -device e1000,netdev=net0
+
+## 2. 🌐 Полное тестирование (с DHCP):
+
+### Настройка роутера:
+- DHCP Option 66: IP_ВАШЕГО_СЕРВЕРА
+- DHCP Option 67: undionly.kpxe
+
+### Что должно происходить:
+1. Компьютер загружается по сети (PXE)
+2. Скачивает iPXE с TFTP сервера
+3. iPXE загружает меню с HTTP сервера
+4. Показывает меню с опциями Ubuntu
+5. При выборе Ubuntu скачивает kernel и initrd
+
+## 3. 🔍 Отладка порты:
+- 69/UDP - TFTP
+- 8000/TCP - HTTP сервер
+- 9005/TCP - Web UI
+"""
+
     def generate_dhcp_config():
         """Generate DHCP configuration"""
         config = """# DHCP Configuration for iPXE Station
@@ -233,7 +356,7 @@ subnet 192.168.1.0 netmask 255.255.255.0 {
   next-server YOUR_SERVER_IP;
 
   if exists user-class and option user-class = "iPXE" {
-    filename "http://YOUR_SERVER_IP:9005/ipxe/boot.ipxe";
+    filename "http://YOUR_SERVER_IP:8000/ipxe/boot.ipxe";
   } else if substring(option vendor-class-identifier, 0, 20) = "PXEClient:Arch:00000" {
     filename "undionly.kpxe";  # BIOS
   } else if substring(option vendor-class-identifier, 0, 20) = "PXEClient:Arch:00007" {
@@ -319,6 +442,57 @@ set 0 dhcp-option=tftp-server,boot-file
                 create_menu_btn.click(create_ipxe_menu, outputs=ubuntu_output)
                 refresh_ubuntu_btn.click(get_ubuntu_status, outputs=ubuntu_output)
 
+            # iPXE Menu Tab
+            with gr.TabItem("📋 iPXE Menu"):
+                gr.Markdown("### View and Edit iPXE Boot Menu")
+
+                ipxe_content = gr.Textbox(
+                    label="iPXE Menu Content",
+                    value=get_ipxe_menu_content(),
+                    lines=20,
+                    interactive=True,
+                    info="Edit the iPXE menu script here"
+                )
+
+                with gr.Row():
+                    load_menu_btn = gr.Button("🔄 Reload Menu", variant="secondary")
+                    save_menu_btn = gr.Button("💾 Save Menu", variant="primary")
+                    create_default_btn = gr.Button("📋 Create Default", variant="secondary")
+
+                menu_status = gr.Textbox(
+                    label="Menu Status",
+                    lines=2,
+                    interactive=False
+                )
+
+                load_menu_btn.click(get_ipxe_menu_content, outputs=ipxe_content)
+                save_menu_btn.click(save_ipxe_menu, inputs=ipxe_content, outputs=menu_status)
+                create_default_btn.click(
+                    lambda: (create_ipxe_menu(), get_ipxe_menu_content()),
+                    outputs=[menu_status, ipxe_content]
+                )
+
+            # Testing Tab
+            with gr.TabItem("🧪 Testing"):
+                gr.Markdown("### Test Your iPXE Station")
+
+                test_results = gr.Textbox(
+                    label="Test Results",
+                    lines=12,
+                    interactive=False
+                )
+
+                test_btn = gr.Button("🔍 Run Tests", variant="primary")
+                test_btn.click(test_http_endpoints, outputs=test_results)
+
+                gr.Markdown("### Testing Instructions")
+                instructions = gr.Textbox(
+                    label="How to Test",
+                    value=generate_test_instructions(),
+                    lines=15,
+                    interactive=False
+                )
+
             # Files Tab
             with gr.TabItem("📁 Files"):
                 with gr.Row():
@@ -374,6 +548,7 @@ set 0 dhcp-option=tftp-server,boot-file
                 - Apply to your DHCP server
 
                 **3. Test:**
+                - Go to "Testing" tab → Run Tests
                 - Boot a computer from network
                 - Should see iPXE menu with Ubuntu option
 
@@ -385,10 +560,11 @@ set 0 dhcp-option=tftp-server,boot-file
                 ### 🔧 Troubleshooting:
                 - Check all files are downloaded (Files tab)
                 - Verify DHCP points to correct server IP
-                - Ensure ports 69/UDP and 9005/TCP are open
+                - Ensure ports 69/UDP and 8000/TCP are open
                 """)
 
     return demo
+
 
 if __name__ == "__main__":
     demo = build_gradio_ui()
