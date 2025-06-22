@@ -169,7 +169,19 @@ def build_gradio_ui():
 
             with open(http_dir / "preseed.cfg", "w") as f:
                 f.write(preseed_content)
-            status += "✅ Preseed configuration created\
+            status += "✅ Preseed configuration created\n"
+
+            # Final result
+            if not errors:
+                status += "\n🎉 Ubuntu 24.04.2 LTS files downloaded!\n"
+                status += "📝 Note: This is the network installer, not the full desktop."
+            else:
+                status += f"\n❌ Ubuntu download failed! Missing: {', '.join(errors)}"
+
+            return status
+
+        except Exception as e:
+            return f"❌ Error downloading Ubuntu files: {str(e)}"
 
     def create_ipxe_menu():
         """Create iPXE boot menu"""
