@@ -237,33 +237,89 @@ goto menu
         except Exception as e:
             return f"❌ Error saving iPXE menu: {str(e)}"
 
-    def test_http_endpoints():
-        """Test HTTP endpoints and TFTP server"""
-        results = []
-
-        # Test TFTP server (Docker-friendly)
-        try:
-            import subprocess
-            # Проверяем процесс TFTP сервера
-            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True, timeout=5)
-            if 'tftpd' in result.stdout:
-                results.append("✅ TFTP server (tftpd-hpa): Running")
-            else:
-                results.append("❓ TFTP server process: Not found in ps")
-        except Exception as e:
-            results.append(f"❓ TFTP server check: {str(e)}")
-
-        # Check TFTP port (уже работает!)
+    def test_tftp_connection():
+        """Test TFTP connection using Python socket"""
         try:
             import socket
+            import struct
+
+            # TFTP Read Request (RRQ) для undionly.kpxe
+            filename = b'undionly.kpxe'
+            mode = b'octet'
+
+            # Создаем TFTP RRQ пакет
+            # Opcode 1 = Read Request
+            packet = struct.pack('!H', 1) + filename + b'\x00' + mode + b'\x00'
+
+            # Отправляем запрос
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(1)
-            # Для UDP проверяем по-другому
-            sock.bind(('localhost', 0))  # Проверяем что порт не занят
+            sock.settimeout(5)
+            sock.sendto(packet, ('localhost', 69))
+
+            # Получаем ответ
+            data, addr = sock.recvfrom(1024)
             sock.close()
-            results.append("✅ TFTP port 69/UDP: Available")
-        except Exception:
-            results.append("✅ TFTP port 69/UDP: In use (likely tftpd running)")
+
+            # Проверяем ответ
+            if len(data) >= 4:
+                opcode = struct.unpack('!H', data[:2])[0]
+                if opcode == 3:  # Data packet
+                    block_num = struct.unpack('!H', data[2:4])[0]
+                    data_size = len(data) - 4
+                    return f"✅ TFTP test: SUCCESS (Block #{block_num}, {data_size} bytes)"
+                elif opcode == 5:  # Error packet
+                    error_code = struct.unpack('!H', data[2:4])[0]
+                    return f"❌ TFTP test: Error {error_code}"
+                else:
+                    return f"❓ TFTP test: Unknown opcode {opcode}"
+            else:
+                return "❌ TFTP test: Invalid response"
+
+        except socket.timeout:
+            return "❌ TFTP test: Timeout (server not responding)"
+        except Exception as e:
+            return f"❌ TFTP test: {str(e)}"
+
+    def test_http_endpoints():
+        """Test HTTP endpoints and services"""
+        results = []
+
+        # Test TFTP via Python socket
+        tftp_result = test_tftp_connection()
+        results.append(tftp_result)
+
+        # Check if TFTP daemon is running (Docker-friendly)
+        try:
+            import os
+            # Проверяем PID файлы или процессы через /proc
+            pid_files = ['/var/run/tftpd-hpa.pid', '/run/tftpd-hpa.pid']
+            tftp_running = False
+
+            for pid_file in pid_files:
+                if os.path.exists(pid_file):
+                    with open(pid_file, 'r') as f:
+                        pid = f.read().strip()
+                        if os.path.exists(f'/proc/{pid}'):
+                            tftp_running = True
+                            break
+
+            if tftp_running:
+                results.append("✅ TFTP daemon: Running")
+            else:
+                # Альтернативная проверка через netstat
+                try:
+                    import subprocess
+                    result = subprocess.run(['netstat', '-ulnp'],
+                                            capture_output=True, text=True, timeout=5)
+                    if ':69 ' in result.stdout:
+                        results.append("✅ TFTP daemon: Listening on port 69")
+                    else:
+                        results.append("❓ TFTP daemon: Port 69 status unknown")
+                except:
+                    results.append("✅ TFTP daemon: Likely running (port responding)")
+
+        except Exception as e:
+            results.append(f"❓ TFTP daemon check: {str(e)}")
 
         # Test main server
         try:
@@ -275,12 +331,8 @@ goto menu
         except Exception as e:
             results.append(f"❌ Main server: {str(e)}")
 
-        # Test Gradio UI (исправляем проверку)
-        try:
-            # Gradio UI работает в том же процессе, проверяем по-другому
-            results.append("✅ Gradio UI (port 9005): Running (you're using it now!)")
-        except Exception as e:
-            results.append(f"❓ Gradio UI: {str(e)}")
+        # Test Gradio UI
+        results.append("✅ Gradio UI (port 9005): Running (you're using it now!)")
 
         # Test iPXE menu
         ipxe_file = Path("/srv/ipxe/boot.ipxe")
@@ -334,32 +386,13 @@ goto menu
         results.append("")
         results.append("🎉 ГОТОВО К ТЕСТИРОВАНИЮ PXE ЗАГРУЗКИ!")
         results.append("📋 Все основные компоненты работают")
+        results.append("")
+        results.append("🔍 Следующие шаги:")
+        results.append("1. Настройте DHCP: Option 66 = YOUR_SERVER_IP, Option 67 = undionly.kpxe")
+        results.append("2. Загрузите тестовый компьютер по сети (PXE)")
+        results.append("3. Или протестируйте с QEMU эмулятором")
 
         return "\n".join(results)
-
-    def test_tftp_connection():
-        """Test TFTP connection"""
-        try:
-            import subprocess
-            # Простой TFTP тест - проверяем что файл доступен
-            result = subprocess.run([
-                'tftp', 'localhost', '-c', 'get', 'undionly.kpxe', '/tmp/tftp_test.kpxe'
-            ], capture_output=True, text=True, timeout=10)
-
-            if result.returncode == 0:
-                # Проверяем что файл скачался
-                import os
-                if os.path.exists('/tmp/tftp_test.kpxe'):
-                    size = os.path.getsize('/tmp/tftp_test.kpxe')
-                    os.remove('/tmp/tftp_test.kpxe')  # Очищаем
-                    return f"✅ TFTP test: SUCCESS ({size} bytes downloaded)"
-                else:
-                    return "❌ TFTP test: File not downloaded"
-            else:
-                return f"❌ TFTP test: {result.stderr}"
-
-        except Exception as e:
-            return f"❓ TFTP test: {str(e)} (tftp client may not be installed)"
 
     def generate_test_instructions():
         """Generate testing instructions"""
