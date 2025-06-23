@@ -724,12 +724,13 @@ goto start
             return f"❌ Suggestion generation failed: {str(e)}"
 
     # =========================
-    # ISO MANAGEMENT - MINIMAL UI WRAPPERS
+    # ISO MANAGEMENT TAB - UPDATED METHODS
     # =========================
 
     def download_iso_from_url(self, url: str, folder_name: str, display_name: str,
-                              category: str = "custom", progress=gr.Progress()) -> str:
-        """Download ISO from URL with progress tracking - UI wrapper for progress callback"""
+                              category: str = "custom", extract_files: bool = False,
+                              iso_retention: str = "keep", progress=gr.Progress()) -> str:
+        """Download ISO from URL with progress tracking and optional extraction"""
         try:
             if not self.iso_manager:
                 return "❌ ISO manager module not available"
@@ -744,6 +745,8 @@ goto start
                 folder_name=folder_name,
                 display_name=display_name,
                 category=category,
+                extract_files=extract_files,
+                iso_retention=iso_retention,
                 progress_callback=progress_callback
             )
 
@@ -753,8 +756,9 @@ goto start
             return f"❌ ISO download failed: {str(e)}"
 
     def upload_iso_file(self, file_obj, folder_name: str, display_name: str,
-                        category: str = "custom") -> str:
-        """Upload ISO file from local system - UI wrapper for file handling"""
+                        category: str = "custom", extract_files: bool = False,
+                        iso_retention: str = "keep") -> str:
+        """Upload ISO file from local system with optional extraction"""
         try:
             if not self.iso_manager:
                 return "❌ ISO manager module not available"
@@ -766,13 +770,36 @@ goto start
                 file_obj=file_obj,
                 folder_name=folder_name,
                 display_name=display_name,
-                category=category
+                category=category,
+                extract_files=extract_files,
+                iso_retention=iso_retention
             )
 
             return result
 
         except Exception as e:
             return f"❌ ISO upload failed: {str(e)}"
+
+    def get_iso_retention_options(self) -> list:
+        """Get ISO retention options for dropdown"""
+        try:
+            if not self.iso_manager:
+                return ["keep"]
+
+            options = self.iso_manager.get_iso_retention_options()
+            return list(options.keys())
+        except Exception as e:
+            return ["keep"]
+
+    def get_iso_retention_labels(self) -> dict:
+        """Get ISO retention options with labels"""
+        try:
+            if not self.iso_manager:
+                return {"keep": "Keep in same folder"}
+
+            return self.iso_manager.get_iso_retention_options()
+        except Exception as e:
+            return {"keep": "Keep in same folder"}
 
 
 
@@ -1294,7 +1321,7 @@ def build_gradio_ui():
                 )
 
             # =========================
-            # ISO MANAGEMENT TAB - CORRECTED
+            # ISO MANAGEMENT TAB - ENHANCED WITH EXTRACTION
             # =========================
             with gr.Tab("📁 ISO Management", elem_id="iso-tab"):
                 gr.Markdown("## 📁 ISO Images Download & Management")
@@ -1305,7 +1332,7 @@ def build_gradio_ui():
                         iso_summary_output = gr.Textbox(
                             label="ISO Images Summary",
                             value=ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
-                            lines=4,
+                            lines=5,
                             interactive=False
                         )
                         refresh_iso_summary_btn = gr.Button("🔄 Refresh Summary", variant="secondary", size="sm")
@@ -1339,6 +1366,25 @@ def build_gradio_ui():
                                 scale=1
                             )
 
+                        # Extraction options for download
+                        with gr.Accordion("📦 Boot File Extraction Options", open=False):
+                            with gr.Row():
+                                extract_files_download = gr.Checkbox(
+                                    label="Extract boot files from ISO",
+                                    value=False,
+                                    info="Extract kernel, initrd, and config files for fast booting"
+                                )
+
+                            with gr.Row():
+                                iso_retention_download = gr.Dropdown(
+                                    choices=ui.get_iso_retention_options() if hasattr(ui,
+                                                                                      'get_iso_retention_options') else [
+                                        "keep"],
+                                    value="keep",
+                                    label="ISO file handling after extraction",
+                                    visible=False  # Will be shown when extract_files is checked
+                                )
+
                         download_iso_btn = gr.Button("⬇️ Download ISO", variant="primary")
 
                 # Upload file section
@@ -1370,12 +1416,31 @@ def build_gradio_ui():
                                 scale=1
                             )
 
+                        # Extraction options for upload
+                        with gr.Accordion("📦 Boot File Extraction Options", open=False):
+                            with gr.Row():
+                                extract_files_upload = gr.Checkbox(
+                                    label="Extract boot files from ISO",
+                                    value=False,
+                                    info="Extract kernel, initrd, and config files for fast booting"
+                                )
+
+                            with gr.Row():
+                                iso_retention_upload = gr.Dropdown(
+                                    choices=ui.get_iso_retention_options() if hasattr(ui,
+                                                                                      'get_iso_retention_options') else [
+                                        "keep"],
+                                    value="keep",
+                                    label="ISO file handling after extraction",
+                                    visible=False  # Will be shown when extract_files is checked
+                                )
+
                         upload_iso_btn = gr.Button("📤 Upload ISO", variant="primary")
 
                 # Status output for downloads/uploads
                 iso_operation_status = gr.Textbox(
                     label="Operation Status",
-                    lines=10,
+                    lines=12,
                     interactive=False
                 )
 
@@ -1403,64 +1468,119 @@ def build_gradio_ui():
 
                 iso_management_status = gr.Textbox(
                     label="Management Status",
-                    lines=8,
+                    lines=10,
                     interactive=False
                 )
 
-                # Event handlers for ISO management
+                # Show/hide retention options based on extraction checkbox
+                extract_files_download.change(
+                    fn=lambda checked: gr.update(visible=checked),
+                    inputs=[extract_files_download],
+                    outputs=[iso_retention_download]
+                )
+
+                extract_files_upload.change(
+                    fn=lambda checked: gr.update(visible=checked),
+                    inputs=[extract_files_upload],
+                    outputs=[iso_retention_upload]
+                )
+
+                # Event handlers with extraction support
                 download_iso_btn.click(
-                    fn=ui.download_iso_from_url,  # Keep this method in UI for progress callback
-                    inputs=[iso_url, iso_folder_name, iso_display_name, iso_category],
+                    fn=ui.download_iso_from_url,
+                    inputs=[iso_url, iso_folder_name, iso_display_name, iso_category,
+                            extract_files_download, iso_retention_download],
                     outputs=iso_operation_status,
                     show_progress=True
                 )
 
                 upload_iso_btn.click(
-                    fn=ui.upload_iso_file,  # Keep this method in UI for file handling
-                    inputs=[iso_file_upload, upload_folder_name, upload_display_name, upload_category],
+                    fn=ui.upload_iso_file,
+                    inputs=[iso_file_upload, upload_folder_name, upload_display_name, upload_category,
+                            extract_files_upload, iso_retention_upload],
                     outputs=iso_operation_status
                 )
 
                 check_iso_btn.click(
-                    fn=lambda folder: ui.iso_manager.get_iso_status(
-                        folder) if ui.iso_manager else "ISO manager not available",
+                    fn=lambda folder: (
+                        ui.iso_manager.get_iso_status(folder) if ui.iso_manager and folder != "No ISOs found"
+                        else "❌ Please select a valid ISO to check" if folder == "No ISOs found"
+                        else "❌ ISO manager not available"
+                    ),
                     inputs=[existing_isos],
                     outputs=iso_management_status
                 )
 
                 check_all_isos_btn.click(
-                    fn=lambda: ui.iso_manager.get_iso_status() if ui.iso_manager else "ISO manager not available",
+                    fn=lambda: (
+                        ui.iso_manager.get_iso_status() if ui.iso_manager
+                        else "❌ ISO manager not available"
+                    ),
                     outputs=iso_management_status
                 )
 
                 refresh_iso_list_btn.click(
-                    fn=lambda: gr.update(
-                        choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
-                        value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                    fn=lambda: (
+                        gr.update(
+                            choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
+                            value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                        )
                     ),
                     outputs=existing_isos
                 )
 
                 delete_iso_btn.click(
-                    fn=lambda folder: ui.iso_manager.delete_iso(
-                        folder) if ui.iso_manager else "ISO manager not available",
+                    fn=lambda folder: (
+                        ui.iso_manager.delete_iso(folder) if ui.iso_manager and folder != "No ISOs found"
+                        else "❌ Please select a valid ISO to delete" if folder == "No ISOs found"
+                        else "❌ ISO manager not available"
+                    ),
                     inputs=[existing_isos],
                     outputs=iso_management_status
                 ).then(
-                    fn=lambda: gr.update(
-                        choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
-                        value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                    fn=lambda: (
+                        gr.update(
+                            choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
+                            value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                        )
                     ),
                     outputs=existing_isos
                 ).then(
-                    fn=lambda: ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
+                    fn=lambda: (
+                        ui.iso_manager.get_summary() if ui.iso_manager
+                        else "❌ ISO manager not available"
+                    ),
                     outputs=iso_summary_output
                 )
 
                 refresh_iso_summary_btn.click(
-                    fn=lambda: ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
+                    fn=lambda: (
+                        ui.iso_manager.get_summary() if ui.iso_manager
+                        else "❌ ISO manager not available"
+                    ),
                     outputs=iso_summary_output
                 )
+
+                # Help section
+                with gr.Accordion("ℹ️ Extraction Help", open=False):
+                    gr.Markdown("""
+                            ### 📦 Boot File Extraction
+
+                            **When to use extraction:**
+                            - ✅ **Linux rescue disks** - Extracts kernel/initrd for fast booting
+                            - ✅ **Ubuntu/Debian live images** - Enables direct kernel boot  
+                            - ✅ **Security tools** - Quick access without full ISO mount
+
+                            **ISO file handling options:**
+                            - 🏠 **Keep in same folder** - Original ISO + extracted files together
+                            - 📁 **Move to iso/ subfolder** - Organized storage, saves space in main folder
+                            - 🗑️ **Delete after extraction** - Maximum space savings, boot files only
+
+                            **Boot options after extraction:**
+                            - ⚡ **Fast boot** - Direct kernel loading (extracted files)
+                            - 💿 **Full boot** - Complete ISO experience (sanboot/imgfetch)
+                            - 🔧 **Flexible** - Choose boot method based on needs
+                            """)
 
 
         # Footer
