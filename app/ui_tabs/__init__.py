@@ -8,37 +8,34 @@ from .base_tab import BaseTab
 
 # Import all tab implementations
 from .status_tab import StatusTab
-
-# Note: Other tabs will be imported as they are implemented
-# from .testing_tab import TestingTab
-# from .dhcp_tab import DHCPTab
-# from .ipxe_tab import iPXETab
-# from .ubuntu_tab import UbuntuTab
-# from .iso_tab import ISOTab
+from .testing_tab import TestingTab
+from .dhcp_tab import DHCPTab
+from .ipxe_tab import iPXETab
+from .ubuntu_tab import UbuntuTab
+from .iso_tab import ISOTab
 
 # Export all available tabs
 __all__ = [
     'BaseTab',
     'StatusTab',
-    # 'TestingTab',
-    # 'DHCPTab',
-    # 'iPXETab',
-    # 'UbuntuTab',
-    # 'ISOTab',
+    'TestingTab',
+    'DHCPTab',
+    'iPXETab',
+    'UbuntuTab',
+    'ISOTab',
 ]
 
 # Tab registry for automatic loading (Variant 1 approach)
-# Will be expanded as more tabs are implemented
 AVAILABLE_TABS = [
     StatusTab,
-    # TestingTab,
-    # DHCPTab,
-    # iPXETab,
-    # UbuntuTab,
-    # ISOTab,
+    TestingTab,
+    DHCPTab,
+    iPXETab,
+    UbuntuTab,
+    ISOTab,
 ]
 
-# Tab metadata for future use
+# Tab metadata for configuration and validation
 TAB_METADATA = {
     'StatusTab': {
         'name': '📊 System Status',
@@ -46,7 +43,36 @@ TAB_METADATA = {
         'dependencies': ['status_manager'],
         'order': 1
     },
-    # Will be expanded as tabs are implemented
+    'TestingTab': {
+        'name': '🧪 System Testing',
+        'description': 'TFTP, HTTP and system component testing',
+        'dependencies': ['system_tester'],
+        'order': 2
+    },
+    'DHCPTab': {
+        'name': '🌐 DHCP Configuration',
+        'description': 'DHCP server configuration generation',
+        'dependencies': ['dhcp_manager'],
+        'order': 3
+    },
+    'iPXETab': {
+        'name': '📋 iPXE Menu',
+        'description': 'iPXE boot menu configuration and management',
+        'dependencies': ['ipxe_manager'],
+        'order': 4
+    },
+    'UbuntuTab': {
+        'name': '🐧 Ubuntu Download',
+        'description': 'Ubuntu files download and management',
+        'dependencies': ['ubuntu_downloader'],
+        'order': 5
+    },
+    'ISOTab': {
+        'name': '📁 ISO Management',
+        'description': 'ISO images download, upload and management',
+        'dependencies': ['iso_manager'],
+        'order': 6
+    }
 }
 
 
