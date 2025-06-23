@@ -27,7 +27,7 @@ app = gr.mount_gradio_app(app, demo, path="/pxe-station")
 def ping():
     return {"status": "ok"}
 
-@app.get("/ipxe/boot.ipxe")
+@app.api_route("/ipxe/boot.ipxe", methods=["GET", "HEAD"])
 def get_ipxe_script():
     return FileResponse("ipxe/boot.ipxe", media_type="text/plain")
 
