@@ -12,7 +12,7 @@ app = FastAPI(title="iPXE Station", description="Network Boot Server")
 app.mount("/http", StaticFiles(directory="/srv/http"), name="http")
 
 # Mount iPXE files
-@app.get("/ipxe/{filename}")
+@app.get("/ipxe/{filename}", methods=["GET", "HEAD"])
 async def serve_ipxe(filename: str):
     """Serve iPXE files"""
     file_path = Path(f"/srv/ipxe/{filename}")
@@ -42,10 +42,6 @@ async def status():
         "http_files": len(list(Path("/srv/http").rglob("*"))),
         "ipxe_files": len(list(Path("/srv/ipxe").glob("*")))
     }
-
-@app.get("/ipxe/boot.ipxe")
-def get_ipxe_script():
-    return FileResponse("ipxe/boot.ipxe", media_type="text/plain")
 
 # Create and mount Gradio interface
 print("Creating Gradio UI...")
