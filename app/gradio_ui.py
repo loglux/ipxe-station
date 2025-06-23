@@ -4,12 +4,11 @@ Main UI builder that assembles tabs from separate modules
 """
 
 import gradio as gr
-import json
 import os
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, Any
 
 # Import new modular components
-from ui_helpers import create_main_header, create_main_footer, COMMON_CSS
+from ui_tabs.helpers import create_main_header, create_main_footer, COMMON_CSS
 from ui_tabs import (
     StatusTab, TestingTab, DHCPTab, iPXETab, UbuntuTab, ISOTab,
     get_available_tabs, validate_tab_dependencies

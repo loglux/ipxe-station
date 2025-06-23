@@ -7,7 +7,7 @@ import gradio as gr
 from typing import Optional
 
 from base_tab import BaseTab
-from ui_helpers import safe_method
+from helpers import safe_method
 
 
 class StatusTab(BaseTab):
