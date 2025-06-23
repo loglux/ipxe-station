@@ -14,6 +14,7 @@ from .ipxe_tab import iPXETab
 from .ubuntu_tab import UbuntuTab
 from .iso_tab import ISOTab
 
+
 # Export all available tabs
 __all__ = [
     'BaseTab',

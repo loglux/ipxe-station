@@ -8,7 +8,7 @@ import gradio as gr
 from typing import Optional, List
 
 from base_tab import BaseTab
-from app.ui_helpers import safe_method
+from ui_helpers import safe_method
 
 
 class UbuntuTab(BaseTab):
@@ -306,7 +306,7 @@ class UbuntuTab(BaseTab):
                 for version in installed:
                     ubuntu_dir = self.ui_controller.ubuntu_downloader.get_ubuntu_dir(version)
                     if ubuntu_dir.exists():
-                        from app.utils import calculate_total_size, format_file_size
+                        from utils import calculate_total_size, format_file_size
                         version_size = calculate_total_size(ubuntu_dir)
                         total_size += version_size
 

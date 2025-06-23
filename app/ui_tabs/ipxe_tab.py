@@ -8,7 +8,7 @@ import gradio as gr
 from typing import Optional
 
 from base_tab import BaseTab
-from app.ui_helpers import safe_method
+from ui_helpers import safe_method
 
 
 class iPXETab(BaseTab):
@@ -486,7 +486,7 @@ System Tools
                 installed_versions = self.ui_controller.ubuntu_downloader.get_installed_versions()
                 if installed_versions:
                     # Import iPXEEntry for creating entries
-                    from app.ipxe_manager import iPXEEntry
+                    from ipxe_manager import iPXEEntry
 
                     # Clear existing Ubuntu entries and add all installed versions
                     menu.entries = [e for e in menu.entries if "ubuntu" not in e.name.lower()]

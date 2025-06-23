@@ -8,7 +8,7 @@ import gradio as gr
 from typing import Optional
 
 from base_tab import BaseTab
-from app.ui_helpers import safe_method
+from ui_helpers import safe_method
 
 
 class DHCPTab(BaseTab):
@@ -276,7 +276,7 @@ class DHCPTab(BaseTab):
 
         try:
             # Import create_simple_config function
-            from app.dhcp_config import create_simple_config
+            from dhcp_config import create_simple_config
 
             if not create_simple_config:
                 return "❌ Simple config function not available", ""

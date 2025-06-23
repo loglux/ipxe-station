@@ -7,7 +7,7 @@ import gradio as gr
 from typing import Optional, List
 
 from base_tab import BaseTab
-from app.ui_helpers import safe_method
+from ui_helpers import safe_method
 
 
 class ISOTab(BaseTab):
