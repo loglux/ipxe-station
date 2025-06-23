@@ -549,16 +549,25 @@ class ISOManager:
                         break
 
             # Copy additional useful directories
-            useful_dirs = ["live", "casper", "boot"]
-            extracted_dir = target_dir / "extracted"
-
-            for dir_name in useful_dirs:
-                source_dir = os.path.join(extract_dir, dir_name)
-                if os.path.exists(source_dir):
-                    target_subdir = extracted_dir / dir_name
-                    target_subdir.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(source_dir, target_subdir, dirs_exist_ok=True)
-                    status += f"✅ Extracted directory: {dir_name}/\n"
+            # useful_dirs = ["live", "casper", "boot"]
+            # extracted_dir = target_dir / "extracted"
+            #
+            # for dir_name in useful_dirs:
+            #     source_dir = os.path.join(extract_dir, dir_name)
+            #     if os.path.exists(source_dir):
+            #         target_subdir = extracted_dir / dir_name
+            #         target_subdir.mkdir(parents=True, exist_ok=True)
+            #         shutil.copytree(source_dir, target_subdir, dirs_exist_ok=True)
+            #         status += f"✅ Extracted directory: {dir_name}/\n"
+            #         files_found += 1
+            # Removed 'extracted' directory
+            for dirname in ("live", "casper", "boot"):
+                source_dir = Path(extract_dir) / dirname
+                if source_dir.is_dir():
+                    shutil.copytree(source_dir,
+                                    target_dir / dirname,
+                                    dirs_exist_ok=True)
+                    status += f"✅ Extracted directory: {dirname}/\n"
                     files_found += 1
 
             if files_found == 0:
