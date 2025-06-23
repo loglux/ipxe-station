@@ -437,6 +437,56 @@ class ISOManager:
 
         return "\n".join(status_lines)
 
+    # =========================
+    # ISO MANAGEMENT - MINIMAL UI WRAPPERS
+    # =========================
+
+    def download_iso_from_url(self, url: str, folder_name: str, display_name: str,
+                              category: str = "custom", progress=gr.Progress()) -> str:
+        """Download ISO from URL with progress tracking - UI wrapper for progress callback"""
+        try:
+            if not self.iso_manager:
+                return "❌ ISO manager module not available"
+
+            def progress_callback(current: int, total: int, filename: str):
+                if total > 0:
+                    percent = (current / total) * 100
+                    progress(percent / 100, desc=f"Downloading {filename}")
+
+            result = self.iso_manager.download_iso_from_url(
+                url=url,
+                folder_name=folder_name,
+                display_name=display_name,
+                category=category,
+                progress_callback=progress_callback
+            )
+
+            return result
+
+        except Exception as e:
+            return f"❌ ISO download failed: {str(e)}"
+
+    def upload_iso_file(self, file_obj, folder_name: str, display_name: str,
+                        category: str = "custom") -> str:
+        """Upload ISO file from local system - UI wrapper for file handling"""
+        try:
+            if not self.iso_manager:
+                return "❌ ISO manager module not available"
+
+            if not file_obj:
+                return "❌ No file selected for upload"
+
+            result = self.iso_manager.upload_iso_file(
+                file_obj=file_obj,
+                folder_name=folder_name,
+                display_name=display_name,
+                category=category
+            )
+
+            return result
+
+        except Exception as e:
+            return f"❌ ISO upload failed: {str(e)}"
 
 # Legacy functions for backward compatibility
 def download_iso(url: str, folder_name: str, display_name: str) -> str:

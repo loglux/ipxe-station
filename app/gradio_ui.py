@@ -1242,7 +1242,7 @@ def build_gradio_ui():
                 )
 
             # =========================
-            # ISO MANAGEMENT TAB
+            # ISO MANAGEMENT TAB - CORRECTED
             # =========================
             with gr.Tab("📁 ISO Management", elem_id="iso-tab"):
                 gr.Markdown("## 📁 ISO Images Download & Management")
@@ -1252,7 +1252,7 @@ def build_gradio_ui():
                     with gr.Column():
                         iso_summary_output = gr.Textbox(
                             label="ISO Images Summary",
-                            value=ui.get_iso_summary(),
+                            value=ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
                             lines=4,
                             interactive=False
                         )
@@ -1264,23 +1264,24 @@ def build_gradio_ui():
                     with gr.Column():
                         iso_url = gr.Textbox(
                             label="ISO Download URL",
-                            placeholder="https://example.com/rescue-disk.iso",
+                            placeholder="https://example.com/my-disk.iso",
                             lines=1
                         )
 
                         with gr.Row():
                             iso_folder_name = gr.Textbox(
                                 label="Folder Name",
-                                placeholder="kaspersky-rescue",
+                                placeholder="my-rescue-disk",
                                 scale=2
                             )
                             iso_display_name = gr.Textbox(
                                 label="Display Name",
-                                placeholder="Kaspersky Rescue Disk",
+                                placeholder="My Rescue Disk",
                                 scale=2
                             )
                             iso_category = gr.Dropdown(
-                                choices=ui.get_iso_categories(),
+                                choices=list(ui.iso_manager.get_categories().keys()) if ui.iso_manager else [
+                                    "custom"],
                                 value="custom",
                                 label="Category",
                                 scale=1
@@ -1301,16 +1302,17 @@ def build_gradio_ui():
                         with gr.Row():
                             upload_folder_name = gr.Textbox(
                                 label="Folder Name",
-                                placeholder="custom-utility",
+                                placeholder="my-utility",
                                 scale=2
                             )
                             upload_display_name = gr.Textbox(
                                 label="Display Name",
-                                placeholder="Custom Utility Disk",
+                                placeholder="My Utility Disk",
                                 scale=2
                             )
                             upload_category = gr.Dropdown(
-                                choices=ui.get_iso_categories(),
+                                choices=list(ui.iso_manager.get_categories().keys()) if ui.iso_manager else [
+                                    "custom"],
                                 value="custom",
                                 label="Category",
                                 scale=1
@@ -1329,11 +1331,13 @@ def build_gradio_ui():
                 gr.Markdown("### 🔧 Manage Existing ISOs")
                 with gr.Row():
                     with gr.Column():
+                        # Get initial folder list
+                        initial_folders = ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"]
+
                         existing_isos = gr.Dropdown(
-                            choices=ui.get_iso_folders_list(),
-                            value=ui.get_iso_folders_list()[0] if ui.get_iso_folders_list() and
-                                                                  ui.get_iso_folders_list()[
-                                                                      0] != "No ISOs found" else "No ISOs found",
+                            choices=initial_folders,
+                            value=initial_folders[0] if initial_folders and initial_folders[
+                                0] != "No ISOs found" else "No ISOs found",
                             label="Existing ISOs",
                             allow_custom_value=False
                         )
@@ -1353,48 +1357,56 @@ def build_gradio_ui():
 
                 # Event handlers for ISO management
                 download_iso_btn.click(
-                    fn=ui.download_iso_from_url,
+                    fn=ui.download_iso_from_url,  # Keep this method in UI for progress callback
                     inputs=[iso_url, iso_folder_name, iso_display_name, iso_category],
                     outputs=iso_operation_status,
                     show_progress=True
                 )
 
                 upload_iso_btn.click(
-                    fn=ui.upload_iso_file,
+                    fn=ui.upload_iso_file,  # Keep this method in UI for file handling
                     inputs=[iso_file_upload, upload_folder_name, upload_display_name, upload_category],
                     outputs=iso_operation_status
                 )
 
                 check_iso_btn.click(
-                    fn=ui.get_specific_iso_status,
+                    fn=lambda folder: ui.iso_manager.get_iso_status(
+                        folder) if ui.iso_manager else "ISO manager not available",
                     inputs=[existing_isos],
                     outputs=iso_management_status
                 )
 
                 check_all_isos_btn.click(
-                    fn=ui.get_existing_isos_status,
+                    fn=lambda: ui.iso_manager.get_iso_status() if ui.iso_manager else "ISO manager not available",
                     outputs=iso_management_status
                 )
 
                 refresh_iso_list_btn.click(
-                    fn=ui.refresh_iso_dropdown,
+                    fn=lambda: gr.update(
+                        choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
+                        value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                    ),
                     outputs=existing_isos
                 )
 
                 delete_iso_btn.click(
-                    fn=ui.delete_iso_folder,
+                    fn=lambda folder: ui.iso_manager.delete_iso(
+                        folder) if ui.iso_manager else "ISO manager not available",
                     inputs=[existing_isos],
                     outputs=iso_management_status
                 ).then(
-                    fn=ui.refresh_iso_dropdown,
+                    fn=lambda: gr.update(
+                        choices=ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"],
+                        value=(ui.iso_manager.get_folder_names() if ui.iso_manager else ["No ISOs found"])[0]
+                    ),
                     outputs=existing_isos
                 ).then(
-                    fn=ui.get_iso_summary,
+                    fn=lambda: ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
                     outputs=iso_summary_output
                 )
 
                 refresh_iso_summary_btn.click(
-                    fn=ui.get_iso_summary,
+                    fn=lambda: ui.iso_manager.get_summary() if ui.iso_manager else "ISO manager not available",
                     outputs=iso_summary_output
                 )
 
