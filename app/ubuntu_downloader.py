@@ -143,10 +143,15 @@ class UbuntuDownloader:
 
             # Cleanup
             try:
-                os.unlink(iso_path)
-                status += "🧹 Temporary ISO cleaned up\n"
-            except:
-                pass
+                target_iso_path = ubuntu_dir / f"ubuntu-{version}-live-server-amd64.iso"
+                shutil.move(iso_path, target_iso_path)
+                status += f"💿 ISO saved to {target_iso_path}\n"
+
+                # Check size
+                iso_size_gb = target_iso_path.stat().st_size / (1024 ** 3)
+                status += f"📊 ISO size: {iso_size_gb:.1f} GB\n"
+            except Exception as e:
+                status += f"⚠️ Failed to save ISO: {str(e)}\n"
 
             return status
 
