@@ -46,6 +46,7 @@ RUN mkdir -p /app/initial-files/tftp && \
     cd /app/initial-files/tftp && \
     wget -q http://boot.ipxe.org/undionly.kpxe && \
     wget -q http://boot.ipxe.org/ipxe.efi && \
+    wget -q http://boot.ipxe.org/ipxe.pxe && \
     ls -la /app/initial-files/tftp/
 
 # Copy setup and startup scripts
