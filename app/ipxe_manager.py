@@ -165,7 +165,7 @@ class UbuntuBootModes:
     @staticmethod
     def get_netboot_config(version: str, server_ip: str, port: int) -> Dict[str, str]:
         """Get netboot configuration (internet installation)"""
-        base_url = f"http://{server_ip}:{port}/ubuntu-{version}"
+        base_url = f"http://{server_ip}:{port}/http/ubuntu-{version}"
 
         configs = {
             "24.04": {
@@ -308,7 +308,7 @@ class iPXEGenerator:
             ":start",
             "menu",
             f"item --gap -- {menu.title}",
-            "item --gap -- ════════════════════════════════════════════════",
+            "item --gap -- -------------------------------",
         ])
 
         # Add menu entries with smart formatting
@@ -324,12 +324,12 @@ class iPXEGenerator:
             elif entry.entry_type == "boot":
                 # Add boot mode indicator
                 mode_indicator = {
-                    "netboot": "🌐",
-                    "live": "💿",
-                    "rescue": "🔧",
-                    "preseed": "⚡",
-                    "tool": "🛠️"
-                }.get(entry.boot_mode, "📀")
+                    "netboot": "[NET]",  # instead of 🌐
+                    "live": "[LIVE]",  # instead of 💿
+                    "rescue": "[RESCUE]",  # instead of 🔧
+                    "preseed": "[AUTO]",  # instead of ⚡
+                    "tool": "[TOOL]"  # instead of 🛠️
+                }.get(entry.boot_mode, "[BOOT]")
 
                 script_lines.append(f"item {entry.name} {mode_indicator} {entry.title}")
             elif entry.entry_type == "menu":
