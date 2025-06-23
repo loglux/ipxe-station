@@ -119,18 +119,38 @@ class ISOManager:
             status += f"📂 Target directory: {iso_dir}\n"
 
             # Save uploaded file
-            filename = file_obj.name if hasattr(file_obj, 'name') else f"{folder_name}.iso"
+            filename = None
+
+            # Handle different file object types from Gradio
+            if isinstance(file_obj, str):
+                # Gradio passes file path as string
+                source_path = file_obj
+                filename = os.path.basename(source_path)
+            elif hasattr(file_obj, 'name') and isinstance(file_obj.name, str):
+                # File object with name attribute (path)
+                source_path = file_obj.name
+                filename = os.path.basename(source_path)
+            elif hasattr(file_obj, 'read'):
+                # File-like object with read method
+                source_path = None
+                filename = getattr(file_obj, 'name', f"{folder_name}.iso")
+            else:
+                return "❌ Unsupported file object type"
+
+            # Ensure filename ends with .iso
             if not filename.endswith('.iso'):
                 filename += '.iso'
 
             iso_path = iso_dir / filename
 
-            # Copy file content
-            with open(iso_path, "wb") as f:
-                if hasattr(file_obj, 'read'):
+            # Copy file content based on type
+            if source_path:
+                # Copy from file path
+                shutil.copy2(source_path, iso_path)
+            else:
+                # Copy from file-like object
+                with open(iso_path, "wb") as f:
                     shutil.copyfileobj(file_obj, f)
-                else:
-                    f.write(file_obj)
 
             status += f"💾 File saved as: {filename}\n"
 
@@ -244,6 +264,60 @@ class ISOManager:
         """Get available categories for ISOs"""
         return self.categories
 
+    def get_summary(self) -> str:
+        """Get brief summary of ISO management for UI"""
+        try:
+            isos = self.list_existing_isos()
+
+            summary = []
+            summary.append("📊 **ISO Images Overview**")
+
+            if not isos:
+                summary.append("📁 No ISOs installed yet")
+                summary.append("⬆️ Use the forms above to download or upload ISO images")
+                return "\n".join(summary)
+
+            # Count by category
+            by_category = {}
+            total_size = 0
+
+            for iso in isos:
+                category = iso['category']
+                if category not in by_category:
+                    by_category[category] = 0
+                by_category[category] += 1
+                total_size += iso['size_gb']
+
+            summary.append(f"📁 Total ISOs: {len(isos)}")
+            summary.append(f"💾 Total size: {total_size:.1f} GB")
+            summary.append(f"🏷️ Categories: {len(by_category)}")
+
+            # Show by category
+            if by_category:
+                summary.append("\n📋 **By Category:**")
+                for cat, count in by_category.items():
+                    cat_name = self.categories.get(cat, cat.title())
+                    summary.append(f"  • {cat_name}: {count} ISO(s)")
+
+            return "\n".join(summary)
+
+        except Exception as e:
+            return f"❌ Error getting summary: {str(e)}"
+
+    def get_folder_names(self) -> List[str]:
+        """Get list of existing ISO folder names for dropdowns"""
+        try:
+            isos = self.list_existing_isos()
+            if not isos:
+                return ["No ISOs found"]
+
+            # Return folder names sorted alphabetically
+            folders = [iso["folder_name"] for iso in isos]
+            return sorted(folders)
+
+        except Exception as e:
+            return ["Error loading ISOs"]
+
     def _download_file_with_progress(self, url: str, filepath: str, filename: str,
                                      progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
         """Download file with progress tracking"""
@@ -308,60 +382,6 @@ class ISOManager:
         except Exception:
             pass
         return {}
-
-    def get_summary(self) -> str:
-        """Get brief summary of ISO management for UI"""
-        try:
-            isos = self.list_existing_isos()
-
-            summary = []
-            summary.append("📊 **ISO Images Overview**")
-
-            if not isos:
-                summary.append("📁 No ISOs installed yet")
-                summary.append("⬆️ Use the forms above to download or upload ISO images")
-                return "\n".join(summary)
-
-            # Count by category
-            by_category = {}
-            total_size = 0
-
-            for iso in isos:
-                category = iso['category']
-                if category not in by_category:
-                    by_category[category] = 0
-                by_category[category] += 1
-                total_size += iso['size_gb']
-
-            summary.append(f"📁 Total ISOs: {len(isos)}")
-            summary.append(f"💾 Total size: {total_size:.1f} GB")
-            summary.append(f"🏷️ Categories: {len(by_category)}")
-
-            # Show by category
-            if by_category:
-                summary.append("\n📋 **By Category:**")
-                for cat, count in by_category.items():
-                    cat_name = self.categories.get(cat, cat.title())
-                    summary.append(f"  • {cat_name}: {count} ISO(s)")
-
-            return "\n".join(summary)
-
-        except Exception as e:
-            return f"❌ Error getting summary: {str(e)}"
-
-    def get_folder_names(self) -> List[str]:
-        """Get list of existing ISO folder names for dropdowns"""
-        try:
-            isos = self.list_existing_isos()
-            if not isos:
-                return ["No ISOs found"]
-
-            # Return folder names sorted alphabetically
-            folders = [iso["folder_name"] for iso in isos]
-            return sorted(folders)
-
-        except Exception as e:
-            return ["Error loading ISOs"]
 
     def _get_single_iso_status(self, folder_name: str) -> str:
         """Get status for single ISO"""
@@ -436,6 +456,7 @@ class ISOManager:
         status_lines.append(f"🏷️ Categories: {', '.join(by_category.keys())}")
 
         return "\n".join(status_lines)
+
 
 # Legacy functions for backward compatibility
 def download_iso(url: str, folder_name: str, display_name: str) -> str:
