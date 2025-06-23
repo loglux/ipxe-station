@@ -2,6 +2,7 @@
 iPXE menu management for PXE Boot Station
 Handles iPXE menu configuration generation, validation, and management
 Enhanced with multiple Ubuntu boot options: netboot, live boot, rescue mode
+REFACTORED: Using common utilities to eliminate repetition
 """
 
 import os
@@ -12,6 +13,19 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse
+
+# Import common utilities to eliminate repetition
+from utils import (
+    validate_string_field,
+    validate_file_path,
+    safe_write_file,
+    safe_operation,
+    ensure_directory,
+    export_status_as_json,
+    create_metadata_dict,
+    save_metadata,
+    load_metadata
+)
 
 
 @dataclass
@@ -63,17 +77,14 @@ class iPXEValidator:
 
     @staticmethod
     def validate_entry_name(name: str) -> Tuple[bool, str]:
-        """Validate iPXE entry name"""
-        if not name:
-            return False, "Entry name cannot be empty"
-
-        if not re.match(r'^[a-zA-Z0-9_-]+$', name):
-            return False, "Entry name can only contain letters, numbers, underscores, and hyphens"
-
-        if len(name) > 32:
-            return False, "Entry name cannot exceed 32 characters"
-
-        return True, "Valid entry name"
+        """Validate iPXE entry name using common utility"""
+        return validate_string_field(
+            name,
+            field_name="Entry name",
+            min_length=1,
+            max_length=32,
+            allowed_chars=r'^[a-zA-Z0-9_-]+$'
+        )
 
     @staticmethod
     def validate_kernel_path(kernel: str, server_ip: str = "localhost", port: int = 8000) -> Tuple[bool, str]:
@@ -91,13 +102,10 @@ class iPXEValidator:
             except Exception as e:
                 return False, f"Invalid URL: {str(e)}"
 
-        # Check if it's a local file path
+        # Check if it's a local file path using common utility
         if kernel.startswith('/'):
             # Absolute path
-            if Path(kernel).exists():
-                return True, f"File exists: {kernel}"
-            else:
-                return False, f"File not found: {kernel}"
+            return validate_file_path(kernel, must_exist=True)
         else:
             # Relative path - assume it's served via HTTP
             full_url = f"http://{server_ip}:{port}/{kernel.lstrip('/')}"
@@ -115,9 +123,25 @@ class iPXEValidator:
         return True, f"Valid timeout: {timeout}ms ({timeout / 1000:.1f}s)"
 
     @staticmethod
-    def validate_menu(menu: iPXEMenu) -> Tuple[bool, List[str]]:
+    def validate_menu_title(title: str) -> Tuple[bool, str]:
+        """Validate menu title using common utility"""
+        return validate_string_field(
+            title,
+            field_name="Menu title",
+            min_length=1,
+            max_length=80
+        )
+
+    @classmethod
+    @safe_operation("iPXE menu validation", return_tuple=True)
+    def validate_menu(cls, menu: iPXEMenu) -> Tuple[bool, List[str]]:
         """Validate complete iPXE menu"""
         errors = []
+
+        # Validate menu title using common utility
+        is_valid, msg = cls.validate_menu_title(menu.title)
+        if not is_valid:
+            errors.append(f"Menu title: {msg}")
 
         # Check for duplicate entry names
         names = [entry.name for entry in menu.entries if entry.enabled]
@@ -132,7 +156,7 @@ class iPXEValidator:
                 errors.append(f"Default entry '{menu.default_entry}' not found in menu")
 
         # Validate timeout
-        is_valid, msg = iPXEValidator.validate_timeout(menu.timeout)
+        is_valid, msg = cls.validate_timeout(menu.timeout)
         if not is_valid:
             errors.append(f"Timeout: {msg}")
 
@@ -142,13 +166,23 @@ class iPXEValidator:
                 continue
 
             # Validate entry name
-            is_valid, msg = iPXEValidator.validate_entry_name(entry.name)
+            is_valid, msg = cls.validate_entry_name(entry.name)
             if not is_valid:
                 errors.append(f"Entry {i + 1} ({entry.name}): {msg}")
 
+            # Validate entry title using common utility
+            is_valid, msg = validate_string_field(
+                entry.title,
+                field_name="Entry title",
+                min_length=1,
+                max_length=60
+            )
+            if not is_valid:
+                errors.append(f"Entry {i + 1} ({entry.name}) title: {msg}")
+
             # Validate kernel path for boot entries
             if entry.entry_type == "boot" and entry.kernel:
-                is_valid, msg = iPXEValidator.validate_kernel_path(
+                is_valid, msg = cls.validate_kernel_path(
                     entry.kernel, menu.server_ip, menu.http_port
                 )
                 if not is_valid:
@@ -285,6 +319,7 @@ class iPXEGenerator:
     """iPXE menu file generators"""
 
     @staticmethod
+    @safe_operation("iPXE script generation")
     def generate_ipxe_script(menu: iPXEMenu) -> str:
         """Generate iPXE script content with enhanced multi-mode support"""
         script_lines = [
@@ -436,6 +471,7 @@ class iPXEGenerator:
             return f"http://{server_ip}:{port}/{path.lstrip('/')}"
 
     @staticmethod
+    @safe_operation("GRUB configuration generation")
     def generate_grub_config(menu: iPXEMenu) -> str:
         """Generate GRUB configuration (for comparison/fallback)"""
         grub_lines = [
@@ -825,6 +861,7 @@ class iPXEManager:
         self.templates = iPXETemplateManager()
         self.detector = UbuntuVersionDetector()
 
+    @safe_operation("iPXE menu creation")
     def create_menu(self, title: str = "PXE Boot Menu", server_ip: str = "localhost",
                     port: int = 8000) -> iPXEMenu:
         """Create new empty iPXE menu"""
@@ -834,9 +871,10 @@ class iPXEManager:
             http_port=port
         )
 
+    @safe_operation("iPXE entry addition", return_tuple=True)
     def add_entry(self, menu: iPXEMenu, entry: iPXEEntry) -> Tuple[bool, str]:
         """Add entry to menu"""
-        # Validate entry
+        # Validate entry using common utility
         is_valid, msg = self.validator.validate_entry_name(entry.name)
         if not is_valid:
             return False, f"Invalid entry: {msg}"
@@ -851,6 +889,7 @@ class iPXEManager:
 
         return True, f"Entry '{entry.name}' added successfully"
 
+    @safe_operation("iPXE entry removal", return_tuple=True)
     def remove_entry(self, menu: iPXEMenu, entry_name: str) -> Tuple[bool, str]:
         """Remove entry from menu"""
         original_count = len(menu.entries)
@@ -864,6 +903,7 @@ class iPXEManager:
         else:
             return False, f"Entry '{entry_name}' not found"
 
+    @safe_operation("iPXE menu validation and generation", return_tuple=True)
     def validate_and_generate(self, menu: iPXEMenu) -> Tuple[bool, str, str]:
         """Validate menu and generate iPXE script"""
         # Validate menu
@@ -874,44 +914,30 @@ class iPXEManager:
             return False, error_msg, ""
 
         # Generate script
-        try:
-            script_content = self.generator.generate_ipxe_script(menu)
-            success_msg = "✅ iPXE menu generated successfully"
-            return True, success_msg, script_content
-        except Exception as e:
-            return False, f"Script generation failed: {str(e)}", ""
+        script_content = self.generator.generate_ipxe_script(menu)
+        success_msg = "✅ iPXE menu generated successfully"
+        return True, success_msg, script_content
 
     def save_menu(self, menu: iPXEMenu) -> Tuple[bool, str]:
-        """Validate, generate, and save iPXE menu"""
+        """Validate, generate, and save iPXE menu using common utility"""
         is_valid, msg, script_content = self.validate_and_generate(menu)
 
         if not is_valid:
             return False, msg
 
-        try:
-            # Create directory if it doesn't exist
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        # Use common utility for safe file writing
+        return safe_write_file(self.config_path, script_content)
 
-            # Save script
-            with open(self.config_path, 'w') as f:
-                f.write(script_content)
-
-            return True, f"✅ iPXE menu saved to {self.config_path}"
-        except Exception as e:
-            return False, f"❌ Failed to save menu: {str(e)}"
-
+    @safe_operation("iPXE menu loading")
     def load_menu_from_file(self) -> Tuple[bool, str, Optional[str]]:
         """Load existing iPXE menu from file"""
-        try:
-            if not self.config_path.exists():
-                return False, f"Menu file not found: {self.config_path}", None
+        if not self.config_path.exists():
+            return False, f"Menu file not found: {self.config_path}", None
 
-            with open(self.config_path, 'r') as f:
-                content = f.read()
+        with open(self.config_path, 'r') as f:
+            content = f.read()
 
-            return True, f"Menu loaded from {self.config_path}", content
-        except Exception as e:
-            return False, f"Failed to load menu: {str(e)}", None
+        return True, f"Menu loaded from {self.config_path}", content
 
     def get_template(self, template_name: str, server_ip: str = "localhost",
                      port: int = 8000) -> Optional[iPXEMenu]:
@@ -963,7 +989,7 @@ class iPXEManager:
         return status
 
     def export_menu_json(self, menu: iPXEMenu) -> str:
-        """Export menu configuration to JSON"""
+        """Export menu configuration to JSON using common utility"""
         menu_dict = {
             "title": menu.title,
             "timeout": menu.timeout,
@@ -992,10 +1018,11 @@ class iPXEManager:
             ]
         }
 
-        return json.dumps(menu_dict, indent=2)
+        return export_status_as_json(menu_dict, pretty=True)
 
 
 # Convenience functions for backward compatibility and enhanced features
+@safe_operation("Smart Ubuntu menu creation")
 def create_smart_ubuntu_menu(server_ip: str = "localhost", port: int = 8000,
                              template_type: str = "multi") -> str:
     """Create smart Ubuntu menu based on available files"""
