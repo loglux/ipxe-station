@@ -276,7 +276,7 @@ class DHCPTab(BaseTab):
 
         try:
             # Import create_simple_config function
-            from dhcp_config import create_simple_config
+            from ..backend.dhcp_config import create_simple_config
 
             if not create_simple_config:
                 return "❌ Simple config function not available", ""

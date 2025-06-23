@@ -2,7 +2,7 @@
 Ubuntu Download Tab for PXE Boot Station UI
 Handles Ubuntu files download and management with multi-version support
 """
-# bear in mind, line 308 from app.utils import calculate_total_size, format_file_size
+
 
 import gradio as gr
 from typing import Optional, List
@@ -306,7 +306,7 @@ class UbuntuTab(BaseTab):
                 for version in installed:
                     ubuntu_dir = self.ui_controller.ubuntu_downloader.get_ubuntu_dir(version)
                     if ubuntu_dir.exists():
-                        from utils import calculate_total_size, format_file_size
+                        from ..backend.utils import calculate_total_size, format_file_size
                         version_size = calculate_total_size(ubuntu_dir)
                         total_size += version_size
 

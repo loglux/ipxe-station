@@ -8,20 +8,17 @@ import os
 import psutil
 import socket
 import subprocess
-import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 
 # Import common utilities to eliminate repetition
-from utils import (
-    format_file_size,
+from app.backend.utils import (
     get_file_info,
     safe_operation,
     export_status_as_json,
-    calculate_total_size,
     get_cross_platform_path
 )
 

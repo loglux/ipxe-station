@@ -5,18 +5,15 @@ REFACTORED: Using common utilities to eliminate repetition
 """
 
 import ipaddress
-import re
-from typing import Dict, List, Optional, Tuple, Union
-from pathlib import Path
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 # Import common utilities to eliminate repetition
-from utils import (
+from app.backend.utils import (
     validate_ip_address,
     validate_string_field,
     safe_write_file,
-    safe_operation,
-    ensure_directory
+    safe_operation
 )
 
 

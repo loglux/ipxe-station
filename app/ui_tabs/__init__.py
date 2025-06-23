@@ -5,6 +5,7 @@ Exports all tab classes for use in main UI builder
 
 # Import base class
 from .base_tab import BaseTab
+from . import helpers
 
 # Import all tab implementations
 from .status_tab import StatusTab

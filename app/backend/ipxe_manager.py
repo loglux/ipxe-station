@@ -5,26 +5,20 @@ Enhanced with multiple Ubuntu boot options: netboot, live boot, rescue mode
 REFACTORED: Using common utilities to eliminate repetition
 """
 
-import os
 import re
-import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse
 
 # Import common utilities to eliminate repetition
-from utils import (
+from app.backend.utils import (
     validate_string_field,
     validate_file_path,
     safe_write_file,
     safe_operation,
-    ensure_directory,
-    export_status_as_json,
-    create_metadata_dict,
-    save_metadata,
-    load_metadata
+    export_status_as_json
 )
 
 

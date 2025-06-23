@@ -4,12 +4,8 @@ Handles ISO download, upload, and management for various operating systems and u
 REFACTORED: Using common utilities to eliminate repetition
 """
 
-import requests
 import shutil
-import tempfile
-import json
 import subprocess
-import glob
 from pathlib import Path
 import os
 import re
@@ -17,11 +13,9 @@ from typing import Callable, Optional, Dict, Any, List
 from datetime import datetime
 
 # Import common utilities to eliminate repetition
-from utils import (
+from app.backend.utils import (
     format_file_size,
     download_with_progress,
-    safe_write_file,
-    safe_write_json,
     safe_operation,
     ensure_directory,
     calculate_total_size,

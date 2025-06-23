@@ -4,7 +4,6 @@ Downloads Ubuntu netboot files and manages Ubuntu-related assets with version se
 REFACTORED: Using common utilities to eliminate repetition
 """
 
-import requests
 import tarfile
 import tempfile
 import shutil
@@ -16,16 +15,14 @@ from typing import Callable, Optional, Dict, Any, List
 from datetime import datetime
 
 # Import common utilities to eliminate repetition
-from utils import (
+from app.backend.utils import (
     format_file_size,
     download_with_progress,
     safe_write_file,
     safe_operation,
     ensure_directory,
     calculate_total_size,
-    safe_delete_directory,
-    create_metadata_dict,
-    save_metadata
+    safe_delete_directory
 )
 
 
