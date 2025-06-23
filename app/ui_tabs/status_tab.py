@@ -106,8 +106,8 @@ class StatusTab(BaseTab):
     @safe_method(module_attr='status_manager', error_prefix='System status')
     def _get_system_status_display(self) -> str:
         """Get formatted system status for display."""
-        if not self.ui_controller.status_manager:
-            return "❌ System status manager not available"
+        # if not self.ui_controller.status_manager:
+        #     return "❌ System status manager not available"
 
         status = self.ui_controller.status_manager.get_complete_status()
 
