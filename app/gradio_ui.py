@@ -22,14 +22,14 @@ except ImportError:
     SystemTester = None
 
 try:
-    from app.backend.dhcp_config import DHCPConfigManager, DHCPConfig, create_simple_config
+    from backend.dhcp_config import DHCPConfigManager, DHCPConfig, create_simple_config
 except ImportError:
     DHCPConfigManager = None
     DHCPConfig = None
     create_simple_config = None
 
 try:
-    from app.backend.ipxe_manager import iPXEManager, iPXEMenu, iPXEEntry, iPXETemplateManager
+    from backend.ipxe_manager import iPXEManager, iPXEMenu, iPXEEntry, iPXETemplateManager
 except ImportError:
     iPXEManager = None
     iPXEMenu = None
@@ -37,23 +37,23 @@ except ImportError:
     iPXETemplateManager = None
 
 try:
-    from app.backend.system_status import SystemStatusManager, get_system_status
+    from backend.system_status import SystemStatusManager, get_system_status
 except ImportError:
     SystemStatusManager = None
     get_system_status = None
 
 try:
-    from app.backend.ubuntu_downloader import UbuntuDownloader
+    from backend.ubuntu_downloader import UbuntuDownloader
 except ImportError:
     UbuntuDownloader = None
 
 try:
-    from app.backend.iso_manager import ISOManager
+    from backend.iso_manager import ISOManager
 except ImportError:
     ISOManager = None
 
 try:
-    from app.backend.file_utils import FileManager
+    from backend.file_utils import FileManager
 except ImportError:
     FileManager = None
 

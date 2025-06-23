@@ -2,7 +2,6 @@
 DHCP Configuration Tab for PXE Boot Station UI
 Handles DHCP server configuration generation and validation
 """
-# bear in mind: from app.dhcp_config import create_simple_config
 
 import gradio as gr
 from typing import Optional
@@ -276,7 +275,7 @@ class DHCPTab(BaseTab):
 
         try:
             # Import create_simple_config function
-            from ..backend.dhcp_config import create_simple_config
+            from backend.dhcp_config import create_simple_config
 
             if not create_simple_config:
                 return "❌ Simple config function not available", ""

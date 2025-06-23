@@ -9,7 +9,6 @@ from typing import Optional
 from .base_tab import BaseTab
 from .helpers import safe_method
 
-
 class StatusTab(BaseTab):
     """System Status and Health Monitor tab."""
 

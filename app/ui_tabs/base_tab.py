@@ -234,12 +234,45 @@ class BaseTab(ABC):
     # COMMON PATTERNS
     # =========================
 
-    def _create_summary_section(self,
-                                get_summary_fn: Callable,
-                                title: str = "Summary",
-                                icon: str = "📊") -> Tuple[gr.HTML, gr.Textbox, gr.Button]:
+    # def _create_summary_ui_section(self,
+    #                             get_summary_fn: Callable,
+    #                             title: str = "Summary",
+    #                             icon: str = "📊") -> Tuple[gr.HTML, gr.Textbox, gr.Button]:
+    #     """
+    #     Create a common summary section pattern.
+    #
+    #     Args:
+    #         get_summary_fn: Function to get summary data
+    #         title: Section title
+    #         icon: Section icon
+    #
+    #     Returns:
+    #         Tuple of (header, summary_textbox, refresh_button)
+    #     """
+    #     with gr.Row():
+    #         with gr.Column():
+    #             summary_textbox = self._create_status_textbox(
+    #                 label=f"{title}",
+    #                 initial_value=get_summary_fn(),
+    #                 lines=4,
+    #                 component_key="summary"
+    #             )
+    #             refresh_btn = gr.Button(f"🔄 Refresh {title}", variant="secondary", size="sm")
+    #
+    #     # Setup refresh functionality
+    #     refresh_btn.click(
+    #         fn=get_summary_fn,
+    #         outputs=summary_textbox
+    #     )
+    #
+    #     return summary_textbox, refresh_btn
+
+    def _create_summary_ui_section(self,
+                                   get_summary_fn: Callable,
+                                   title: str = "Summary",
+                                   icon: str = "📊") -> Tuple[gr.Textbox, gr.Button]:
         """
-        Create a common summary section pattern.
+        Create a common summary UI section pattern.
 
         Args:
             get_summary_fn: Function to get summary data
@@ -247,7 +280,7 @@ class BaseTab(ABC):
             icon: Section icon
 
         Returns:
-            Tuple of (header, summary_textbox, refresh_button)
+            Tuple of (summary_textbox, refresh_button)
         """
         with gr.Row():
             with gr.Column():

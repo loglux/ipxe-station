@@ -55,7 +55,7 @@ class ISOTab(BaseTab):
         """Create ISO images summary section."""
         with gr.Row():
             with gr.Column():
-                self.iso_summary_output, self.refresh_iso_summary_btn = self._create_summary_section(
+                self.iso_summary_output, self.refresh_iso_summary_btn = self._create_summary_ui_section(
                     get_summary_fn=self._get_iso_summary,
                     title="ISO Images Summary",
                     icon="📊"

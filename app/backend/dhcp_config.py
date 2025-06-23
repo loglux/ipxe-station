@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 # Import common utilities to eliminate repetition
-from app.backend.utils import (
+from backend.utils import (
     validate_ip_address,
     validate_string_field,
     safe_write_file,
