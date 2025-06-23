@@ -1,4 +1,4 @@
 TFTP_USERNAME="tftp"
 TFTP_DIRECTORY="/srv/tftp"
 TFTP_ADDRESS="0.0.0.0:69"
-TFTP_OPTIONS="--secure --verbose --verbosity 9"
+TFTP_OPTIONS="--secure --verbose --verbosity 5 --permissive"
