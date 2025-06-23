@@ -1234,6 +1234,164 @@ def build_gradio_ui():
                     outputs=summary_output
                 )
 
+            # =========================
+            # ISO MANAGEMENT TAB
+            # =========================
+            with gr.Tab("📁 ISO Management", elem_id="iso-tab"):
+                gr.Markdown("## 📁 ISO Images Download & Management")
+
+                # Summary section
+                with gr.Row():
+                    with gr.Column():
+                        iso_summary_output = gr.Textbox(
+                            label="ISO Images Summary",
+                            value=ui.get_iso_summary(),
+                            lines=4,
+                            interactive=False
+                        )
+                        refresh_iso_summary_btn = gr.Button("🔄 Refresh Summary", variant="secondary", size="sm")
+
+                # Download from URL section
+                gr.Markdown("### 🌐 Download ISO from URL")
+                with gr.Row():
+                    with gr.Column():
+                        iso_url = gr.Textbox(
+                            label="ISO Download URL",
+                            placeholder="https://example.com/rescue-disk.iso",
+                            lines=1
+                        )
+
+                        with gr.Row():
+                            iso_folder_name = gr.Textbox(
+                                label="Folder Name",
+                                placeholder="kaspersky-rescue",
+                                scale=2
+                            )
+                            iso_display_name = gr.Textbox(
+                                label="Display Name",
+                                placeholder="Kaspersky Rescue Disk",
+                                scale=2
+                            )
+                            iso_category = gr.Dropdown(
+                                choices=ui.get_iso_categories(),
+                                value="custom",
+                                label="Category",
+                                scale=1
+                            )
+
+                        download_iso_btn = gr.Button("⬇️ Download ISO", variant="primary")
+
+                # Upload file section
+                gr.Markdown("### 📤 Upload ISO File")
+                with gr.Row():
+                    with gr.Column():
+                        iso_file_upload = gr.File(
+                            label="Select ISO File",
+                            file_types=[".iso"],
+                            file_count="single"
+                        )
+
+                        with gr.Row():
+                            upload_folder_name = gr.Textbox(
+                                label="Folder Name",
+                                placeholder="custom-utility",
+                                scale=2
+                            )
+                            upload_display_name = gr.Textbox(
+                                label="Display Name",
+                                placeholder="Custom Utility Disk",
+                                scale=2
+                            )
+                            upload_category = gr.Dropdown(
+                                choices=ui.get_iso_categories(),
+                                value="custom",
+                                label="Category",
+                                scale=1
+                            )
+
+                        upload_iso_btn = gr.Button("📤 Upload ISO", variant="primary")
+
+                # Status output for downloads/uploads
+                iso_operation_status = gr.Textbox(
+                    label="Operation Status",
+                    lines=10,
+                    interactive=False
+                )
+
+                # Management section
+                gr.Markdown("### 🔧 Manage Existing ISOs")
+                with gr.Row():
+                    with gr.Column():
+                        existing_isos = gr.Dropdown(
+                            choices=ui.get_iso_folders_list(),
+                            value=ui.get_iso_folders_list()[0] if ui.get_iso_folders_list() and
+                                                                  ui.get_iso_folders_list()[
+                                                                      0] != "No ISOs found" else "No ISOs found",
+                            label="Existing ISOs",
+                            allow_custom_value=False
+                        )
+
+                        with gr.Row():
+                            check_iso_btn = gr.Button("🔍 Check ISO", variant="secondary")
+                            refresh_iso_list_btn = gr.Button("🔄 Refresh List", variant="secondary")
+                            delete_iso_btn = gr.Button("🗑️ Delete ISO", variant="stop")
+
+                        check_all_isos_btn = gr.Button("📋 Check All ISOs", variant="secondary")
+
+                iso_management_status = gr.Textbox(
+                    label="Management Status",
+                    lines=8,
+                    interactive=False
+                )
+
+                # Event handlers for ISO management
+                download_iso_btn.click(
+                    fn=ui.download_iso_from_url,
+                    inputs=[iso_url, iso_folder_name, iso_display_name, iso_category],
+                    outputs=iso_operation_status,
+                    show_progress=True
+                )
+
+                upload_iso_btn.click(
+                    fn=ui.upload_iso_file,
+                    inputs=[iso_file_upload, upload_folder_name, upload_display_name, upload_category],
+                    outputs=iso_operation_status
+                )
+
+                check_iso_btn.click(
+                    fn=ui.get_specific_iso_status,
+                    inputs=[existing_isos],
+                    outputs=iso_management_status
+                )
+
+                check_all_isos_btn.click(
+                    fn=ui.get_existing_isos_status,
+                    outputs=iso_management_status
+                )
+
+                refresh_iso_list_btn.click(
+                    fn=ui.refresh_iso_dropdown,
+                    outputs=existing_isos
+                )
+
+                delete_iso_btn.click(
+                    fn=ui.delete_iso_folder,
+                    inputs=[existing_isos],
+                    outputs=iso_management_status
+                ).then(
+                    fn=ui.refresh_iso_dropdown,
+                    outputs=existing_isos
+                ).then(
+                    fn=ui.get_iso_summary,
+                    outputs=iso_summary_output
+                )
+
+                refresh_iso_summary_btn.click(
+                    fn=ui.get_iso_summary,
+                    outputs=iso_summary_output
+                )
+
+
         # Footer
         gr.HTML("""
         <div style="text-align: center; padding: 20px; margin-top: 30px; border-top: 1px solid #ddd;">
