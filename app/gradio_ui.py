@@ -43,6 +43,11 @@ except ImportError:
     UbuntuDownloader = None
 
 try:
+    from iso_manager import ISOManager
+except ImportError:
+    ISOManager = None
+
+try:
     from file_utils import FileManager
 except ImportError:
     FileManager = None
@@ -60,6 +65,8 @@ class PXEBootStationUI:
         self.ubuntu_downloader = UbuntuDownloader() if UbuntuDownloader else None
         self.file_manager = FileManager() if FileManager else None
         self.ipxe_templates = iPXETemplateManager() if iPXETemplateManager else None
+        self.iso_manager = ISOManager() if ISOManager else None
+
 
     # =========================
     # SYSTEM STATUS TAB
