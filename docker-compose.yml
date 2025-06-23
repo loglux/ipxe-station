@@ -9,6 +9,7 @@ services:
 
     ports:
       - "9005:8000"     # Web interface
+      - "80:8000"       # Pxe Life service
       - "69:69/udp"     # TFTP
       - "32768-65535:32768-65535/udp" # TFTP DATA
 
