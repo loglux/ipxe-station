@@ -309,6 +309,60 @@ class ISOManager:
             pass
         return {}
 
+    def get_summary(self) -> str:
+        """Get brief summary of ISO management for UI"""
+        try:
+            isos = self.list_existing_isos()
+
+            summary = []
+            summary.append("📊 **ISO Images Overview**")
+
+            if not isos:
+                summary.append("📁 No ISOs installed yet")
+                summary.append("⬆️ Use the forms above to download or upload ISO images")
+                return "\n".join(summary)
+
+            # Count by category
+            by_category = {}
+            total_size = 0
+
+            for iso in isos:
+                category = iso['category']
+                if category not in by_category:
+                    by_category[category] = 0
+                by_category[category] += 1
+                total_size += iso['size_gb']
+
+            summary.append(f"📁 Total ISOs: {len(isos)}")
+            summary.append(f"💾 Total size: {total_size:.1f} GB")
+            summary.append(f"🏷️ Categories: {len(by_category)}")
+
+            # Show by category
+            if by_category:
+                summary.append("\n📋 **By Category:**")
+                for cat, count in by_category.items():
+                    cat_name = self.categories.get(cat, cat.title())
+                    summary.append(f"  • {cat_name}: {count} ISO(s)")
+
+            return "\n".join(summary)
+
+        except Exception as e:
+            return f"❌ Error getting summary: {str(e)}"
+
+    def get_folder_names(self) -> List[str]:
+        """Get list of existing ISO folder names for dropdowns"""
+        try:
+            isos = self.list_existing_isos()
+            if not isos:
+                return ["No ISOs found"]
+
+            # Return folder names sorted alphabetically
+            folders = [iso["folder_name"] for iso in isos]
+            return sorted(folders)
+
+        except Exception as e:
+            return ["Error loading ISOs"]
+
     def _get_single_iso_status(self, folder_name: str) -> str:
         """Get status for single ISO"""
         iso_dir = self.get_iso_dir(folder_name)
