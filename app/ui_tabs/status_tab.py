@@ -6,8 +6,8 @@ Displays system health, services status, and resource usage
 import gradio as gr
 from typing import Optional
 
-from base_tab import BaseTab
-from helpers import safe_method
+from .base_tab import BaseTab
+from .helpers import safe_method
 
 
 class StatusTab(BaseTab):

@@ -6,8 +6,8 @@ Handles TFTP, HTTP, and system testing functionality
 import gradio as gr
 from typing import Optional
 
-from base_tab import BaseTab
-from helpers import safe_method
+from .base_tab import BaseTab
+from .helpers import safe_method
 
 
 class TestingTab(BaseTab):

@@ -7,7 +7,7 @@ import gradio as gr
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Dict, List, Callable, Tuple
 
-from helpers import (
+from .helpers import (
     create_status_textbox,
     create_action_buttons,
     create_section_header,
