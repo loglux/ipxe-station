@@ -10,6 +10,7 @@ from .base_tab import BaseTab
 from .helpers import safe_method
 
 
+
 class DHCPTab(BaseTab):
     """DHCP Server Configuration Generator tab."""
 
@@ -275,7 +276,7 @@ class DHCPTab(BaseTab):
 
         try:
             # Import create_simple_config function
-            from backend.dhcp_config import create_simple_config
+            from ..backend.dhcp_config import create_simple_config
 
             if not create_simple_config:
                 return "❌ Simple config function not available", ""
