@@ -340,9 +340,9 @@ class iPXEGenerator:
         # Add standard menu items
         script_lines.extend([
             "item --gap --",
-            "item shell 🖥️  Drop to iPXE shell",
-            "item reboot 🔄 Reboot computer",
-            "item exit ❌ Exit to BIOS",
+            "item shell [SHELL]  Drop to iPXE shell", # 🖥️
+            "item reboot [REBOOT] Reboot computer", # 🔄
+            "item exit [EXIT] Exit to BIOS", # ❌
             ""
         ])
 
