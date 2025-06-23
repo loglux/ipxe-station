@@ -13,7 +13,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 # Import common utilities to eliminate repetition
-from utils import (
+from .utils import (
     validate_string_field,
     validate_file_path,
     safe_write_file,

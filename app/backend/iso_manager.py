@@ -13,7 +13,7 @@ from typing import Callable, Optional, Dict, Any, List
 from datetime import datetime
 
 # Import common utilities to eliminate repetition
-from utils import (
+from .utils import (
     format_file_size,
     download_with_progress,
     safe_operation,
