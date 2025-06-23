@@ -1,6 +1,7 @@
 """
 System status monitoring for PXE Boot Station
 Handles system monitoring, service status checks, and resource usage
+REFACTORED: Using common utilities to eliminate repetition
 """
 
 import os
@@ -8,12 +9,21 @@ import psutil
 import socket
 import subprocess
 import time
-import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+
+# Import common utilities to eliminate repetition
+from utils import (
+    format_file_size,
+    get_file_info,
+    safe_operation,
+    export_status_as_json,
+    calculate_total_size,
+    get_cross_platform_path
+)
 
 # Fix for Windows compatibility
 try:
@@ -162,102 +172,81 @@ class ServiceChecker:
             return None
 
     @staticmethod
+    @safe_operation("Systemd service check", return_tuple=True)
     def check_systemd_service(service_name: str) -> Tuple[ServiceStatus, str]:
         """Check systemd service status"""
-        try:
-            # Check if systemctl is available
-            result = subprocess.run(
-                ['systemctl', '--version'],
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode != 0:
-                return ServiceStatus.UNKNOWN, "systemctl not available"
+        # Check if systemctl is available
+        result = subprocess.run(
+            ['systemctl', '--version'],
+            capture_output=True, text=True, timeout=2
+        )
+        if result.returncode != 0:
+            return ServiceStatus.UNKNOWN, "systemctl not available"
 
-            result = subprocess.run(
-                ['systemctl', 'is-active', service_name],
-                capture_output=True, text=True, timeout=5
-            )
+        result = subprocess.run(
+            ['systemctl', 'is-active', service_name],
+            capture_output=True, text=True, timeout=5
+        )
 
-            status = result.stdout.strip()
-            if status == "active":
-                return ServiceStatus.RUNNING, "Service is active"
-            elif status == "inactive":
-                return ServiceStatus.STOPPED, "Service is inactive"
-            elif status == "failed":
-                return ServiceStatus.ERROR, "Service failed"
-            else:
-                return ServiceStatus.UNKNOWN, f"Unknown status: {status}"
-
-        except subprocess.TimeoutExpired:
-            return ServiceStatus.UNKNOWN, "Timeout checking service"
-        except FileNotFoundError:
-            return ServiceStatus.UNKNOWN, "systemctl not found"
-        except Exception as e:
-            return ServiceStatus.ERROR, f"Error: {str(e)}"
+        status = result.stdout.strip()
+        if status == "active":
+            return ServiceStatus.RUNNING, "Service is active"
+        elif status == "inactive":
+            return ServiceStatus.STOPPED, "Service is inactive"
+        elif status == "failed":
+            return ServiceStatus.ERROR, "Service failed"
+        else:
+            return ServiceStatus.UNKNOWN, f"Unknown status: {status}"
 
 
 class SystemMonitor:
     """System resource monitoring utilities"""
 
     @staticmethod
+    @safe_operation("System information gathering")
     def get_system_info() -> SystemInfo:
         """Get comprehensive system information"""
+        # Basic system info
+        hostname = socket.gethostname()
+        platform = os.name
+
+        # Get architecture - cross-platform way
         try:
-            # Basic system info
-            hostname = socket.gethostname()
-            platform = os.name
+            import platform as plt
+            architecture = plt.machine()
+        except:
+            architecture = 'unknown'
 
-            # Get architecture - cross-platform way
-            try:
-                import platform as plt
-                architecture = plt.machine()
-            except:
-                architecture = 'unknown'
+        # CPU and memory
+        cpu_count = psutil.cpu_count() or 1
+        memory = psutil.virtual_memory()
+        cpu_percent = psutil.cpu_percent(interval=1)
 
-            # CPU and memory
-            cpu_count = psutil.cpu_count() or 1
-            memory = psutil.virtual_memory()
-            cpu_percent = psutil.cpu_percent(interval=1)
+        # Uptime
+        boot_time = datetime.fromtimestamp(psutil.boot_time())
+        uptime = datetime.now() - boot_time
 
-            # Uptime
-            boot_time = datetime.fromtimestamp(psutil.boot_time())
-            uptime = datetime.now() - boot_time
+        # Load average (Unix-like systems only)
+        load_avg = None
+        try:
+            if hasattr(os, 'getloadavg'):
+                load_avg = os.getloadavg()
+        except (OSError, AttributeError):
+            pass
 
-            # Load average (Unix-like systems only)
-            load_avg = None
-            try:
-                if hasattr(os, 'getloadavg'):
-                    load_avg = os.getloadavg()
-            except (OSError, AttributeError):
-                pass
-
-            return SystemInfo(
-                hostname=hostname,
-                platform=platform,
-                architecture=architecture,
-                cpu_count=cpu_count,
-                memory_total=memory.total,
-                memory_available=memory.available,
-                memory_percent=memory.percent,
-                cpu_percent=cpu_percent,
-                uptime=uptime,
-                load_average=load_avg,
-                boot_time=boot_time
-            )
-
-        except Exception as e:
-            # Return minimal info on error
-            return SystemInfo(
-                hostname="unknown",
-                platform="unknown",
-                architecture="unknown",
-                cpu_count=1,
-                memory_total=0,
-                memory_available=0,
-                memory_percent=0.0,
-                cpu_percent=0.0,
-                uptime=timedelta(0)
-            )
+        return SystemInfo(
+            hostname=hostname,
+            platform=platform,
+            architecture=architecture,
+            cpu_count=cpu_count,
+            memory_total=memory.total,
+            memory_available=memory.available,
+            memory_percent=memory.percent,
+            cpu_percent=cpu_percent,
+            uptime=uptime,
+            load_average=load_avg,
+            boot_time=boot_time
+        )
 
     @staticmethod
     def get_disk_usage(paths: List[str] = None) -> List[DiskUsage]:
@@ -352,6 +341,7 @@ class PXEServiceMonitor:
         self.service_checker = ServiceChecker()
         self.system_monitor = SystemMonitor()
 
+    @safe_operation("TFTP service check")
     def check_tftp_service(self) -> ServiceInfo:
         """Check TFTP service status"""
         service = ServiceInfo(
@@ -381,6 +371,7 @@ class PXEServiceMonitor:
 
         return service
 
+    @safe_operation("HTTP service check")
     def check_http_service(self, port: int = 8000) -> ServiceInfo:
         """Check HTTP service status (FastAPI + Gradio)"""
         service = ServiceInfo(
@@ -411,6 +402,7 @@ class PXEServiceMonitor:
 
         return service
 
+    @safe_operation("Gradio service check")
     def check_gradio_service(self, port: int = 8000) -> ServiceInfo:
         """Check Gradio UI service status (part of FastAPI)"""
         service = ServiceInfo(
@@ -448,6 +440,7 @@ class PXEServiceMonitor:
 
         return service
 
+    @safe_operation("DHCP service check")
     def check_dhcp_service(self) -> ServiceInfo:
         """Check DHCP service status (external)"""
         service = ServiceInfo(
@@ -493,15 +486,10 @@ class FileSystemMonitor:
     @staticmethod
     def check_pxe_files() -> Dict[str, Dict[str, Any]]:
         """Check status of PXE boot files with support for versioned Ubuntu structure"""
-        # Cross-platform file paths
-        if os.name == 'nt':  # Windows
-            base_tftp = "C:/srv/tftp"
-            base_http = "C:/srv/http"
-            base_ipxe = "C:/srv/ipxe"
-        else:  # Unix-like
-            base_tftp = "/srv/tftp"
-            base_http = "/srv/http"
-            base_ipxe = "/srv/ipxe"
+        # Cross-platform file paths using common utility
+        base_tftp = get_cross_platform_path("/srv/tftp")
+        base_http = get_cross_platform_path("/srv/http")
+        base_ipxe = get_cross_platform_path("/srv/ipxe")
 
         file_status = {}
 
@@ -512,9 +500,9 @@ class FileSystemMonitor:
             "iPXE Menu": f"{base_ipxe}/boot.ipxe"
         }
 
-        # Process iPXE files
+        # Process iPXE files using common utility
         for name, path in ipxe_files.items():
-            file_status[name] = FileSystemMonitor._get_file_info(path)
+            file_status[name] = get_file_info(path)
 
         # Check Ubuntu files - scan for versioned directories
         ubuntu_base = Path(base_http)
@@ -542,23 +530,23 @@ class FileSystemMonitor:
                             latest_initrd = str(initrd_path)
                             ubuntu_found = True
 
-                        # Add version-specific entries
+                        # Add version-specific entries using common utility
                         version = ubuntu_dir.name.replace('ubuntu-', '')
-                        file_status[f"Ubuntu {version} Kernel"] = FileSystemMonitor._get_file_info(str(kernel_path))
-                        file_status[f"Ubuntu {version} Initrd"] = FileSystemMonitor._get_file_info(str(initrd_path))
+                        file_status[f"Ubuntu {version} Kernel"] = get_file_info(str(kernel_path))
+                        file_status[f"Ubuntu {version} Initrd"] = get_file_info(str(initrd_path))
 
                 # Add latest as primary entries for compatibility
                 if ubuntu_found:
-                    file_status["Ubuntu Kernel"] = FileSystemMonitor._get_file_info(latest_kernel)
-                    file_status["Ubuntu Initrd"] = FileSystemMonitor._get_file_info(latest_initrd)
+                    file_status["Ubuntu Kernel"] = get_file_info(latest_kernel)
+                    file_status["Ubuntu Initrd"] = get_file_info(latest_initrd)
             else:
                 # Fallback to old single ubuntu directory
                 old_ubuntu_dir = ubuntu_base / "ubuntu"
                 if old_ubuntu_dir.exists():
                     kernel_path = old_ubuntu_dir / "vmlinuz"
                     initrd_path = old_ubuntu_dir / "initrd"
-                    file_status["Ubuntu Kernel"] = FileSystemMonitor._get_file_info(str(kernel_path))
-                    file_status["Ubuntu Initrd"] = FileSystemMonitor._get_file_info(str(initrd_path))
+                    file_status["Ubuntu Kernel"] = get_file_info(str(kernel_path))
+                    file_status["Ubuntu Initrd"] = get_file_info(str(initrd_path))
                     ubuntu_found = kernel_path.exists() and initrd_path.exists()
 
         # If no Ubuntu files found, add missing entries
@@ -587,9 +575,9 @@ class FileSystemMonitor:
             for pattern in iso_patterns:
                 iso_files = list(ubuntu_base.rglob(pattern))
                 if iso_files:
-                    # Use first found ISO
+                    # Use first found ISO and use common utility
                     iso_file = iso_files[0]
-                    file_status["Ubuntu ISO"] = FileSystemMonitor._get_file_info(str(iso_file))
+                    file_status["Ubuntu ISO"] = get_file_info(str(iso_file))
                     iso_found = True
                     break
 
@@ -605,45 +593,6 @@ class FileSystemMonitor:
 
         return file_status
 
-    @staticmethod
-    def _get_file_info(path: str) -> Dict[str, Any]:
-        """Get file information for a given path"""
-        file_path = Path(path)
-        status = {
-            "path": path,
-            "exists": file_path.exists(),
-            "size": 0,
-            "size_human": "0 B",
-            "modified": None,
-            "readable": False
-        }
-
-        if file_path.exists():
-            try:
-                stat = file_path.stat()
-                status["size"] = stat.st_size
-                status["size_human"] = FileSystemMonitor._format_size(stat.st_size)
-                status["modified"] = datetime.fromtimestamp(stat.st_mtime)
-                status["readable"] = os.access(path, os.R_OK)
-            except Exception:
-                pass
-
-        return status
-
-    @staticmethod
-    def _format_size(size_bytes: int) -> str:
-        """Format file size in human-readable format"""
-        if size_bytes == 0:
-            return "0 B"
-
-        size_names = ["B", "KB", "MB", "GB", "TB"]
-        i = 0
-        while size_bytes >= 1024 and i < len(size_names) - 1:
-            size_bytes /= 1024.0
-            i += 1
-
-        return f"{size_bytes:.1f} {size_names[i]}"
-
 
 class SystemStatusManager:
     """Main system status management class"""
@@ -653,6 +602,7 @@ class SystemStatusManager:
         self.system_monitor = SystemMonitor()
         self.filesystem_monitor = FileSystemMonitor()
 
+    @safe_operation("Complete status gathering")
     def get_complete_status(self) -> Dict[str, Any]:
         """Get complete system status"""
         # System information
@@ -834,21 +784,12 @@ class SystemStatusManager:
         return recommendations
 
     def export_status_json(self) -> str:
-        """Export complete status as JSON"""
+        """Export complete status as JSON using common utility"""
         status = self.get_complete_status()
-
-        # Convert datetime objects to strings for JSON serialization
-        def json_serializer(obj):
-            if isinstance(obj, datetime):
-                return obj.isoformat()
-            elif isinstance(obj, timedelta):
-                return str(obj)
-            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-        return json.dumps(status, indent=2, default=json_serializer)
+        return export_status_as_json(status, pretty=True)
 
 
-# Helper functions
+# Helper functions using common utilities
 def _calculate_dhcp_range(subnet: str, netmask: str) -> str:
     """Calculate DHCP range from subnet and netmask"""
     try:
