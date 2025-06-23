@@ -267,7 +267,7 @@ show_results() {
     echo
     echo "🌐 Application URLs:"
     echo "  • Main page:  http://localhost:${EXTERNAL_PORT}/"
-    echo "  • Web UI:     http://localhost:${EXTERNAL_PORT}/gradio"
+    echo "  • Web UI:     http://localhost:${EXTERNAL_PORT}/pxe-station"
     echo "  • Status:     http://localhost:${EXTERNAL_PORT}/status"
     echo "  • TFTP:       localhost:${TFTP_PORT}/UDP"
     echo
