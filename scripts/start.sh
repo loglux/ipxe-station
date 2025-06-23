@@ -6,8 +6,13 @@ echo "🚀 Starting iPXE Station..."
 # Setup volumes on first run
 /app/setup-volumes.sh
 
-# Starting syslog
-rsyslogd
+# Starting syslog (if not running)
+if ! pgrep rsyslogd > /dev/null; then
+    echo "🔧 Starting rsyslog..."
+    rsyslogd
+else
+    echo "ℹ️ rsyslog already running"
+fi
 
 # tail logs to BG
 (sleep 2; tail -f /var/log/syslog | grep tftpd) &

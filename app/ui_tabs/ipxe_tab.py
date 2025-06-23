@@ -65,20 +65,20 @@ class iPXETab(BaseTab):
                     ],
                     value="multi",
                     label="Menu Type",
-                    info="Choose between comprehensive multi-mode or simple netboot menu"
+                    tooltip="Choose between comprehensive multi-mode or simple netboot menu"
                 )
 
                 self.ipxe_server_ip = gr.Textbox(
                     value="192.168.1.10",
                     label="PXE Server IP",
-                    info="IP address of this PXE server"
+                    tooltip="IP address of this PXE server"
                 )
 
                 self.ipxe_port = gr.Number(
                     value=8000,
                     label="HTTP Port",
                     precision=0,
-                    info="HTTP port for serving boot files"
+                    tooltip="HTTP port for serving boot files"
                 )
 
                 with gr.Row():
@@ -137,7 +137,7 @@ class iPXETab(BaseTab):
                 choices=["ubuntu", "diagnostic", "multi_os"],
                 value="ubuntu",
                 label="Classic Template",
-                info="Pre-defined menu templates"
+                tooltip="Pre-defined menu templates"
             )
 
             self.create_template_btn = gr.Button("🎨 Create from Classic Template", variant="secondary")
@@ -157,33 +157,33 @@ class iPXETab(BaseTab):
                     self.entry_name = gr.Textbox(
                         label="Entry Name (ID)",
                         placeholder="my_custom_os",
-                        info="Unique identifier for the entry"
+                        tooltip="Unique identifier for the entry"
                     )
                     self.entry_title = gr.Textbox(
                         label="Display Title",
                         placeholder="My Custom OS",
-                        info="Title shown in the menu"
+                        tooltip="Title shown in the menu"
                     )
                     self.entry_description = gr.Textbox(
                         label="Description (optional)",
-                        info="Optional description for the entry"
+                        tooltip="Optional description for the entry"
                     )
 
                 with gr.Column():
                     self.entry_kernel = gr.Textbox(
                         label="Kernel Path",
                         placeholder="custom/vmlinuz",
-                        info="Path to kernel file"
+                        tooltip="Path to kernel file"
                     )
                     self.entry_initrd = gr.Textbox(
                         label="Initrd Path (optional)",
                         placeholder="custom/initrd",
-                        info="Path to initrd file (optional)"
+                        tooltip="Path to initrd file (optional)"
                     )
                     self.entry_cmdline = gr.Textbox(
                         label="Kernel Command Line",
                         placeholder="ip=dhcp root=/dev/nfs",
-                        info="Kernel boot parameters"
+                        tooltip="Kernel boot parameters"
                     )
 
             self.add_entry_btn = gr.Button("➕ Add Entry to Menu", variant="secondary")

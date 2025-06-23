@@ -86,7 +86,7 @@ class UbuntuTab(BaseTab):
                     choices=["24.04", "22.04", "20.04"],
                     value="24.04",
                     label="Ubuntu Version to Download",
-                    info="Select Ubuntu LTS version to download"
+                    tooltip="Select Ubuntu LTS version to download"
                 )
 
                 with gr.Row():
@@ -113,7 +113,7 @@ class UbuntuTab(BaseTab):
                     value=self._get_default_version(),
                     label="Installed Versions",
                     allow_custom_value=False,
-                    info="Select version to manage"
+                    tooltip="Select version to manage"
                 )
 
                 with gr.Row():

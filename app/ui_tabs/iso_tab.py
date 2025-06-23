@@ -71,7 +71,7 @@ class ISOTab(BaseTab):
                     label="ISO Download URL",
                     placeholder="https://example.com/my-disk.iso",
                     lines=1,
-                    info="URL of the ISO file to download"
+                    tooltip="URL of the ISO file to download"
                 )
 
                 with gr.Row():
@@ -79,20 +79,20 @@ class ISOTab(BaseTab):
                         label="Folder Name",
                         placeholder="my-rescue-disk",
                         scale=2,
-                        info="Unique folder name for this ISO"
+                        tooltip="Unique folder name for this ISO"
                     )
                     self.iso_display_name = gr.Textbox(
                         label="Display Name",
                         placeholder="My Rescue Disk",
                         scale=2,
-                        info="Human-readable name"
+                        tooltip="Human-readable name"
                     )
                     self.iso_category = gr.Dropdown(
                         choices=self._get_iso_categories(),
                         value="custom",
                         label="Category",
                         scale=1,
-                        info="ISO category"
+                        tooltip="ISO category"
                     )
 
                 # Extraction options for download
@@ -110,7 +110,7 @@ class ISOTab(BaseTab):
                     label="Select ISO File",
                     file_types=[".iso"],
                     file_count="single",
-                    info="Select ISO file from your computer"
+                    tooltip="Select ISO file from your computer"
                 )
 
                 with gr.Row():
@@ -118,20 +118,20 @@ class ISOTab(BaseTab):
                         label="Folder Name",
                         placeholder="my-utility",
                         scale=2,
-                        info="Unique folder name for this ISO"
+                        tooltip="Unique folder name for this ISO"
                     )
                     self.upload_display_name = gr.Textbox(
                         label="Display Name",
                         placeholder="My Utility Disk",
                         scale=2,
-                        info="Human-readable name"
+                        tooltip="Human-readable name"
                     )
                     self.upload_category = gr.Dropdown(
                         choices=self._get_iso_categories(),
                         value="custom",
                         label="Category",
                         scale=1,
-                        info="ISO category"
+                        tooltip="ISO category"
                     )
 
                 # Extraction options for upload
@@ -156,7 +156,7 @@ class ISOTab(BaseTab):
                 extract_checkbox = gr.Checkbox(
                     label="Extract boot files from ISO",
                     value=False,
-                    info="Extract kernel, initrd, and config files for fast booting"
+                    tooltip="Extract kernel, initrd, and config files for fast booting"
                 )
                 setattr(self, extract_files_attr, extract_checkbox)
 
@@ -166,7 +166,7 @@ class ISOTab(BaseTab):
                     value="keep",
                     label="ISO file handling after extraction",
                     visible=False,  # Will be shown when extract_files is checked
-                    info="What to do with ISO file after extraction"
+                    tooltip="What to do with ISO file after extraction"
                 )
                 setattr(self, iso_retention_attr, retention_dropdown)
 
@@ -191,7 +191,7 @@ class ISOTab(BaseTab):
                     value=initial_folders[0] if initial_folders else "No ISOs found",
                     label="Existing ISOs",
                     allow_custom_value=False,
-                    info="Select ISO to manage"
+                    tooltip="Select ISO to manage"
                 )
 
                 with gr.Row():

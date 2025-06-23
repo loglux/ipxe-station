@@ -56,35 +56,35 @@ class DHCPTab(BaseTab):
                     value="192.168.1.10",
                     label="PXE Server IP Address",
                     placeholder="192.168.1.10",
-                    info="IP address of this PXE server"
+                    tooltip="IP address of this PXE server"
                 )
 
                 self.subnet = gr.Textbox(
                     value="192.168.1.0",
                     label="Subnet Address",
                     placeholder="192.168.1.0",
-                    info="Network subnet address"
+                    tooltip="Network subnet address"
                 )
 
                 self.netmask = gr.Textbox(
                     value="255.255.255.0",
                     label="Subnet Mask",
                     placeholder="255.255.255.0",
-                    info="Network subnet mask"
+                    tooltip="Network subnet mask"
                 )
 
                 self.router_ip = gr.Textbox(
                     value="192.168.1.1",
                     label="Default Gateway",
                     placeholder="192.168.1.1",
-                    info="Default gateway/router IP"
+                    tooltip="Default gateway/router IP"
                 )
 
                 self.dns_servers = gr.Textbox(
                     value="8.8.8.8, 8.8.4.4",
                     label="DNS Servers (comma-separated)",
                     placeholder="8.8.8.8, 8.8.4.4",
-                    info="DNS servers for clients"
+                    tooltip="DNS servers for clients"
                 )
 
             # DHCP Settings Column
@@ -95,21 +95,21 @@ class DHCPTab(BaseTab):
                     choices=["isc", "dnsmasq", "mikrotik"],
                     value="isc",
                     label="DHCP Server Type",
-                    info="Type of DHCP server configuration to generate"
+                    tooltip="Type of DHCP server configuration to generate"
                 )
 
                 self.lease_time = gr.Number(
                     value=86400,
                     label="Lease Time (seconds)",
                     precision=0,
-                    info="Default lease time (86400 = 24 hours)"
+                    tooltip="Default lease time (86400 = 24 hours)"
                 )
 
                 self.domain_name = gr.Textbox(
                     value="",
                     label="Domain Name (optional)",
                     placeholder="example.com",
-                    info="Domain name for DHCP clients"
+                    tooltip="Domain name for DHCP clients"
                 )
 
                 # Action buttons
@@ -152,13 +152,13 @@ class DHCPTab(BaseTab):
                 self.simple_server_ip = gr.Textbox(
                     value="192.168.1.10",
                     label="Server IP",
-                    info="PXE server IP address"
+                    tooltip="PXE server IP address"
                 )
 
                 self.simple_network = gr.Textbox(
                     value="192.168.1.0/24",
                     label="Network CIDR",
-                    info="Network in CIDR notation (e.g., 192.168.1.0/24)"
+                    tooltip="Network in CIDR notation (e.g., 192.168.1.0/24)"
                 )
 
                 self.simple_generate_btn = gr.Button("⚡ Quick Generate", variant="primary")
