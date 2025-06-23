@@ -12,12 +12,16 @@ app = FastAPI(title="iPXE Station", description="Network Boot Server")
 app.mount("/http", StaticFiles(directory="/srv/http"), name="http")
 
 # Mount iPXE files
-@app.get("/ipxe/{filename}", methods=["GET", "HEAD"])
+@app.get("/ipxe/{filename}")
+@app.head("/ipxe/{filename}")
 async def serve_ipxe(filename: str):
     """Serve iPXE files"""
     file_path = Path(f"/srv/ipxe/{filename}")
     if file_path.exists():
-        return FileResponse(file_path)
+        return FileResponse(
+            file_path,
+        media_type="text/plain",
+        headers={"Cache-Control": "no-cache"})
     return Response("File not found", status_code=404)
 
 # Mount TFTP files (for HTTP access if needed)
