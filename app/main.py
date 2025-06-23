@@ -43,6 +43,10 @@ async def status():
         "ipxe_files": len(list(Path("/srv/ipxe").glob("*")))
     }
 
+@app.api_route("/ipxe/boot.ipxe", methods=["GET", "HEAD"])
+def get_ipxe_script():
+    return FileResponse("ipxe/boot.ipxe", media_type="text/plain")
+
 # Create and mount Gradio interface
 print("Creating Gradio UI...")
 gradio_app = build_gradio_ui()
