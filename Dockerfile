@@ -5,6 +5,8 @@ RUN apt-get update && \
     apt-get install -y \
         # TFTP server
         tftpd-hpa \
+        # Syslog \
+        rsyslog \
         # Download tools
         wget curl \
         # ISO/Archive tools

@@ -6,6 +6,12 @@ echo "🚀 Starting iPXE Station..."
 # Setup volumes on first run
 /app/setup-volumes.sh
 
+# Starting syslog
+rsyslogd
+
+# tail logs to BG
+(sleep 2; tail -f /var/log/syslog | grep tftpd) &
+
 # Start TFTP service
 echo "🔧 Starting TFTP service..."
 service tftpd-hpa start
