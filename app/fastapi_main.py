@@ -1,7 +1,7 @@
 # fastapi_main.py
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 import gradio as gr
 
 from gradio_ui import build_gradio_ui  # Убрали app.
@@ -26,6 +26,11 @@ app = gr.mount_gradio_app(app, demo, path="/pxe-station")
 @app.get("/api/ping")
 def ping():
     return {"status": "ok"}
+
+@app.get("/ipxe/boot.ipxe")
+def get_ipxe_script():
+    return FileResponse("ipxe/boot.ipxe", media_type="text/plain")
+
 
 if __name__ == "__main__":
     import uvicorn
