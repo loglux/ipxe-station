@@ -43,7 +43,7 @@ async def status():
         "ipxe_files": len(list(Path("/srv/ipxe").glob("*")))
     }
 
-@app.api_route("/ipxe/boot.ipxe", methods=["GET", "HEAD"])
+@app.get("/ipxe/boot.ipxe")
 def get_ipxe_script():
     return FileResponse("ipxe/boot.ipxe", media_type="text/plain")
 
