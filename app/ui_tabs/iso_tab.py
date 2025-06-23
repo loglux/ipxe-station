@@ -110,7 +110,7 @@ class ISOTab(BaseTab):
                     label="Select ISO File",
                     file_types=[".iso"],
                     file_count="single",
-                    info="Select ISO file from your computer"
+                    # info="Select ISO file from your computer"
                 )
 
                 with gr.Row():
