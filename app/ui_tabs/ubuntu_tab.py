@@ -32,7 +32,7 @@ class UbuntuTab(BaseTab):
             )
 
             # Summary section
-            self._create_summary_section()
+            self._create_ubuntu_summary_section()
 
             # Download section
             self._create_download_section()
@@ -45,7 +45,7 @@ class UbuntuTab(BaseTab):
 
         return tab
 
-    def _create_summary_section(self):
+    def _create_ubuntu_summary_section(self):
         """Create Ubuntu versions summary section."""
         with gr.Row():
             with gr.Column():
