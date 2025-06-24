@@ -326,7 +326,7 @@ class UbuntuTab(BaseTab):
                 for version in installed:
                     ubuntu_dir = self.ui_controller.ubuntu_downloader.get_ubuntu_dir(version)
                     if ubuntu_dir.exists():
-                        from ..backend.utils import calculate_total_size, format_file_size
+                        from app.backend.utils import calculate_total_size, format_file_size
                         version_size = calculate_total_size(ubuntu_dir)
                         total_size += version_size
 
