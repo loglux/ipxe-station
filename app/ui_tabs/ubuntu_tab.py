@@ -49,32 +49,11 @@ class UbuntuTab(BaseTab):
         """Create Ubuntu versions summary section."""
         with gr.Row():
             with gr.Column():
-                # Use the base class method with different name to avoid conflict
-                self.summary_output, self.refresh_summary_btn = self._create_summary_ui_section(
+                self.summary_output, self.refresh_summary_btn = self._create_summary_section(
                     get_summary_fn=self._get_ubuntu_summary,
                     title="Ubuntu Versions Summary",
                     icon="📊"
                 )
-
-    def _create_summary_display(self, get_summary_fn, title="Summary", icon="📊"):
-        """Create summary display - uses BaseTab pattern."""
-        with gr.Row():
-            with gr.Column():
-                summary_textbox = self._create_status_textbox(
-                    label=f"{title}",
-                    initial_value=get_summary_fn(),
-                    lines=4,
-                    component_key="summary"
-                )
-                refresh_btn = gr.Button(f"🔄 Refresh {title}", variant="secondary", size="sm")
-
-        # Setup refresh functionality
-        refresh_btn.click(
-            fn=get_summary_fn,
-            outputs=summary_textbox
-        )
-
-        return summary_textbox, refresh_btn
 
     def _create_download_section(self):
         """Create download new version section."""
