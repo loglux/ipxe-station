@@ -10,7 +10,6 @@ from .base_tab import BaseTab
 from .helpers import safe_method
 
 
-
 class DHCPTab(BaseTab):
     """DHCP Server Configuration Generator tab."""
 
@@ -194,7 +193,6 @@ class DHCPTab(BaseTab):
     # TAB-SPECIFIC METHODS
     # =========================
 
-    @safe_method(module_attr='dhcp_manager', error_prefix='DHCP configuration')
     def _generate_dhcp_config(self, server_ip: str, subnet: str, netmask: str,
                               router_ip: str, dns_servers: str, config_type: str,
                               lease_time: int = 86400, domain_name: str = "") -> tuple:
@@ -267,7 +265,6 @@ class DHCPTab(BaseTab):
         except Exception as e:
             return f"❌ Save failed: {str(e)}"
 
-    @safe_method(module_attr='dhcp_manager', error_prefix='Simple DHCP configuration')
     def _create_simple_dhcp_config(self, server_ip: str, network_cidr: str) -> tuple:
         """Create simple DHCP configuration from CIDR."""
         if not self.ui_controller.dhcp_manager:
