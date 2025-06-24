@@ -171,9 +171,9 @@ class PXEBootStationUI:
     @safe_method(error_prefix='Legacy HTTP test')
     def run_legacy_http_test(self) -> str:
         """Run legacy HTTP test"""
-        if not legacy_test_http_endpoints:
-            return "❌ Legacy test function not available"
-        return legacy_test_http_endpoints()
+        if not self.system_tester:
+            return "❌ System tester not available"
+        return self.system_tester.http_tester.test_endpoint("http://localhost:8000/status")
 
     # =========================
     # DHCP CONFIGURATION TAB

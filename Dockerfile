@@ -5,7 +5,7 @@ RUN apt-get update && \
     apt-get install -y \
         # TFTP server
         tftpd-hpa \
-        # Syslog \
+        # Syslog
         rsyslog \
         # Download tools
         wget curl \
@@ -22,17 +22,18 @@ RUN apt-get update && \
         && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Set working directory to parent of app
+WORKDIR /
 
-# Set Python path to include /app so imports work correctly
-ENV PYTHONPATH=/app
+# Set Python path to include root so 'app.backend' imports work
+ENV PYTHONPATH=/
 
-# Copy application files
+# Copy application files to /app (preserving the app/ structure)
 COPY app/ /app/
 COPY tftpd-hpa /etc/default/tftpd-hpa
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY requirements.txt /
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create volume mount points with proper permissions
@@ -62,6 +63,9 @@ RUN echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
 # Expose ports
 EXPOSE 69/udp 8000 9005
+
+# Change working directory back to /app for running the application
+WORKDIR /app
 
 # Use the startup script as entrypoint
 CMD ["/app/start.sh"]
