@@ -2,7 +2,6 @@
 iPXE Menu Tab for PXE Boot Station UI
 Handles iPXE menu configuration generation, validation, and management
 """
-# Bear in mind, if relocate: from app.ipxe_manager import iPXEEntry, line 488
 
 import gradio as gr
 from typing import Optional
@@ -278,7 +277,6 @@ System Tools
     # TAB-SPECIFIC METHODS
     # =========================
 
-    @safe_method(module_attr='ipxe_manager', error_prefix='Smart Ubuntu menu creation')
     def _create_smart_ubuntu_menu(self, template_type: str = "multi",
                                   server_ip: str = "localhost",
                                   port: int = 8000) -> tuple:
@@ -464,7 +462,6 @@ System Tools
         except Exception as e:
             return f"❌ ISO suggestions failed: {str(e)}"
 
-    @safe_method(module_attr='ipxe_manager', error_prefix='iPXE template creation')
     def _create_ipxe_menu_from_template(self, template_name: str,
                                         server_ip: str = "localhost",
                                         port: int = 8000) -> tuple:
