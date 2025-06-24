@@ -42,10 +42,7 @@ except ImportError:
     SystemStatusManager = None
     get_system_status = None
 
-try:
-    from backend.ubuntu_downloader import UbuntuDownloader
-except ImportError:
-    UbuntuDownloader = None
+from backend.ubuntu_downloader import UbuntuDownloader
 
 try:
     from backend.iso_manager import ISOManager

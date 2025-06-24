@@ -9,7 +9,6 @@ from typing import Optional, List
 from .base_tab import BaseTab
 from .helpers import safe_method
 
-
 class UbuntuTab(BaseTab):
     """Ubuntu Files Download & Management tab."""
 
