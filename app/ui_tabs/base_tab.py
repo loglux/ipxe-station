@@ -1,7 +1,7 @@
 import os
 import gradio as gr
 from typing import List, Tuple
-from .helpers import safe_method
+from app.ui_tabs.helpers import safe_method
 from app.backend.dhcp_config import DHCPConfigManager, create_simple_config
 from app.backend.ipxe_manager import iPXEManager, iPXEEntry, iPXETemplateManager
 from app.backend.iso_manager import ISOManager

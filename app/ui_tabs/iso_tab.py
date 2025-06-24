@@ -1,7 +1,6 @@
 from app.ui_tabs.base_tab import PXEBootStationUI
-from app.ui_tabs.helpers import safe_method
 import gradio as gr
-from .helpers import safe_method, _create_action_buttons, _create_status_textbox
+from app.ui_tabs.helpers import safe_method, _create_action_buttons, _create_status_textbox
 
 class ISOTab:
     def __init__(self, ui_controller: PXEBootStationUI):

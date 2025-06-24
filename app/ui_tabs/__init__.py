@@ -1,13 +1,13 @@
-from .base_tab import PXEBootStationUI
-from .status_tab import StatusTab
-from .testing_tab import TestingTab
-from .dhcp_tab import DHCPTab
-from .ipxe_tab import iPXETab
-from .ubuntu_tab import UbuntuTab
-from .iso_tab import ISOTab
-from .header import Header
-from .footer import Footer
-from .helpers import (
+from app.ui_tabs.base_tab import PXEBootStationUI
+from app.ui_tabs.status_tab import StatusTab
+from app.ui_tabs.testing_tab import TestingTab
+from app.ui_tabs.dhcp_tab import DHCPTab
+from app.ui_tabs.ipxe_tab import iPXETab
+from app.ui_tabs.ubuntu_tab import UbuntuTab
+from app.ui_tabs.iso_tab import ISOTab
+from app.ui_tabs.header import Header
+from app.ui_tabs.footer import Footer
+from app.ui_tabs.helpers import (
     safe_method,
     _create_action_buttons,
     _create_status_textbox

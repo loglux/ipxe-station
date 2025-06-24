@@ -1,5 +1,5 @@
 from app.ui_tabs.base_tab import PXEBootStationUI
-from .helpers import safe_method, _create_action_buttons, _create_status_textbox
+from app.ui_tabs.helpers import safe_method, _create_action_buttons, _create_status_textbox
 import gradio as gr
 
 class DHCPTab:
