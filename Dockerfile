@@ -24,6 +24,9 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# Set Python path to include /app so imports work correctly
+ENV PYTHONPATH=/app
+
 # Copy application files
 COPY app/ /app/
 COPY tftpd-hpa /etc/default/tftpd-hpa
