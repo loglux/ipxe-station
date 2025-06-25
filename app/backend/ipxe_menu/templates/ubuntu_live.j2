@@ -1,0 +1,8 @@
+#!ipxe
+set server {{ server }}
+set nfs_root {{ nfs_root }}
+
+kernel nfs://${server}:${nfs_root}/ubuntu/casper/vmlinuz
+initrd nfs://${server}:${nfs_root}/ubuntu/casper/initrd
+imgargs vmlinuz initrd=initrd boot=casper netboot=nfs nfsroot=${server}:${nfs_root}/ubuntu
+boot

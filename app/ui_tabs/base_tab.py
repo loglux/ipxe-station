@@ -291,45 +291,20 @@ class PXEBootStationUI:
 
         return f"✅ iPXE menu saved to {filepath}"
 
-    def add_custom_ipxe_entry(self, menu_script: str, entry_name: str, entry_title: str,
+    def add_custom_ipxe_entry(self, entry_name: str, entry_title: str,
                               kernel_path: str, initrd_path: str = "", cmdline: str = "",
-                              description: str = "") -> str:
-        """Add custom entry to iPXE menu"""
-        if not menu_script:
-            return "❌ No menu script provided"
-
-        # This is a simplified version - in practice you'd parse the existing script
-        # and add the new entry properly
-        new_entry_section = f"""
-:{entry_name}
-echo Booting {entry_title}...
-"""
-        if description:
-            new_entry_section += f"echo {description}\n"
-
-        new_entry_section += f"kernel {kernel_path} {cmdline}\n"
-
-        if initrd_path:
-            new_entry_section += f"initrd {initrd_path}\n"
-
-        new_entry_section += """boot
-goto start
-
-"""
-
-        # Add menu item (simplified)
-        menu_item = f"item {entry_name} {entry_title}\n"
-
-        # Insert into script (this is a basic implementation)
-        if "item --gap --" in menu_script:
-            updated_script = menu_script.replace(
-                "item --gap --\nitem shell",
-                f"item --gap --\n{menu_item}item shell"
-            )
-            updated_script += new_entry_section
-            return updated_script
-        else:
-            return menu_script + new_entry_section
+                              imgargs: str = "", description: str = "") -> str:
+        entry = iPXEEntry(
+            id=entry_name.strip(),
+            label=entry_title.strip(),
+            kernel=kernel_path.strip(),
+            initrd=initrd_path.strip(),
+            cmdline=cmdline.strip(),
+            imgargs=imgargs.strip(),
+            description=description.strip()
+        )
+        self.menu_manager.add_entry(entry)
+        return self.menu_manager.generate_script()
 
     def validate_ipxe_script(self, script_content: str) -> str:
         """Validate iPXE script"""

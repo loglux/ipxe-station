@@ -4,3 +4,4 @@ uvicorn
 python-multipart
 requests
 psutil
+jinja2
