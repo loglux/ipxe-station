@@ -136,9 +136,9 @@ def save_menu(menu: IpxeMenuModel):
 app.include_router(ipxe_router)
 
 # Serve built frontend (Vite) if present
-FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
-    app.mount("/ui", StaticFiles(directory=FRONTEND_DIST, html=True), name="ui")
+    app.mount("/ui", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="ui")
 
 # Create and mount Gradio interface
 print("Creating Gradio UI...")
