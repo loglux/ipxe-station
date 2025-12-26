@@ -1,6 +1,6 @@
 import gradio as gr
-from ui_tabs.base_tab import PXEBootStationUI
-from ui_tabs import TAB_REGISTRY, Header, Footer
+from app.ui_tabs.base_tab import PXEBootStationUI
+from app.ui_tabs import TAB_REGISTRY, Header, Footer
 
 custom_css = """
 .gradio-container {

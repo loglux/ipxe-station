@@ -4,6 +4,7 @@ from typing import List, Tuple
 from app.ui_tabs.helpers import safe_method
 from app.backend.dhcp_config import DHCPConfigManager, create_simple_config
 from app.backend.ipxe_manager import iPXEManager, iPXEEntry, iPXETemplateManager
+from app.backend.ipxe_schema import IpxeMenuModel, model_to_menu, menu_to_model
 from app.backend.iso_manager import ISOManager
 from app.backend.system_status import SystemStatusManager
 from app.backend.ubuntu_downloader import UbuntuDownloader
@@ -268,7 +269,15 @@ class PXEBootStationUI:
                 menu.default_entry = f"ubuntu_{installed_versions[0].replace('.', '_')}"
 
         is_valid, message, script_content = self.ipxe_manager.validate_and_generate(menu)
-        return message, script_content if is_valid else ""
+        if not is_valid:
+            return message, ""
+
+        # Add lint warnings if any
+        warnings = self.ipxe_manager.validator.lint_menu(menu)
+        if warnings:
+            message += "\n⚠️ Warnings:\n" + "\n".join(f"• {w}" for w in warnings)
+
+        return message, script_content
 
     @safe_method(error_prefix='iPXE menu save')
     def save_ipxe_menu(self, script_content: str) -> str:
@@ -305,6 +314,16 @@ class PXEBootStationUI:
         )
         self.menu_manager.add_entry(entry)
         return self.menu_manager.generate_script()
+
+    @safe_method(module_attr='ipxe_manager', error_prefix='JSON to iPXE generation')
+    def generate_ipxe_from_json(self, raw_json: str) -> Tuple[str, str]:
+        """Generate iPXE script from JSON payload using backend schema."""
+        ok, message, script_content, warnings = self.ipxe_manager.generate_from_json(raw_json)
+        if not ok:
+            return message, ""
+        if warnings:
+            message += "\n⚠️ Warnings:\n" + "\n".join(f"• {w}" for w in warnings)
+        return message, script_content
 
     def validate_ipxe_script(self, script_content: str) -> str:
         """Validate iPXE script"""
@@ -412,6 +431,10 @@ class PXEBootStationUI:
 
         if not is_valid:
             return message, ""
+
+        warnings = self.ipxe_manager.validator.lint_menu(menu)
+        if warnings:
+            message += "\n⚠️ Warnings:\n" + "\n".join(f"• {w}" for w in warnings)
 
         # Get status info
         version_status = self.ipxe_manager.get_version_status()

@@ -130,6 +130,7 @@ class MenuManager:
 
         return "\n".join(lines)
 
+    @staticmethod
     def create_ubuntu_live_entry(id_suffix: str = "ubuntu") -> iPXEEntry:
         return iPXEEntry(
             id=f"ubuntu_{id_suffix}",
@@ -142,6 +143,7 @@ class MenuManager:
             description="Boot into Ubuntu Live environment using NFS template"
         )
 
+    @staticmethod
     def create_nfs_template_entry(id_suffix: str = "template") -> iPXEEntry:
         return iPXEEntry(
             id=f"nfs_{id_suffix}",

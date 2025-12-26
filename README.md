@@ -73,6 +73,18 @@ docker run -d \
 - **API Status**: [http://localhost:9005/status](http://localhost:9005/status)
 - **TFTP Server**: `localhost:69/UDP`
 
+## 🧩 API (iPXE)
+
+FastAPI endpoints for menu validation/generation (JSON schema based on `app/backend/ipxe_schema.py`):
+
+- `POST /api/ipxe/validate` — body: `IpxeMenuModel`, returns `{"valid": bool, "errors": [...], "warnings": [...]}`.
+- `POST /api/ipxe/generate` — body: `IpxeMenuModel`, returns script + warnings.
+- `GET /api/ipxe/templates` — lists available template names.
+- `POST /api/ipxe/templates/{template_name}` — optional query params `server_ip`, `port`; returns template as JSON.
+- `POST /api/ipxe/menu/save` — validates, lints, saves `boot.ipxe`; returns script, warnings, path.
+
+Default data roots are `/srv/{http,ipxe,tftp}`; in environments without permissions, FastAPI falls back to `/tmp/ipxe` (override with `IPXE_DATA_ROOT`).
+
 ## 📁 Persistent Storage Structure
 
 The new volume system creates persistent storage on your host:

@@ -4,7 +4,7 @@ from app.backend.ipxe_menu.entry_model import iPXEEntry
 from jinja2 import Environment, FileSystemLoader
 import os
 
-template_dir = os.path.join(os.path.dirname(__file__), "jinja_templates")
+template_dir = os.path.join(os.path.dirname(__file__), "templates")
 env = Environment(loader=FileSystemLoader(template_dir))
 
 def render_ipxe_template(template_name: str, variables: dict) -> str:

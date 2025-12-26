@@ -9,8 +9,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
-from datetime import datetime
 from urllib.parse import urlparse
+from pydantic import ValidationError
 
 # Import common utilities to eliminate repetition
 from .utils import (
@@ -20,6 +20,8 @@ from .utils import (
     safe_operation,
     export_status_as_json
 )
+from .config import settings
+from .ipxe_schema import menu_to_model, model_to_menu, IpxeMenuModel
 
 
 @dataclass
@@ -53,13 +55,13 @@ class iPXEEntry:
 class iPXEMenu:
     """Complete iPXE menu configuration"""
     title: str = "PXE Boot Station"
-    timeout: int = 30000  # milliseconds
+    timeout: int = settings.menu_timeout  # milliseconds
     default_entry: Optional[str] = None
     entries: List[iPXEEntry] = field(default_factory=list)
     header_text: str = ""
     footer_text: str = ""
-    server_ip: str = "localhost"
-    http_port: int = 8000
+    server_ip: str = settings.pxe_server_ip
+    http_port: int = settings.http_port
 
     def __post_init__(self):
         """Sort entries by order after initialization"""
@@ -68,6 +70,15 @@ class iPXEMenu:
 
 class iPXEValidator:
     """iPXE configuration validation utilities"""
+
+    ALLOWED_ENTRY_TYPES = {"boot", "menu", "action", "separator"}
+    ALLOWED_BOOT_MODES = {"netboot", "live", "rescue", "preseed", "tool", "custom", "boot"}
+    REQUIRED_FILES = {
+        "netboot": ("kernel", "initrd"),
+        "rescue": ("kernel", "initrd"),
+        "preseed": ("kernel", "initrd"),
+        "live": ("kernel", "initrd", "iso"),
+    }
 
     @staticmethod
     def validate_entry_name(name: str) -> Tuple[bool, str]:
@@ -81,7 +92,8 @@ class iPXEValidator:
         )
 
     @staticmethod
-    def validate_kernel_path(kernel: str, server_ip: str = "localhost", port: int = 8000) -> Tuple[bool, str]:
+    def validate_kernel_path(kernel: str, server_ip: str = settings.pxe_server_ip,
+                             port: int = settings.http_port) -> Tuple[bool, str]:
         """Validate kernel path (file or URL)"""
         if not kernel:
             return False, "Kernel path cannot be empty"
@@ -159,6 +171,13 @@ class iPXEValidator:
             if not entry.enabled:
                 continue
 
+            # Entry type sanity
+            if entry.entry_type not in cls.ALLOWED_ENTRY_TYPES:
+                errors.append(f"Entry {i + 1} ({entry.name}): Invalid entry_type '{entry.entry_type}'")
+
+            if entry.boot_mode not in cls.ALLOWED_BOOT_MODES:
+                errors.append(f"Entry {i + 1} ({entry.name}): Invalid boot_mode '{entry.boot_mode}'")
+
             # Validate entry name
             is_valid, msg = cls.validate_entry_name(entry.name)
             if not is_valid:
@@ -181,10 +200,98 @@ class iPXEValidator:
                 )
                 if not is_valid:
                     errors.append(f"Entry {i + 1} ({entry.name}) kernel: {msg}")
+                if not entry.initrd:
+                    errors.append(f"Entry {i + 1} ({entry.name}): Boot entries should define initrd")
             elif entry.entry_type == "boot" and not entry.kernel:
                 errors.append(f"Entry {i + 1} ({entry.name}): Boot entries must have a kernel path")
 
+        # Schema validation (Pydantic) for storage/API contract
+        try:
+            menu_to_model(menu)
+        except ValidationError as exc:
+            for err in exc.errors():
+                loc = " -> ".join(str(x) for x in err.get("loc", []))
+                errors.append(f"Schema: {loc}: {err.get('msg')}")
+
         return len(errors) == 0, errors
+
+    @classmethod
+    def lint_menu(cls, menu: iPXEMenu, base_path: str = "/srv/http") -> List[str]:
+        """Return non-fatal warnings about semantic issues."""
+        warnings: List[str] = []
+
+        if not menu.entries:
+            warnings.append("Menu has no entries")
+
+        if menu.timeout > 300000:
+            warnings.append("Timeout exceeds 5 minutes")
+        if menu.timeout == 0:
+            warnings.append("Timeout is 0ms; menu will wait indefinitely")
+
+        names = [entry.name for entry in menu.entries if entry.enabled]
+        for name in set(names):
+            if names.count(name) > 1:
+                warnings.append(f"Duplicate entry '{name}'")
+
+        for entry in menu.entries:
+            if not entry.enabled:
+                continue
+
+            if entry.entry_type == "boot":
+                if entry.boot_mode == "live" and not entry.requires_iso:
+                    warnings.append(f"{entry.name}: live boot usually requires ISO (set requires_iso=True)")
+                if entry.boot_mode == "preseed" and not entry.requires_internet:
+                    warnings.append(f"{entry.name}: preseed typically needs internet access (set requires_internet=True)")
+                if entry.requires_iso and entry.boot_mode not in {"live", "tool"}:
+                    warnings.append(f"{entry.name}: requires_iso=True but boot_mode is '{entry.boot_mode}'")
+                # File presence checks (best-effort, local paths only)
+                warnings.extend(cls._lint_local_files(entry, base_path))
+
+        return warnings
+
+    @staticmethod
+    def _lint_local_files(entry: iPXEEntry, base_path: str) -> List[str]:
+        """Check local file existence for kernel/initrd/ISO when applicable."""
+        from pathlib import Path
+        import re
+
+        warnings: List[str] = []
+
+        def is_url(path: str) -> bool:
+            return path.startswith(("http://", "https://", "tftp://"))
+
+        def resolve(path: Optional[str]) -> Optional[Path]:
+            if not path:
+                return None
+            if is_url(path):
+                return None
+            if path.startswith("/"):
+                return Path(path)
+            return Path(base_path) / path.lstrip("/")
+
+        kernel_path = resolve(entry.kernel)
+        initrd_path = resolve(entry.initrd)
+
+        if kernel_path and not kernel_path.exists():
+            warnings.append(f"{entry.name}: kernel file missing at {kernel_path}")
+        if initrd_path and not initrd_path.exists():
+            warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
+
+        # ISO check for live boots
+        if entry.requires_iso or entry.boot_mode == "live":
+            version = None
+            if entry.kernel:
+                m = re.search(r"ubuntu[-_](\d{2}\.\d{2})", entry.kernel)
+                if m:
+                    version = m.group(1)
+            if version:
+                iso_candidate = Path(base_path) / f"ubuntu-{version}" / f"ubuntu-{version}-live-server-amd64.iso"
+                if not iso_candidate.exists():
+                    warnings.append(f"{entry.name}: ISO missing at {iso_candidate}")
+            else:
+                warnings.append(f"{entry.name}: requires ISO but version could not be detected from paths")
+
+        return warnings
 
 
 class UbuntuBootModes:
@@ -313,14 +420,13 @@ class iPXEGenerator:
     """iPXE menu file generators"""
 
     @staticmethod
-    @safe_operation("iPXE script generation")
     def generate_ipxe_script(menu: iPXEMenu) -> str:
         """Generate iPXE script content with enhanced multi-mode support"""
         script_lines = [
             "#!ipxe",
             "",
             "# iPXE Boot Menu - Enhanced Multi-Mode Support",
-            f"# Generated by PXE Boot Station at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "# Generated by PXE Boot Station",
             "",
         ]
 
@@ -465,12 +571,11 @@ class iPXEGenerator:
             return f"http://{server_ip}:{port}/{path.lstrip('/')}"
 
     @staticmethod
-    @safe_operation("GRUB configuration generation")
     def generate_grub_config(menu: iPXEMenu) -> str:
         """Generate GRUB configuration (for comparison/fallback)"""
         grub_lines = [
             "# GRUB Configuration",
-            f"# Generated by PXE Boot Station at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "# Generated by PXE Boot Station",
             "",
             f"set timeout={menu.timeout // 1000}",
             f"set default=0",
@@ -501,7 +606,7 @@ class iPXETemplateManager:
     """Pre-defined iPXE menu templates with enhanced multi-mode support"""
 
     @staticmethod
-    def get_ubuntu_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
+    def get_ubuntu_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
         """Original Ubuntu installation template"""
         entries = [
             iPXEEntry(
@@ -549,7 +654,7 @@ class iPXETemplateManager:
         )
 
     @staticmethod
-    def get_ubuntu_multi_template(server_ip: str = "localhost", port: int = 8000,
+    def get_ubuntu_multi_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port,
                                   available_versions: List[str] = None) -> iPXEMenu:
         """Enhanced Ubuntu template with multiple boot options per version"""
 
@@ -702,7 +807,7 @@ class iPXETemplateManager:
         )
 
     @staticmethod
-    def get_quick_ubuntu_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
+    def get_quick_ubuntu_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
         """Quick Ubuntu template with just netboot options"""
 
         available_versions = []
@@ -742,7 +847,7 @@ class iPXETemplateManager:
         )
 
     @staticmethod
-    def get_diagnostic_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
+    def get_diagnostic_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
         """System diagnostic tools template"""
         entries = [
             iPXEEntry(
@@ -779,7 +884,7 @@ class iPXETemplateManager:
         )
 
     @staticmethod
-    def get_multi_os_template(server_ip: str = "localhost", port: int = 8000) -> iPXEMenu:
+    def get_multi_os_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
         """Multi-OS boot template"""
         entries = [
             iPXEEntry(
@@ -856,8 +961,8 @@ class iPXEManager:
         self.detector = UbuntuVersionDetector()
 
     @safe_operation("iPXE menu creation")
-    def create_menu(self, title: str = "PXE Boot Menu", server_ip: str = "localhost",
-                    port: int = 8000) -> iPXEMenu:
+    def create_menu(self, title: str = "PXE Boot Menu", server_ip: str = settings.pxe_server_ip,
+                    port: int = settings.http_port) -> iPXEMenu:
         """Create new empty iPXE menu"""
         return iPXEMenu(
             title=title,
@@ -908,7 +1013,10 @@ class iPXEManager:
             return False, error_msg, ""
 
         # Generate script
-        script_content = self.generator.generate_ipxe_script(menu)
+        try:
+            script_content = self.generator.generate_ipxe_script(menu)
+        except Exception as exc:
+            return False, f"Menu generation failed: {exc}", ""
         success_msg = "✅ iPXE menu generated successfully"
         return True, success_msg, script_content
 
@@ -933,8 +1041,34 @@ class iPXEManager:
 
         return True, f"Menu loaded from {self.config_path}", content
 
-    def get_template(self, template_name: str, server_ip: str = "localhost",
-                     port: int = 8000) -> Optional[iPXEMenu]:
+    @safe_operation("iPXE menu import", return_tuple=True)
+    def import_menu_from_json(self, raw_json: str) -> Tuple[bool, str, Optional[iPXEMenu]]:
+        """Load menu from JSON string using schema validation."""
+        try:
+            model = IpxeMenuModel.model_validate_json(raw_json)
+        except ValidationError as exc:
+            return False, f"JSON validation failed: {exc}", None
+
+        menu = model_to_menu(model)
+        return True, "Menu imported successfully", menu
+
+    @safe_operation("iPXE menu generation from JSON", return_tuple=True)
+    def generate_from_json(self, raw_json: str) -> Tuple[bool, str, str, List[str]]:
+        """Import menu JSON, validate, lint, and generate script."""
+        ok, msg, menu = self.import_menu_from_json(raw_json)
+        if not ok or not menu:
+            return False, msg, "", []
+
+        is_valid, message, script_content = self.validate_and_generate(menu)
+        warnings = self.validator.lint_menu(menu)
+
+        if not is_valid:
+            return False, message, "", warnings
+
+        return True, message, script_content, warnings
+
+    def get_template(self, template_name: str, server_ip: str = settings.pxe_server_ip,
+                     port: int = settings.http_port) -> Optional[iPXEMenu]:
         """Get pre-defined template"""
         templates = {
             "ubuntu": self.templates.get_ubuntu_template,
@@ -949,8 +1083,8 @@ class iPXEManager:
 
         return None
 
-    def create_adaptive_ubuntu_menu(self, server_ip: str = "localhost",
-                                    port: int = 8000, template_type: str = "multi") -> iPXEMenu:
+    def create_adaptive_ubuntu_menu(self, server_ip: str = settings.pxe_server_ip,
+                                    port: int = settings.http_port, template_type: str = "multi") -> iPXEMenu:
         """Create Ubuntu menu based on available files"""
 
         # Detect available Ubuntu versions
@@ -984,40 +1118,13 @@ class iPXEManager:
 
     def export_menu_json(self, menu: iPXEMenu) -> str:
         """Export menu configuration to JSON using common utility"""
-        menu_dict = {
-            "title": menu.title,
-            "timeout": menu.timeout,
-            "default_entry": menu.default_entry,
-            "server_ip": menu.server_ip,
-            "http_port": menu.http_port,
-            "header_text": menu.header_text,
-            "footer_text": menu.footer_text,
-            "entries": [
-                {
-                    "name": entry.name,
-                    "title": entry.title,
-                    "kernel": entry.kernel,
-                    "initrd": entry.initrd,
-                    "cmdline": entry.cmdline,
-                    "description": entry.description,
-                    "enabled": entry.enabled,
-                    "order": entry.order,
-                    "entry_type": entry.entry_type,
-                    "url": entry.url,
-                    "boot_mode": entry.boot_mode,
-                    "requires_iso": entry.requires_iso,
-                    "requires_internet": entry.requires_internet
-                }
-                for entry in menu.entries
-            ]
-        }
-
-        return export_status_as_json(menu_dict, pretty=True)
+        model = menu_to_model(menu)
+        return model.model_dump_json(indent=2)
 
 
 # Convenience functions for backward compatibility and enhanced features
 @safe_operation("Smart Ubuntu menu creation")
-def create_smart_ubuntu_menu(server_ip: str = "localhost", port: int = 8000,
+def create_smart_ubuntu_menu(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port,
                              template_type: str = "multi") -> str:
     """Create smart Ubuntu menu based on available files"""
     manager = iPXEManager()
