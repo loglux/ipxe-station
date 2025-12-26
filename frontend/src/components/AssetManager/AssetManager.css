@@ -110,6 +110,16 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.download-status {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: var(--spacing-sm);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  text-align: center;
+}
+
 .file-tree {
   background: var(--color-bg-secondary);
   border-radius: var(--radius-md);
