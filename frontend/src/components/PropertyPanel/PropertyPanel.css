@@ -134,3 +134,49 @@ textarea.form-control {
   margin-bottom: var(--spacing-md);
   opacity: 0.3;
 }
+
+/* Expert Mode Section */
+.expert-section {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: #fffbeb;
+  border: 2px solid #fbbf24;
+  border-radius: var(--radius-md);
+}
+
+.expert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid #fbbf24;
+}
+
+.expert-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+  margin: 0;
+}
+
+.badge-warning {
+  background: #fbbf24;
+  color: #92400e;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.btn-warning {
+  background: #fbbf24;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.btn-warning:hover {
+  background: #f59e0b;
+  color: white;
+}

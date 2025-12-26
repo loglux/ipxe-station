@@ -268,6 +268,7 @@ ${e.entry_type === 'action' ? e.cmdline || '' : ''}
             <PropertyPanel
               entry={selectedEntry}
               onUpdateEntry={updateEntry}
+              entries={entries}
             />
           </div>
         </aside>
