@@ -14,11 +14,12 @@ class IpxeEntryModel(BaseModel):
     description: str = ""
     enabled: bool = True
     order: int = 0
-    entry_type: str = "boot"  # boot, menu, action, separator
+    entry_type: str = "boot"  # boot, menu, action, separator, chain, submenu
     url: Optional[str] = None
     boot_mode: str = "netboot"
     requires_iso: bool = False
     requires_internet: bool = False
+    parent: Optional[str] = None  # for submenu grouping
 
     model_config = {
         "extra": "forbid",
@@ -71,6 +72,7 @@ def menu_to_model(menu) -> IpxeMenuModel:
                 boot_mode=entry.boot_mode,
                 requires_iso=entry.requires_iso,
                 requires_internet=entry.requires_internet,
+                parent=entry.parent,
             )
             for entry in menu.entries
         ],
@@ -104,6 +106,7 @@ def model_to_menu(model: IpxeMenuModel):
                 boot_mode=entry.boot_mode,
                 requires_iso=entry.requires_iso,
                 requires_internet=entry.requires_internet,
+                parent=entry.parent,
             )
             for entry in model.entries
         ],

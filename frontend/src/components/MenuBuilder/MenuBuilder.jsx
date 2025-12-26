@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import './MenuBuilder.css'
+import AddEntryWizard from '../Wizard/AddEntryWizard'
 
 function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onAddEntry, onUpdateEntry, onDeleteEntry }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   const toggleNode = (nodeName) => {
     setExpandedNodes(prev => {
@@ -89,10 +91,19 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onAddEntry, onUp
       </div>
 
       <div className="menu-actions">
-        <button className="btn btn-primary btn-block" onClick={() => alert('Add Entry wizard - coming soon!')}>
+        <button className="btn btn-primary btn-block" onClick={() => setWizardOpen(true)}>
           ➕ Add Entry
         </button>
       </div>
+
+      <AddEntryWizard
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onAddEntry={(entry) => {
+          onAddEntry(entry)
+          setWizardOpen(false)
+        }}
+      />
     </div>
   )
 }

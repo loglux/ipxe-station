@@ -11,6 +11,9 @@ function App() {
   const [activeTab, setActiveTab] = useState('builder')
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [menuTitle, setMenuTitle] = useState('PXE Boot Menu')
+  const [menuTimeout, setMenuTimeout] = useState(30000)
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState(null)
   const [entries, setEntries] = useState([
     // Starter menu with submenus
     {
@@ -56,6 +59,65 @@ function App() {
     }
   }
 
+  const saveMenu = async () => {
+    setSaving(true)
+    setSaveMessage(null)
+
+    try {
+      // Convert entries to backend format
+      const menuData = {
+        title: menuTitle,
+        timeout: menuTimeout,
+        default_entry: null,
+        entries: entries.map(entry => ({
+          name: entry.name,
+          title: entry.title,
+          kernel: entry.kernel || null,
+          initrd: entry.initrd || null,
+          cmdline: entry.cmdline || '',
+          description: entry.description || '',
+          enabled: entry.enabled !== false,
+          order: entry.order || 0,
+          entry_type: entry.entry_type || 'boot',
+          url: entry.url || null,
+          boot_mode: entry.boot_mode || 'netboot',
+          requires_iso: entry.requires_iso || false,
+          requires_internet: entry.requires_internet || false,
+          parent: entry.parent || null,
+        })),
+        header_text: '',
+        footer_text: '',
+        server_ip: 'localhost',
+        http_port: 8000,
+      }
+
+      const response = await fetch('/api/ipxe/menu/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(menuData),
+      })
+
+      const result = await response.json()
+
+      if (result.valid) {
+        setSaveMessage({ type: 'success', text: '✅ Menu saved successfully!' })
+        if (result.warnings && result.warnings.length > 0) {
+          console.warn('Menu warnings:', result.warnings)
+        }
+      } else {
+        setSaveMessage({ type: 'error', text: `❌ ${result.message}` })
+      }
+    } catch (error) {
+      setSaveMessage({ type: 'error', text: `❌ Failed to save: ${error.message}` })
+    } finally {
+      setSaving(false)
+      // Clear message after 5 seconds
+      setTimeout(() => setSaveMessage(null), 5000)
+    }
+  }
+
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
   return (
@@ -67,8 +129,19 @@ function App() {
           <span className="version">v2.0 - Scenario-First Edition</span>
         </div>
         <div className="header-right">
+          {saveMessage && (
+            <div className={`save-message ${saveMessage.type}`}>
+              {saveMessage.text}
+            </div>
+          )}
           <button className="btn btn-secondary">⚙️ Settings</button>
-          <button className="btn btn-primary">💾 Save Menu</button>
+          <button
+            className="btn btn-primary"
+            onClick={saveMenu}
+            disabled={saving}
+          >
+            {saving ? '⏳ Saving...' : '💾 Save Menu'}
+          </button>
         </div>
       </header>
 

@@ -35,11 +35,12 @@ class iPXEEntry:
     description: str = ""
     enabled: bool = True
     order: int = 0
-    entry_type: str = "boot"  # boot, menu, action, separator
+    entry_type: str = "boot"  # boot, menu, action, separator, chain, submenu
     url: Optional[str] = None  # For HTTP boot entries
     boot_mode: str = "netboot"  # netboot, live, rescue, custom
     requires_iso: bool = False  # Whether this option needs ISO file
     requires_internet: bool = False  # Whether this option needs internet
+    parent: Optional[str] = None  # parent menu name for submenu grouping
 
     def __post_init__(self):
         """Validate entry after initialization"""
@@ -71,7 +72,7 @@ class iPXEMenu:
 class iPXEValidator:
     """iPXE configuration validation utilities"""
 
-    ALLOWED_ENTRY_TYPES = {"boot", "menu", "action", "separator"}
+    ALLOWED_ENTRY_TYPES = {"boot", "menu", "action", "separator", "chain", "submenu"}
     ALLOWED_BOOT_MODES = {"netboot", "live", "rescue", "preseed", "tool", "custom", "boot"}
     REQUIRED_FILES = {
         "netboot": ("kernel", "initrd"),
@@ -166,6 +167,9 @@ class iPXEValidator:
         if not is_valid:
             errors.append(f"Timeout: {msg}")
 
+        # Index for parent checks
+        entry_by_name = {entry.name: entry for entry in menu.entries if entry.enabled}
+
         # Validate each entry
         for i, entry in enumerate(menu.entries):
             if not entry.enabled:
@@ -204,6 +208,47 @@ class iPXEValidator:
                     errors.append(f"Entry {i + 1} ({entry.name}): Boot entries should define initrd")
             elif entry.entry_type == "boot" and not entry.kernel:
                 errors.append(f"Entry {i + 1} ({entry.name}): Boot entries must have a kernel path")
+            elif entry.entry_type == "chain":
+                if not entry.url:
+                    errors.append(f"Entry {i + 1} ({entry.name}): Chain entries require a URL/target")
+                else:
+                    parsed = urlparse(entry.url)
+                    if not parsed.scheme:
+                        errors.append(f"Entry {i + 1} ({entry.name}): Chain URL should include scheme (http/https/tftp)")
+            elif entry.entry_type == "submenu":
+                if not entry.title:
+                    errors.append(f"Entry {i + 1} ({entry.name}): Submenu must have a title")
+
+            # Parent validity (allow nested submenus and regular entries pointing to submenus)
+            if entry.parent:
+                if entry.parent not in entry_by_name:
+                    errors.append(f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' not found")
+                else:
+                    parent_entry = entry_by_name[entry.parent]
+                    if parent_entry.entry_type not in {"submenu", "menu"}:
+                        errors.append(f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' is not a submenu/menu")
+
+        # Cycle detection for parent relationships
+        parents = {e.name: e.parent for e in menu.entries if e.enabled and e.parent}
+        visited: Dict[str, str] = {}
+
+        def visit(node: str) -> bool:
+            if node not in parents:
+                return False
+            if visited.get(node) == "visiting":
+                return True
+            if visited.get(node) == "done":
+                return False
+            visited[node] = "visiting"
+            parent = parents[node]
+            has_cycle = visit(parent)
+            visited[node] = "done"
+            return has_cycle
+
+        for name in parents:
+            if visit(name):
+                errors.append("Cycle detected in parent relationships; check submenu nesting")
+                break
 
         # Schema validation (Pydantic) for storage/API contract
         try:
@@ -420,6 +465,99 @@ class iPXEGenerator:
     """iPXE menu file generators"""
 
     @staticmethod
+    def _menu_label(name: Optional[str]) -> str:
+        return "start" if name is None else f"submenu_{name}"
+
+    @staticmethod
+    def _build_children_map(entries: List[iPXEEntry]) -> Dict[Optional[str], List[iPXEEntry]]:
+        """Group enabled entries by parent."""
+        from collections import defaultdict
+
+        children: Dict[Optional[str], List[iPXEEntry]] = defaultdict(list)
+        for entry in entries:
+            if not entry.enabled:
+                continue
+            parent = entry.parent or None
+            children[parent].append(entry)
+
+        for lst in children.values():
+            lst.sort(key=lambda e: (e.order, e.name))
+        return children
+
+    @classmethod
+    def _render_menu_block(
+        cls,
+        current: Optional[str],
+        title: str,
+        menu: iPXEMenu,
+        children_map: Dict[Optional[str], List[iPXEEntry]],
+        parent_map: Dict[str, Optional[str]],
+        back_labels: List[Tuple[str, str]],
+    ) -> List[str]:
+        """Render a menu (root or submenu) with its children."""
+        lines: List[str] = []
+        label = cls._menu_label(current)
+        lines.extend([
+            f":{label}",
+            "menu",
+            f"item --gap -- {title}",
+            "item --gap -- -------------------------------",
+        ])
+
+        if current is not None:
+            # Add back navigation
+            back_item = f"back_{current}"
+            parent_label = cls._menu_label(parent_map.get(current))
+            lines.append(f"item {back_item} <-- Back")
+            back_labels.append((back_item, parent_label))
+
+        children = children_map.get(current, [])
+        for entry in children:
+            if entry.entry_type == "separator":
+                lines.append(f"item --gap -- {entry.title}")
+            elif entry.entry_type == "boot":
+                mode_indicator = {
+                    "netboot": "[NET]",
+                    "live": "[LIVE]",
+                    "rescue": "[RESCUE]",
+                    "preseed": "[AUTO]",
+                    "tool": "[TOOL]"
+                }.get(entry.boot_mode, "[BOOT]")
+                lines.append(f"item {entry.name} {mode_indicator} {entry.title}")
+            elif entry.entry_type in {"menu", "submenu"}:
+                lines.append(f"item {entry.name} {entry.title} -->")
+            elif entry.entry_type == "action":
+                lines.append(f"item {entry.name} {entry.title}")
+            elif entry.entry_type == "chain":
+                lines.append(f"item {entry.name} [CHAIN] {entry.title}")
+
+        if current is None:
+            lines.extend([
+                "item --gap --",
+                "item shell [SHELL]  Drop to iPXE shell",
+                "item reboot [REBOOT] Reboot computer",
+                "item exit [EXIT] Exit to BIOS",
+            ])
+
+        default_for_menu = menu.default_entry if current is None and any(
+            e.name == menu.default_entry for e in children
+        ) else None
+
+        if default_for_menu:
+            lines.append(f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}")
+        else:
+            lines.append(f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}")
+
+        lines.append("")
+
+        # Render nested submenus recursively
+        for entry in children:
+            if entry.entry_type in {"submenu", "menu"}:
+                lines.extend(cls._render_menu_block(entry.name, entry.title, menu, children_map, parent_map, back_labels))
+
+        return lines
+
+    @staticmethod
     def generate_ipxe_script(menu: iPXEMenu) -> str:
         """Generate iPXE script content with enhanced multi-mode support"""
         script_lines = [
@@ -438,91 +576,75 @@ class iPXEGenerator:
                 ""
             ])
 
-        # Menu definition with color support
-        script_lines.extend([
-            ":start",
-            "menu",
-            f"item --gap -- {menu.title}",
-            "item --gap -- -------------------------------",
-        ])
+        children_map = iPXEGenerator._build_children_map(menu.entries)
+        parent_map = {entry.name: entry.parent for entry in menu.entries if entry.enabled}
+        back_labels: List[Tuple[str, str]] = []
+        script_lines.extend(
+            iPXEGenerator._render_menu_block(
+                None, menu.title, menu, children_map, parent_map, back_labels
+            )
+        )
 
-        # Add menu entries with smart formatting
+        # Generate sections for each entry
         for entry in menu.entries:
             if not entry.enabled:
                 continue
 
-            if entry.entry_type == "separator":
-                if "header" in entry.name:
-                    script_lines.append(f"item --gap -- {entry.title}")
-                else:
-                    script_lines.append(f"item --gap -- {entry.title}")
-            elif entry.entry_type == "boot":
-                # Add boot mode indicator
-                mode_indicator = {
-                    "netboot": "[NET]",  # instead of 🌐
-                    "live": "[LIVE]",  # instead of 💿
-                    "rescue": "[RESCUE]",  # instead of 🔧
-                    "preseed": "[AUTO]",  # instead of ⚡
-                    "tool": "[TOOL]"  # instead of 🛠️
-                }.get(entry.boot_mode, "[BOOT]")
+            if entry.entry_type == "boot" and entry.kernel:
+                script_lines.extend([
+                    f":{entry.name}",
+                    f"echo Booting {entry.title}...",
+                ])
 
-                script_lines.append(f"item {entry.name} {mode_indicator} {entry.title}")
-            elif entry.entry_type == "menu":
-                script_lines.append(f"item {entry.name} {entry.title} -->")
-            elif entry.entry_type == "action":
-                script_lines.append(f"item {entry.name} {entry.title}")
+                # Add description and requirements info
+                if entry.description:
+                    script_lines.append(f"echo {entry.description}")
 
-        # Add standard menu items
-        script_lines.extend([
-            "item --gap --",
-            "item shell [SHELL]  Drop to iPXE shell", # 🖥️
-            "item reboot [REBOOT] Reboot computer", # 🔄
-            "item exit [EXIT] Exit to BIOS", # ❌
-            ""
-        ])
+                if entry.requires_internet:
+                    script_lines.append("echo Note: Internet connection required")
 
-        # Set default and timeout
-        if menu.default_entry:
-            script_lines.append(
-                f"choose --default {menu.default_entry} --timeout {menu.timeout} target && goto ${{target}}")
-        else:
-            script_lines.append(f"choose --timeout {menu.timeout} target && goto ${{target}}")
+                if entry.requires_iso:
+                    script_lines.append("echo Note: Local ISO file required")
 
-        script_lines.append("")
+                # Determine kernel URL
+                if entry.kernel:
+                    kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
+                    script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
 
-        # Generate boot sections for each entry
-        for entry in menu.entries:
-            if not entry.enabled or entry.entry_type != "boot" or not entry.kernel:
-                continue
+                # Add initrd if provided
+                if entry.initrd:
+                    initrd_url = iPXEGenerator._resolve_kernel_url(entry.initrd, menu.server_ip, menu.http_port)
+                    script_lines.append(f"initrd {initrd_url}")
 
+                script_lines.extend([
+                    "boot",
+                    "goto start",
+                    ""
+                ])
+
+            elif entry.entry_type == "chain" and entry.url:
+                script_lines.extend([
+                    f":{entry.name}",
+                    f"echo Chaining to {entry.title}...",
+                ])
+                chain_target = iPXEGenerator._resolve_kernel_url(entry.url, menu.server_ip, menu.http_port)
+                script_lines.extend([
+                    f"chain {chain_target}",
+                    "goto start",
+                    ""
+                ])
+            elif entry.entry_type in {"submenu", "menu"}:
+                script_lines.extend([
+                    f":{entry.name}",
+                    f"goto {iPXEGenerator._menu_label(entry.name)}",
+                    ""
+                ])
+
+        # Back navigation labels for submenus
+        for back_item, target_label in back_labels:
             script_lines.extend([
-                f":{entry.name}",
-                f"echo Booting {entry.title}...",
-            ])
-
-            # Add description and requirements info
-            if entry.description:
-                script_lines.append(f"echo {entry.description}")
-
-            if entry.requires_internet:
-                script_lines.append("echo Note: Internet connection required")
-
-            if entry.requires_iso:
-                script_lines.append("echo Note: Local ISO file required")
-
-            # Determine kernel URL
-            if entry.kernel:
-                kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
-                script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
-
-            # Add initrd if provided
-            if entry.initrd:
-                initrd_url = iPXEGenerator._resolve_kernel_url(entry.initrd, menu.server_ip, menu.http_port)
-                script_lines.append(f"initrd {initrd_url}")
-
-            script_lines.extend([
-                "boot",
-                "goto start",
+                f":{back_item}",
+                f"goto {target_label}",
                 ""
             ])
 
