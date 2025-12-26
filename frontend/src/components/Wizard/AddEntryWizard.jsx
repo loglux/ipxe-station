@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './AddEntryWizard.css'
 import { CATEGORIES, getScenariosByCategory, getScenario, createEntryFromScenario } from '../../data/scenarios'
 
-function AddEntryWizard({ isOpen, onClose, onAddEntry }) {
+function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCategory = null }) {
   const [step, setStep] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedScenario, setSelectedScenario] = useState(null)
   const [entryName, setEntryName] = useState('')
   const [entryTitle, setEntryTitle] = useState('')
   const [parentSubmenu, setParentSubmenu] = useState(null)
+
+  // Handle initial category selection
+  useEffect(() => {
+    if (isOpen && initialCategory) {
+      setSelectedCategory(initialCategory)
+      setStep(2)
+    }
+  }, [isOpen, initialCategory])
 
   if (!isOpen) return null
 
@@ -198,7 +206,14 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry }) {
               className="form-control"
             >
               <option value="">(root level)</option>
-              {/* TODO: populate with actual submenus */}
+              {entries
+                .filter(e => e.entry_type === 'submenu' && e.enabled !== false)
+                .sort((a, b) => (a.title || a.name).localeCompare(b.title || b.name))
+                .map(submenu => (
+                  <option key={submenu.name} value={submenu.name}>
+                    {submenu.title || submenu.name}
+                  </option>
+                ))}
             </select>
             <small className="form-hint">
               Optional: place this entry inside a submenu

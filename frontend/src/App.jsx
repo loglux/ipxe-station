@@ -7,10 +7,13 @@ import MenuBuilder from './components/MenuBuilder/MenuBuilder'
 import PropertyPanel from './components/PropertyPanel/PropertyPanel'
 import AssetManager from './components/AssetManager/AssetManager'
 import DHCPHelper from './components/DHCPHelper/DHCPHelper'
+import AddEntryWizard from './components/Wizard/AddEntryWizard'
 
 function App() {
   const [activeTab, setActiveTab] = useState('builder')
   const [selectedEntryId, setSelectedEntryId] = useState(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
   const [menuTitle, setMenuTitle] = useState('PXE Boot Menu')
   const [menuTimeout, setMenuTimeout] = useState(30000)
   const [saving, setSaving] = useState(false)
@@ -186,6 +189,16 @@ function App() {
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
+  const openWizard = (initialCategory = null) => {
+    setWizardInitialCategory(initialCategory)
+    setWizardOpen(true)
+  }
+
+  const closeWizard = () => {
+    setWizardOpen(false)
+    setWizardInitialCategory(null)
+  }
+
   return (
     <div className="app">
       {/* Header */}
@@ -226,6 +239,7 @@ function App() {
               onAddEntry={addEntry}
               onUpdateEntry={updateEntry}
               onDeleteEntry={deleteEntry}
+              onOpenWizard={openWizard}
             />
           </div>
         </aside>
@@ -275,6 +289,7 @@ function App() {
                     <PropertyPanel
                       entry={selectedEntry}
                       onUpdateEntry={updateEntry}
+                      onDeleteEntry={deleteEntry}
                       entries={entries}
                     />
                   </div>
@@ -287,7 +302,12 @@ function App() {
                       <h3>Quick Actions</h3>
                       <div className="action-grid">
                         {Object.entries(CATEGORIES).map(([key, category]) => (
-                          <div key={key} className="action-card" style={{ borderColor: category.color }}>
+                          <div
+                            key={key}
+                            className="action-card"
+                            style={{ borderColor: category.color }}
+                            onClick={() => openWizard(key)}
+                          >
                             <div className="action-icon">{category.icon}</div>
                             <div className="action-name">{category.name}</div>
                             <div className="action-description">{category.description}</div>
@@ -361,6 +381,7 @@ function App() {
             <PropertyPanel
               entry={selectedEntry}
               onUpdateEntry={updateEntry}
+              onDeleteEntry={deleteEntry}
               entries={entries}
             />
           </div>
@@ -378,6 +399,18 @@ function App() {
           <span>Enabled: {entries.filter(e => e.enabled).length}</span>
         </div>
       </footer>
+
+      {/* Global Add Entry Wizard */}
+      <AddEntryWizard
+        isOpen={wizardOpen}
+        onClose={closeWizard}
+        onAddEntry={(entry) => {
+          addEntry(entry)
+          closeWizard()
+        }}
+        entries={entries}
+        initialCategory={wizardInitialCategory}
+      />
     </div>
   )
 }

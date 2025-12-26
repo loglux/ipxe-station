@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './PropertyPanel.css'
 
-function PropertyPanel({ entry, onUpdateEntry, entries }) {
+function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
 
   if (!entry) {
@@ -22,6 +22,28 @@ function PropertyPanel({ entry, onUpdateEntry, entries }) {
     onUpdateEntry(entry.name, { [field]: value })
   }
 
+  const handleMoveUp = () => {
+    const siblings = entries.filter(e => e.parent === entry.parent).sort((a, b) => a.order - b.order)
+    const currentIndex = siblings.findIndex(e => e.name === entry.name)
+
+    if (currentIndex > 0) {
+      const prevEntry = siblings[currentIndex - 1]
+      onUpdateEntry(entry.name, { order: prevEntry.order })
+      onUpdateEntry(prevEntry.name, { order: entry.order })
+    }
+  }
+
+  const handleMoveDown = () => {
+    const siblings = entries.filter(e => e.parent === entry.parent).sort((a, b) => a.order - b.order)
+    const currentIndex = siblings.findIndex(e => e.name === entry.name)
+
+    if (currentIndex < siblings.length - 1) {
+      const nextEntry = siblings[currentIndex + 1]
+      onUpdateEntry(entry.name, { order: nextEntry.order })
+      onUpdateEntry(nextEntry.name, { order: entry.order })
+    }
+  }
+
   // Get available submenus for parent dropdown
   const availableSubmenus = entries
     ? entries.filter(e =>
@@ -31,11 +53,37 @@ function PropertyPanel({ entry, onUpdateEntry, entries }) {
       )
     : []
 
+  // Check if can move up/down
+  const siblings = entries ? entries.filter(e => e.parent === entry.parent).sort((a, b) => a.order - b.order) : []
+  const currentIndex = siblings.findIndex(e => e.name === entry.name)
+  const canMoveUp = currentIndex > 0
+  const canMoveDown = currentIndex < siblings.length - 1
+
   return (
     <div className="property-panel">
       <div className="property-header">
-        <h3>{entry.title || entry.name}</h3>
-        <span className="entry-type-badge">{entry.entry_type}</span>
+        <div>
+          <h3>{entry.title || entry.name}</h3>
+          <span className="entry-type-badge">{entry.entry_type}</span>
+        </div>
+        <div className="order-controls">
+          <button
+            className="btn-icon"
+            onClick={handleMoveUp}
+            disabled={!canMoveUp}
+            title="Move up"
+          >
+            ▲
+          </button>
+          <button
+            className="btn-icon"
+            onClick={handleMoveDown}
+            disabled={!canMoveDown}
+            title="Move down"
+          >
+            ▼
+          </button>
+        </div>
       </div>
 
       <div className="property-form">
@@ -262,7 +310,18 @@ function PropertyPanel({ entry, onUpdateEntry, entries }) {
         >
           {expertMode ? '👤 Simple Mode' : '🔧 Expert Mode'}
         </button>
-        <button className="btn btn-danger btn-sm">🗑️ Delete</button>
+        <button
+          className="btn btn-danger btn-sm"
+          onClick={() => {
+            if (window.confirm(`Are you sure you want to delete "${entry.title || entry.name}"?`)) {
+              if (onDeleteEntry) {
+                onDeleteEntry(entry.name)
+              }
+            }
+          }}
+        >
+          🗑️ Delete
+        </button>
       </div>
     </div>
   )

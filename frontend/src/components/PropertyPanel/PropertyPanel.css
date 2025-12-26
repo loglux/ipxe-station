@@ -18,9 +18,16 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.property-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .property-header h3 {
   font-size: 18px;
   font-weight: 600;
+  margin: 0;
 }
 
 .entry-type-badge {
@@ -31,6 +38,37 @@
   border-radius: 4px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.order-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .property-form {
