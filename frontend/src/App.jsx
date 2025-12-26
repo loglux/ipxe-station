@@ -6,6 +6,7 @@ import { CATEGORIES } from './data/scenarios'
 import MenuBuilder from './components/MenuBuilder/MenuBuilder'
 import PropertyPanel from './components/PropertyPanel/PropertyPanel'
 import AssetManager from './components/AssetManager/AssetManager'
+import DHCPHelper from './components/DHCPHelper/DHCPHelper'
 
 function App() {
   const [activeTab, setActiveTab] = useState('builder')
@@ -246,6 +247,12 @@ function App() {
               📦 Assets
             </button>
             <button
+              className={`tab ${activeTab === 'dhcp' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dhcp')}
+            >
+              🌐 DHCP
+            </button>
+            <button
               className={`tab ${activeTab === 'preview' ? 'active' : ''}`}
               onClick={() => setActiveTab('preview')}
             >
@@ -285,6 +292,10 @@ function App() {
 
             {activeTab === 'assets' && (
               <AssetManager />
+            )}
+
+            {activeTab === 'dhcp' && (
+              <DHCPHelper />
             )}
 
             {activeTab === 'preview' && (
