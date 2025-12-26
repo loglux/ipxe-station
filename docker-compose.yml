@@ -10,6 +10,11 @@ services:
     # Use host network mode for full internet access and TFTP/DHCP compatibility
     network_mode: "host"
 
+    # Network capabilities for DHCP validation
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
     volumes:
       # Persistent storage for all PXE data
       - ./data/srv/tftp:/srv/tftp:rw    # TFTP boot files
