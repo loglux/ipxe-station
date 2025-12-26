@@ -1,0 +1,92 @@
+.app {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: #1f2933;
+}
+
+header h1 {
+  margin: 0 0 8px;
+}
+
+header p {
+  margin: 0 0 16px;
+  color: #52606d;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.buttons button {
+  margin-right: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #d8dee4;
+  background: #fff;
+  cursor: pointer;
+}
+
+.buttons button:hover {
+  background: #f6f8fa;
+}
+
+.status {
+  color: #52606d;
+  min-height: 20px;
+}
+
+.editor-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.editor textarea {
+  width: 100%;
+  min-height: 400px;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.preview {
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fdfefe;
+  height: 100%;
+  overflow: auto;
+}
+
+.warnings li {
+  color: #9d5c00;
+}
+.errors li {
+  color: #b91c1c;
+}
+.ok {
+  color: #0f9d58;
+}
+
+.script {
+  background: #0b172a;
+  color: #e5e7eb;
+  padding: 10px;
+  border-radius: 6px;
+  min-height: 200px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+@media (max-width: 900px) {
+  .editor-preview {
+    grid-template-columns: 1fr;
+  }
+}
