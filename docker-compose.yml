@@ -7,9 +7,8 @@ services:
     container_name: ipxe-station
     restart: unless-stopped
 
-    ports:
-      - "9021:8000"     # Web interface / API / UI
-      - "7069:69/udp"   # TFTP (moved from 69 to avoid conflicts)
+    # Use host network mode for full internet access and TFTP/DHCP compatibility
+    network_mode: "host"
 
     volumes:
       # Persistent storage for all PXE data
@@ -21,34 +20,24 @@ services:
     environment:
       # Application settings
       - PYTHONUNBUFFERED=1
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=8000
+      - UVICORN_HOST=0.0.0.0
+      - UVICORN_PORT=9021
 
       # PXE settings
-      - PXE_SERVER_IP=192.168.1.10
-      - HTTP_PORT=8000
+      - PXE_SERVER_IP=192.168.10.32
+      - HTTP_PORT=9021
       - TFTP_PORT=69
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:9021/status"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-    networks:
-      - ipxe-network
-
     labels:
       - "com.ipxe-station.description=PXE Boot Station with multi-version Ubuntu support"
       - "com.ipxe-station.version=2.0"
-
-networks:
-  ipxe-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/16
 
 # Named volumes for backup/restore operations
 volumes:
