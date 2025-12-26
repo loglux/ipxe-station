@@ -36,6 +36,13 @@ header p {
   background: #f6f8fa;
 }
 
+.buttons select {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #d8dee4;
+  background: #fff;
+}
+
 .status {
   color: #52606d;
   min-height: 20px;

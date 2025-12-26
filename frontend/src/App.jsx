@@ -28,6 +28,8 @@ function App() {
   const [warnings, setWarnings] = useState([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplate, setSelectedTemplate] = useState('')
 
   const syncJsonToObj = (text) => {
     try {
@@ -130,6 +132,20 @@ function App() {
     }
   }
 
+  const fetchTemplates = async () => {
+    try {
+      const resp = await fetch('/api/ipxe/templates')
+      const data = await resp.json()
+      setTemplates(data.templates || [])
+    } catch (err) {
+      // ignore for now
+    }
+  }
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [])
+
   const saveMenu = async () => {
     await callApi('/api/ipxe/menu/save')
   }
@@ -146,8 +162,18 @@ function App() {
           <button onClick={validate} disabled={loading}>Validate</button>
           <button onClick={generate} disabled={loading}>Generate</button>
           <button onClick={saveMenu} disabled={loading}>Save (boot.ipxe)</button>
-          <button onClick={() => loadTemplate('ubuntu_multi')} disabled={loading}>Load Ubuntu Multi Template</button>
-          <button onClick={() => loadTemplate('diagnostic')} disabled={loading}>Load Diagnostic Template</button>
+          <select
+            value={selectedTemplate}
+            onChange={(e) => {
+              const val = e.target.value
+              setSelectedTemplate(val)
+              if (val) loadTemplate(val)
+            }}
+            disabled={loading}
+          >
+            <option value="">Load template...</option>
+            {templates.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
         <div className="status">{loading ? '⏳ Working...' : status}</div>
       </section>
