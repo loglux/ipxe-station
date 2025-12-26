@@ -270,23 +270,33 @@ function App() {
           <div className="tab-content">
             {activeTab === 'builder' && (
               <div className="builder-view">
-                <div className="welcome-message">
-                  <h2>Welcome to iPXE Menu Builder</h2>
-                  <p>Select an entry from the menu structure or add a new one to get started.</p>
+                {selectedEntry ? (
+                  <div className="builder-editor">
+                    <PropertyPanel
+                      entry={selectedEntry}
+                      onUpdateEntry={updateEntry}
+                      entries={entries}
+                    />
+                  </div>
+                ) : (
+                  <div className="welcome-message">
+                    <h2>Welcome to iPXE Menu Builder</h2>
+                    <p>Select an entry from the menu structure or add a new one to get started.</p>
 
-                  <div className="quick-actions">
-                    <h3>Quick Actions</h3>
-                    <div className="action-grid">
-                      {Object.entries(CATEGORIES).map(([key, category]) => (
-                        <div key={key} className="action-card" style={{ borderColor: category.color }}>
-                          <div className="action-icon">{category.icon}</div>
-                          <div className="action-name">{category.name}</div>
-                          <div className="action-description">{category.description}</div>
-                        </div>
-                      ))}
+                    <div className="quick-actions">
+                      <h3>Quick Actions</h3>
+                      <div className="action-grid">
+                        {Object.entries(CATEGORIES).map(([key, category]) => (
+                          <div key={key} className="action-card" style={{ borderColor: category.color }}>
+                            <div className="action-icon">{category.icon}</div>
+                            <div className="action-name">{category.name}</div>
+                            <div className="action-description">{category.description}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 

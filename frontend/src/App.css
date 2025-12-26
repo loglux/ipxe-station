@@ -235,6 +235,13 @@ code, pre {
   margin: 0 auto;
 }
 
+.builder-editor {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
+}
+
 .welcome-message {
   text-align: center;
   padding: var(--spacing-xl) 0;
