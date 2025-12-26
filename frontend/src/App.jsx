@@ -33,11 +33,11 @@ function App() {
 
   const syncJsonToObj = (text) => {
     try {
-      const parsed = JSON.parse(text)
-      setMenuObj(parsed)
-      setErrors([])
-    } catch (err) {
-      setErrors([`JSON parse error: ${err.message}`])
+    const parsed = JSON.parse(text)
+    setMenuObj(parsed)
+    setErrors([])
+  } catch (err) {
+    setErrors([`JSON parse error: ${err.message}`])
     }
   }
 
@@ -49,9 +49,21 @@ function App() {
 
   const entries = useMemo(() => Array.isArray(menuObj.entries) ? menuObj.entries : [], [menuObj.entries])
 
+  const reindexOrders = (list) => list.map((e, i) => ({ ...e, order: i + 1 }))
+
   const updateEntryField = (idx, field, value) => {
-    const nextEntries = entries.map((e, i) => i === idx ? { ...e, [field]: value } : e)
-    const next = { ...menuObj, entries: nextEntries }
+    let nextEntries = [...entries]
+
+    if (field === 'order') {
+      const target = Math.max(0, Math.min(Number(value) - 1, entries.length - 1))
+      const [item] = nextEntries.splice(idx, 1)
+      nextEntries.splice(target, 0, item)
+    } else {
+      nextEntries = nextEntries.map((e, i) => i === idx ? { ...e, [field]: value } : e)
+    }
+
+    const ordered = reindexOrders(nextEntries)
+    const next = { ...menuObj, entries: ordered }
     setMenuObj(next)
     setMenuJson(JSON.stringify(next, null, 2))
   }
@@ -70,15 +82,17 @@ function App() {
         description: '',
         requires_iso: false,
         requires_internet: false,
+        order: entries.length + 1,
       },
     ]
-    const next = { ...menuObj, entries: nextEntries }
+    const ordered = reindexOrders(nextEntries)
+    const next = { ...menuObj, entries: ordered }
     setMenuObj(next)
     setMenuJson(JSON.stringify(next, null, 2))
   }
 
   const removeEntry = (idx) => {
-    const nextEntries = entries.filter((_, i) => i !== idx)
+    const nextEntries = reindexOrders(entries.filter((_, i) => i !== idx))
     const next = { ...menuObj, entries: nextEntries }
     setMenuObj(next)
     setMenuJson(JSON.stringify(next, null, 2))
@@ -92,7 +106,8 @@ function App() {
     if (direction === 'down' && idx < nextEntries.length - 1) {
       ;[nextEntries[idx + 1], nextEntries[idx]] = [nextEntries[idx], nextEntries[idx + 1]]
     }
-    const next = { ...menuObj, entries: nextEntries }
+    const ordered = reindexOrders(nextEntries)
+    const next = { ...menuObj, entries: ordered }
     setMenuObj(next)
     setMenuJson(JSON.stringify(next, null, 2))
   }
@@ -255,6 +270,7 @@ function App() {
           {entries.length === 0 ? <div className="ok">No entries</div> : (
             <div className="entries-table">
               <div className="entries-row entries-head">
+                <div>#</div>
                 <div>Name</div>
                 <div>Title</div>
                 <div>Type</div>
@@ -268,6 +284,7 @@ function App() {
               </div>
               {entries.map((entry, idx) => (
                 <div className="entries-row" key={idx}>
+                  <div><input type="number" value={entry.order || idx + 1} onChange={(e) => updateEntryField(idx, 'order', Number(e.target.value))} /></div>
                   <div><input value={entry.name || ''} onChange={(e) => updateEntryField(idx, 'name', e.target.value)} /></div>
                   <div><input value={entry.title || ''} onChange={(e) => updateEntryField(idx, 'title', e.target.value)} /></div>
                   <div>
