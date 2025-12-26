@@ -137,19 +137,42 @@ function AssetManager() {
         const data = await response.json()
         if (data.downloads) {
           setDownloadProgress(data.downloads)
+
+          // Auto-detect active downloads and update downloading state
+          const activeDownloads = {}
+          Object.keys(data.downloads).forEach(key => {
+            if (data.downloads[key].status === 'downloading') {
+              // Try to match to a distro ID
+              DOWNLOADABLE_DISTROS.forEach(distro => {
+                if (key.includes(distro.dest_folder)) {
+                  activeDownloads[distro.id] = true
+                }
+              })
+            }
+          })
+
+          // Update downloading state if we found active downloads
+          if (Object.keys(activeDownloads).length > 0) {
+            setDownloading(prev => ({ ...prev, ...activeDownloads }))
+          }
         }
       } catch (error) {
         console.error('Failed to fetch progress:', error)
       }
     }
 
-    // Poll every 2 seconds if there are active downloads
-    const hasActiveDownloads = Object.keys(downloading).some(key => downloading[key])
+    // Check immediately on mount
+    pollProgress()
+
+    // Poll every 2 seconds if there are active downloads OR we just mounted
+    const hasActiveDownloads = Object.keys(downloading).some(key => downloading[key]) ||
+                               Object.keys(downloadProgress).some(key => downloadProgress[key]?.status === 'downloading')
+
     if (hasActiveDownloads) {
       const interval = setInterval(pollProgress, 2000)
       return () => clearInterval(interval)
     }
-  }, [downloading])
+  }, [downloading, downloadProgress])
 
   const fetchAssets = async () => {
     try {
