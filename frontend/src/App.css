@@ -43,7 +43,7 @@ header p {
 
 .editor-preview {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
 }
 
@@ -63,6 +63,33 @@ header p {
   background: #fdfefe;
   height: 100%;
   overflow: auto;
+}
+
+.form {
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: #52606d;
+}
+
+.form input {
+  padding: 8px;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
 }
 
 .warnings li {
