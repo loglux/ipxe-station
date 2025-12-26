@@ -9,6 +9,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [entryName, setEntryName] = useState('')
   const [entryTitle, setEntryTitle] = useState('')
   const [parentSubmenu, setParentSubmenu] = useState(null)
+  const [availableVersions, setAvailableVersions] = useState([])
+  const [selectedVersion, setSelectedVersion] = useState(null)
+  const [kernel, setKernel] = useState('')
+  const [initrd, setInitrd] = useState('')
+  const [cmdline, setCmdline] = useState('')
 
   // Handle initial category selection
   useEffect(() => {
@@ -17,6 +22,58 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       setStep(2)
     }
   }, [isOpen, initialCategory])
+
+  // Fetch available assets when scenario is selected
+  useEffect(() => {
+    if (selectedScenario) {
+      fetchAvailableAssets()
+    }
+  }, [selectedScenario])
+
+  const fetchAvailableAssets = async () => {
+    try {
+      const response = await fetch('/api/assets/catalog')
+      const catalog = await response.json()
+
+      const scenario = getScenario(selectedScenario)
+      if (!scenario || !scenario.assetDiscovery) {
+        setAvailableVersions([])
+        return
+      }
+
+      // Determine which catalog to check based on scenario
+      let versions = []
+      if (selectedScenario.includes('ubuntu')) {
+        versions = catalog.ubuntu || []
+      } else if (selectedScenario.includes('debian')) {
+        versions = catalog.debian || []
+      } else if (selectedScenario.includes('systemrescue')) {
+        versions = catalog.rescue || []
+      }
+
+      // Filter to only versions that have required files
+      const validVersions = versions.filter(v => v.kernel && v.initrd)
+      setAvailableVersions(validVersions)
+
+      // Auto-select if only one version available
+      if (validVersions.length === 1) {
+        handleVersionSelect(validVersions[0])
+      }
+    } catch (error) {
+      console.error('Failed to fetch assets:', error)
+      setAvailableVersions([])
+    }
+  }
+
+  const handleVersionSelect = (version) => {
+    setSelectedVersion(version)
+    setKernel(version.kernel || '')
+    setInitrd(version.initrd || '')
+
+    // Update title to include version
+    const scenario = getScenario(selectedScenario)
+    setEntryTitle(`${scenario.displayName} ${version.version}`)
+  }
 
   if (!isOpen) return null
 
@@ -43,11 +100,14 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       return
     }
 
-    // Create entry from scenario
+    // Create entry from scenario with auto-populated fields
     const entry = createEntryFromScenario(selectedScenario, {
       name: entryName,
       title: entryTitle,
       parent: parentSubmenu,
+      kernel: kernel || undefined,
+      initrd: initrd || undefined,
+      cmdline: cmdline || undefined,
     })
 
     onAddEntry(entry)
@@ -61,6 +121,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setEntryName('')
     setEntryTitle('')
     setParentSubmenu(null)
+    setAvailableVersions([])
+    setSelectedVersion(null)
+    setKernel('')
+    setInitrd('')
+    setCmdline('')
     onClose()
   }
 
@@ -170,6 +235,31 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         </div>
 
         <div className="wizard-form">
+          {/* Version selector if available assets found */}
+          {availableVersions.length > 0 && (
+            <div className="form-group">
+              <label>Available Version *</label>
+              <select
+                value={selectedVersion?.version || ''}
+                onChange={(e) => {
+                  const version = availableVersions.find(v => v.version === e.target.value)
+                  if (version) handleVersionSelect(version)
+                }}
+                className="form-control"
+              >
+                <option value="">Select a version...</option>
+                {availableVersions.map(v => (
+                  <option key={v.version} value={v.version}>
+                    {scenario.displayName} {v.version}
+                  </option>
+                ))}
+              </select>
+              <small className="form-hint">
+                ✅ Found {availableVersions.length} downloaded version{availableVersions.length > 1 ? 's' : ''}
+              </small>
+            </div>
+          )}
+
           <div className="form-group">
             <label>Name *</label>
             <input
@@ -197,6 +287,41 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               Display name shown in the boot menu
             </small>
           </div>
+
+          {/* Show kernel/initrd fields */}
+          {scenario.fields.required.includes('kernel') && (
+            <div className="form-group">
+              <label>Kernel {selectedVersion ? '✅' : '*'}</label>
+              <input
+                type="text"
+                value={kernel}
+                onChange={(e) => setKernel(e.target.value)}
+                className="form-control"
+                placeholder="ubuntu-22.04/vmlinuz"
+                readOnly={!!selectedVersion}
+              />
+              <small className="form-hint">
+                {selectedVersion ? 'Auto-populated from selected version' : 'Path to kernel file'}
+              </small>
+            </div>
+          )}
+
+          {scenario.fields.required.includes('initrd') && (
+            <div className="form-group">
+              <label>Initrd {selectedVersion ? '✅' : '*'}</label>
+              <input
+                type="text"
+                value={initrd}
+                onChange={(e) => setInitrd(e.target.value)}
+                className="form-control"
+                placeholder="ubuntu-22.04/initrd"
+                readOnly={!!selectedVersion}
+              />
+              <small className="form-hint">
+                {selectedVersion ? 'Auto-populated from selected version' : 'Path to initrd file'}
+              </small>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Parent Submenu</label>
