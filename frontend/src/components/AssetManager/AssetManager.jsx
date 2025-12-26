@@ -420,16 +420,50 @@ function AssetManager() {
                     </label>
                   )}
 
-                  {/* Progress bar for active downloads */}
-                  {downloading[distro.id] && downloadProgress[`${distro.dest_folder}/vmlinuz`] && (
+                  {/* Progress bars for active downloads */}
+                  {downloading[distro.id] && (
                     <div style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                        <span>{downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%</span>
-                        <span>{(downloadProgress[`${distro.dest_folder}/vmlinuz`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${distro.dest_folder}/vmlinuz`].total / 1024 / 1024).toFixed(1)} MB</span>
-                      </div>
-                      <div style={{ width: '100%', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s' }}></div>
-                      </div>
+                      {/* Kernel progress */}
+                      {downloadProgress[`${distro.dest_folder}/vmlinuz`] && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>Kernel</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                            <span>{downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%</span>
+                            <span>{(downloadProgress[`${distro.dest_folder}/vmlinuz`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${distro.dest_folder}/vmlinuz`].total / 1024 / 1024).toFixed(1)} MB</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s' }}></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Initrd progress */}
+                      {downloadProgress[`${distro.dest_folder}/initrd`] && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>Initrd</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                            <span>{downloadProgress[`${distro.dest_folder}/initrd`].percentage}%</span>
+                            <span>{(downloadProgress[`${distro.dest_folder}/initrd`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${distro.dest_folder}/initrd`].total / 1024 / 1024).toFixed(1)} MB</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/initrd`].percentage}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s' }}></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ISO progress */}
+                      {distro.supports_iso && distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>ISO</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                            <span>{downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%</span>
+                            <span>{(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].downloaded / 1024 / 1024).toFixed(0)} MB / {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].total / 1024 / 1024).toFixed(0)} MB</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%`, height: '100%', background: '#10b981', transition: 'width 0.3s' }}></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -485,9 +519,13 @@ function AssetManager() {
                     {/* Progress bar for SystemRescue */}
                     {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>SystemRescue ISO</div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
                           <span>{downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
-                          <span>{(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024).toFixed(1)} MB</span>
+                          <span>
+                            {(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                            {(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                          </span>
                         </div>
                         <div style={{ width: '100%', height: '6px', background: '#e5e7eb', borderRadius: '3px', overflow: 'hidden' }}>
                           <div style={{ width: `${downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: '#10b981', transition: 'width 0.3s' }}></div>
