@@ -307,6 +307,115 @@ async def upload_asset(file: UploadFile = File(...), dest: str = ""):
     return {"saved": str(target_path.relative_to(HTTP_ROOT))}
 
 
+class ExtractISORequest(BaseModel):
+    iso_path: str
+    kernel_path: str = ""
+    initrd_path: str = ""
+    dest_dir: str = ""
+    kernel_filename: str = "vmlinuz"
+    initrd_filename: str = "initrd"
+
+
+@app.post("/api/assets/extract-iso")
+def extract_iso(request: ExtractISORequest):
+    """Extract kernel and initrd from an ISO file using 7zip."""
+    import subprocess
+
+    # Resolve ISO path (relative to HTTP_ROOT)
+    iso_file = HTTP_ROOT / request.iso_path
+    if not iso_file.exists():
+        raise HTTPException(status_code=404, detail=f"ISO file not found: {request.iso_path}")
+
+    # Determine destination directory
+    dest_dir = HTTP_ROOT / request.dest_dir if request.dest_dir else iso_file.parent / iso_file.stem
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # List contents of ISO to find kernel and initrd
+        list_cmd = ["7z", "l", str(iso_file)]
+        result = subprocess.run(list_cmd, capture_output=True, text=True, check=True)
+        iso_contents = result.stdout
+
+        # Auto-detect paths if not provided
+        kernel_in_iso = request.kernel_path
+        initrd_in_iso = request.initrd_path
+
+        if not kernel_in_iso or not initrd_in_iso:
+            # Try to find common paths
+            lines = iso_contents.split('\n')
+            for line in lines:
+                if not kernel_in_iso and any(x in line.lower() for x in ['vmlinuz', 'linux', 'kernel']):
+                    # Extract path from 7z output
+                    parts = line.split()
+                    if len(parts) >= 6:
+                        potential_path = ' '.join(parts[5:])
+                        if 'vmlinuz' in potential_path or 'linux' in potential_path:
+                            kernel_in_iso = potential_path
+
+                if not initrd_in_iso and any(x in line.lower() for x in ['initrd', 'initramfs', 'sysresccd.img']):
+                    parts = line.split()
+                    if len(parts) >= 6:
+                        potential_path = ' '.join(parts[5:])
+                        if any(x in potential_path.lower() for x in ['initrd', 'initramfs', 'sysresccd.img']):
+                            initrd_in_iso = potential_path
+
+        extracted_files = {}
+
+        # Extract kernel
+        if kernel_in_iso:
+            extract_cmd = ["7z", "e", str(iso_file), f"-o{dest_dir}", kernel_in_iso, "-y"]
+            subprocess.run(extract_cmd, check=True, capture_output=True)
+
+            # Rename if necessary
+            extracted_name = Path(kernel_in_iso).name
+            source_file = dest_dir / extracted_name
+            target_file = dest_dir / request.kernel_filename
+
+            if source_file.exists() and source_file != target_file:
+                source_file.rename(target_file)
+                extracted_files['kernel'] = str(target_file.relative_to(HTTP_ROOT))
+            elif target_file.exists():
+                extracted_files['kernel'] = str(target_file.relative_to(HTTP_ROOT))
+
+        # Extract initrd
+        if initrd_in_iso:
+            extract_cmd = ["7z", "e", str(iso_file), f"-o{dest_dir}", initrd_in_iso, "-y"]
+            subprocess.run(extract_cmd, check=True, capture_output=True)
+
+            # Rename if necessary
+            extracted_name = Path(initrd_in_iso).name
+            source_file = dest_dir / extracted_name
+            target_file = dest_dir / request.initrd_filename
+
+            if source_file.exists() and source_file != target_file:
+                source_file.rename(target_file)
+                extracted_files['initrd'] = str(target_file.relative_to(HTTP_ROOT))
+            elif target_file.exists():
+                extracted_files['initrd'] = str(target_file.relative_to(HTTP_ROOT))
+
+        # Create symlink to original ISO in dest directory
+        iso_link = dest_dir / iso_file.name
+        if not iso_link.exists():
+            iso_link.symlink_to(iso_file)
+            extracted_files['iso'] = str(iso_link.relative_to(HTTP_ROOT))
+
+        return {
+            "success": True,
+            "dest_dir": str(dest_dir.relative_to(HTTP_ROOT)),
+            "extracted_files": extracted_files,
+            "kernel_path": kernel_in_iso,
+            "initrd_path": initrd_in_iso
+        }
+
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Extraction failed: {e.stderr.decode() if e.stderr else str(e)}"
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {exc}")
+
+
 @app.get("/api/assets/versions/systemrescue")
 def get_systemrescue_versions():
     """Fetch available SystemRescue versions from SourceForge."""
