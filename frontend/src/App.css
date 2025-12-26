@@ -43,7 +43,7 @@ header p {
 
 .editor-preview {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 16px;
 }
 
@@ -90,6 +90,57 @@ header p {
   padding: 8px;
   border: 1px solid #d8dee4;
   border-radius: 6px;
+}
+
+.entries {
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.entries-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.entries-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entries-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.9fr 0.9fr 1fr 1fr 0.6fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.entries-row input,
+.entries-row select {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #d8dee4;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.entries-row button {
+  padding: 6px 10px;
+  border: 1px solid #d8dee4;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.entries-head {
+  font-weight: 600;
+  color: #52606d;
 }
 
 .warnings li {

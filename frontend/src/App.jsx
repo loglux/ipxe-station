@@ -45,6 +45,40 @@ function App() {
     setMenuJson(JSON.stringify(next, null, 2))
   }
 
+  const entries = useMemo(() => Array.isArray(menuObj.entries) ? menuObj.entries : [], [menuObj.entries])
+
+  const updateEntryField = (idx, field, value) => {
+    const nextEntries = entries.map((e, i) => i === idx ? { ...e, [field]: value } : e)
+    const next = { ...menuObj, entries: nextEntries }
+    setMenuObj(next)
+    setMenuJson(JSON.stringify(next, null, 2))
+  }
+
+  const addEntry = () => {
+    const nextEntries = [
+      ...entries,
+      {
+        name: `entry_${entries.length + 1}`,
+        title: `Entry ${entries.length + 1}`,
+        entry_type: 'boot',
+        boot_mode: 'netboot',
+        kernel: '',
+        initrd: '',
+        cmdline: '',
+      },
+    ]
+    const next = { ...menuObj, entries: nextEntries }
+    setMenuObj(next)
+    setMenuJson(JSON.stringify(next, null, 2))
+  }
+
+  const removeEntry = (idx) => {
+    const nextEntries = entries.filter((_, i) => i !== idx)
+    const next = { ...menuObj, entries: nextEntries }
+    setMenuObj(next)
+    setMenuJson(JSON.stringify(next, null, 2))
+  }
+
   const callApi = async (path) => {
     setLoading(true)
     setStatus('')
@@ -170,6 +204,54 @@ function App() {
           )}
           <h3>Generated iPXE Script</h3>
           <pre className="script">{script || '—'}</pre>
+        </div>
+        <div className="entries">
+          <div className="entries-header">
+            <h3>Entries ({entries.length})</h3>
+            <button onClick={addEntry} disabled={loading}>Add Entry</button>
+          </div>
+          {entries.length === 0 ? <div className="ok">No entries</div> : (
+            <div className="entries-table">
+              <div className="entries-row entries-head">
+                <div>Name</div>
+                <div>Title</div>
+                <div>Type</div>
+                <div>Boot Mode</div>
+                <div>Kernel</div>
+                <div>Initrd</div>
+                <div>Actions</div>
+              </div>
+              {entries.map((entry, idx) => (
+                <div className="entries-row" key={idx}>
+                  <div><input value={entry.name || ''} onChange={(e) => updateEntryField(idx, 'name', e.target.value)} /></div>
+                  <div><input value={entry.title || ''} onChange={(e) => updateEntryField(idx, 'title', e.target.value)} /></div>
+                  <div>
+                    <select value={entry.entry_type || 'boot'} onChange={(e) => updateEntryField(idx, 'entry_type', e.target.value)}>
+                      <option value="boot">boot</option>
+                      <option value="menu">menu</option>
+                      <option value="action">action</option>
+                      <option value="separator">separator</option>
+                    </select>
+                  </div>
+                  <div>
+                    <select value={entry.boot_mode || 'netboot'} onChange={(e) => updateEntryField(idx, 'boot_mode', e.target.value)}>
+                      <option value="netboot">netboot</option>
+                      <option value="live">live</option>
+                      <option value="rescue">rescue</option>
+                      <option value="preseed">preseed</option>
+                      <option value="tool">tool</option>
+                      <option value="custom">custom</option>
+                    </select>
+                  </div>
+                  <div><input value={entry.kernel || ''} onChange={(e) => updateEntryField(idx, 'kernel', e.target.value)} /></div>
+                  <div><input value={entry.initrd || ''} onChange={(e) => updateEntryField(idx, 'initrd', e.target.value)} /></div>
+                  <div>
+                    <button onClick={() => removeEntry(idx)} disabled={loading}>Remove</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </div>
