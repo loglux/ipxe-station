@@ -8,11 +8,8 @@ services:
     restart: unless-stopped
 
     ports:
-      - "9005:8000"     # Web interface
-      - "80:8000"       # Pxe Life service
-      - "69:69/udp"     # TFTP
-      - "68:68/udp"     # just in case, DHCP Client
-      - "32768-65535:32768-65535/udp" # TFTP DATA
+      - "9021:8000"     # Web interface / API / UI
+      - "7069:69/udp"   # TFTP (moved from 69 to avoid conflicts)
 
     volumes:
       # Persistent storage for all PXE data
@@ -51,7 +48,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.30.0.0/16
 
 # Named volumes for backup/restore operations
 volumes:

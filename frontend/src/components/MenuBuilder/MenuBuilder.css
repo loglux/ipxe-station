@@ -1,0 +1,94 @@
+.menu-builder {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.menu-tree {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.tree-entry {
+  user-select: none;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.tree-node:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.tree-node.selected {
+  background: var(--color-primary);
+  color: white;
+}
+
+.tree-node.selected .tree-icon {
+  filter: brightness(2);
+}
+
+.tree-toggle {
+  width: 16px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.tree-toggle-placeholder {
+  width: 16px;
+}
+
+.tree-icon {
+  font-size: 18px;
+}
+
+.tree-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tree-children {
+  margin-left: 0;
+}
+
+.menu-actions {
+  padding: var(--spacing-md) 0 0;
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--spacing-md);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.badge-disabled {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-secondary);
+}
+
+.empty-state p {
+  margin-bottom: var(--spacing-sm);
+}

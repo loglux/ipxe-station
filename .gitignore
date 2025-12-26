@@ -10,3 +10,9 @@ venv/
 # Local data volumes and large boot assets
 data/srv/**
 !data/.gitkeep
+
+# Claude Code documentation
+CLAUDE.md
+
+# Backup files
+*.old
