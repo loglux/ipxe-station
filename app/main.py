@@ -1,8 +1,6 @@
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, RedirectResponse
-import gradio as gr
-from app.gradio_ui import build_gradio_ui
 import os
 from pathlib import Path
 from fastapi import APIRouter
@@ -57,8 +55,8 @@ async def serve_tftp(filename: str):
 
 @app.get("/")
 async def root():
-    """Redirect to Gradio UI"""
-    return RedirectResponse(url="/pxe-station")
+    """Redirect to React UI"""
+    return RedirectResponse(url="/ui")
 
 @app.get("/status")
 async def status():
@@ -235,18 +233,12 @@ async def upload_asset(file: UploadFile = File(...), dest: str = ""):
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
     return {"saved": str(target_path.relative_to(HTTP_ROOT))}
 
-# Serve built frontend (Vite) if present
+# Serve built frontend (Vite)
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
     app.mount("/ui", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="ui")
-
-# Create and mount Gradio interface
-print("Creating Gradio UI...")
-gradio_app = build_gradio_ui()
-
-# Mount Gradio at /pxe-station
-print("Mounting Gradio app...")
-app = gr.mount_gradio_app(app, gradio_app, path="/pxe-station")
+else:
+    print("Warning: Frontend dist directory not found. Build the frontend first.")
 
 if __name__ == "__main__":
     import uvicorn
