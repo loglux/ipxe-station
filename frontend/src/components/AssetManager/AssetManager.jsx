@@ -212,34 +212,38 @@ function AssetManager() {
     const includeIso = downloadIso[distro.id] || false
 
     try {
-      // Always download kernel + initrd (unless ISO-only)
+      // Download kernel + initrd in parallel (unless ISO-only)
       if (!distro.iso_only) {
-        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading kernel...' }))
-        const kernelDest = `${distro.dest_folder}/${distro.files.kernel}`
-        const kernelResponse = await fetch('/api/assets/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: distro.kernel_url,
-            dest: kernelDest
-          })
-        })
+        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading kernel + initrd in parallel...' }))
 
+        const kernelDest = `${distro.dest_folder}/${distro.files.kernel}`
+        const initrdDest = `${distro.dest_folder}/${distro.files.initrd}`
+
+        // Parallel download using Promise.all
+        const [kernelResponse, initrdResponse] = await Promise.all([
+          fetch('/api/assets/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: distro.kernel_url,
+              dest: kernelDest
+            })
+          }),
+          fetch('/api/assets/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: distro.initrd_url,
+              dest: initrdDest
+            })
+          })
+        ])
+
+        // Check both responses
         if (!kernelResponse.ok) {
           const error = await kernelResponse.json()
           throw new Error(error.detail || 'Failed to download kernel')
         }
-
-        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading initrd...' }))
-        const initrdDest = `${distro.dest_folder}/${distro.files.initrd}`
-        const initrdResponse = await fetch('/api/assets/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: distro.initrd_url,
-            dest: initrdDest
-          })
-        })
 
         if (!initrdResponse.ok) {
           const error = await initrdResponse.json()
