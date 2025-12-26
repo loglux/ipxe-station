@@ -11,8 +11,13 @@ import requests
 from app.backend.ipxe_manager import iPXEManager
 from app.backend.ipxe_schema import IpxeMenuModel, model_to_menu
 from pydantic import BaseModel
+import threading
+import time
 
 app = FastAPI(title="iPXE Station", description="Network Boot Server")
+
+# Global dictionary to track download progress
+download_progress = {}
 
 # Base data root (fallback to /tmp/ipxe if /srv not writable)
 BASE_ROOT = Path(os.getenv("IPXE_DATA_ROOT", "/srv"))
@@ -209,19 +214,80 @@ class DownloadRequest(BaseModel):
 
 @app.post("/api/assets/download")
 def download_asset(request: DownloadRequest):
-    """Download a remote asset into /srv/http/<dest> (relative)."""
+    """Download a remote asset into /srv/http/<dest> (relative) with progress tracking."""
     if not request.url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Only http/https URLs allowed")
+
     target = HTTP_ROOT / request.dest if request.dest else HTTP_ROOT / Path(request.url).name
     target.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create progress tracking key
+    progress_key = str(target.relative_to(HTTP_ROOT))
+
     try:
         with requests.get(request.url, stream=True, timeout=60) as r:
             r.raise_for_status()
+            total_size = int(r.headers.get('content-length', 0))
+
+            # Initialize progress tracking
+            download_progress[progress_key] = {
+                "downloaded": 0,
+                "total": total_size,
+                "percentage": 0,
+                "status": "downloading"
+            }
+
+            downloaded = 0
             with open(target, "wb") as fh:
-                shutil.copyfileobj(r.raw, fh)
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        fh.write(chunk)
+                        downloaded += len(chunk)
+
+                        # Update progress every MB or so
+                        if downloaded % (1024 * 1024) < 8192 or downloaded == total_size:
+                            percentage = (downloaded / total_size * 100) if total_size > 0 else 0
+                            download_progress[progress_key] = {
+                                "downloaded": downloaded,
+                                "total": total_size,
+                                "percentage": round(percentage, 1),
+                                "status": "downloading"
+                            }
+
+            # Mark as complete
+            download_progress[progress_key] = {
+                "downloaded": downloaded,
+                "total": total_size,
+                "percentage": 100,
+                "status": "complete"
+            }
+
     except Exception as exc:
+        download_progress[progress_key] = {
+            "downloaded": 0,
+            "total": 0,
+            "percentage": 0,
+            "status": "error",
+            "error": str(exc)
+        }
         raise HTTPException(status_code=500, detail=f"Download failed: {exc}")
+
     return {"saved": str(target.relative_to(HTTP_ROOT))}
+
+
+@app.get("/api/assets/download/progress/{file_path:path}")
+def get_download_progress(file_path: str):
+    """Get download progress for a specific file."""
+    if file_path in download_progress:
+        return download_progress[file_path]
+    else:
+        return {"status": "not_found"}
+
+
+@app.get("/api/assets/download/progress")
+def get_all_download_progress():
+    """Get all active download progress."""
+    return {"downloads": download_progress}
 
 
 @app.post("/api/assets/upload")
@@ -238,6 +304,49 @@ async def upload_asset(file: UploadFile = File(...), dest: str = ""):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
     return {"saved": str(target_path.relative_to(HTTP_ROOT))}
+
+
+@app.get("/api/assets/versions/systemrescue")
+def get_systemrescue_versions():
+    """Fetch available SystemRescue versions from SourceForge."""
+    try:
+        import re
+        from bs4 import BeautifulSoup
+
+        url = "https://sourceforge.net/projects/systemrescuecd/files/sysresccd-x86/"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        versions_dict = {}  # Use dict to deduplicate by version number
+
+        # Find all version folders (format: X.Y.Z/)
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            # Match version pattern like /projects/systemrescuecd/files/sysresccd-x86/11.02/
+            match = re.search(r'/sysresccd-x86/(\d+\.\d+(?:\.\d+)?)', href)
+            if match:
+                version = match.group(1)
+                if version not in versions_dict:  # Deduplicate
+                    # Construct direct download URL
+                    iso_name = f"systemrescue-{version}-amd64.iso"
+                    download_url = f"https://sourceforge.net/projects/systemrescuecd/files/sysresccd-x86/{version}/{iso_name}/download"
+
+                    versions_dict[version] = {
+                        "version": version,
+                        "name": f"SystemRescue {version}",
+                        "iso_url": download_url,
+                        "iso_name": iso_name,
+                        "size_est": "~950 MB"
+                    }
+
+        # Convert to list and sort by version (newest first)
+        versions = list(versions_dict.values())
+        versions.sort(key=lambda x: [int(n) for n in x['version'].split('.')], reverse=True)
+        return {"versions": versions[:10]}  # Return top 10 versions
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch versions: {exc}")
 
 # Serve built frontend (Vite)
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"

@@ -4,3 +4,5 @@ python-multipart
 requests
 psutil
 jinja2
+beautifulsoup4
+lxml
