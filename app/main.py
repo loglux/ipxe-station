@@ -10,6 +10,7 @@ import requests
 
 from app.backend.ipxe_manager import iPXEManager
 from app.backend.ipxe_schema import IpxeMenuModel, model_to_menu
+from pydantic import BaseModel
 
 app = FastAPI(title="iPXE Station", description="Network Boot Server")
 
@@ -201,15 +202,20 @@ def assets_catalog():
     return {"ubuntu": ubuntu, "debian": debian, "windows": windows, "rescue": rescue}
 
 
+class DownloadRequest(BaseModel):
+    url: str
+    dest: str = ""
+
+
 @app.post("/api/assets/download")
-def download_asset(url: str, dest: str = ""):
+def download_asset(request: DownloadRequest):
     """Download a remote asset into /srv/http/<dest> (relative)."""
-    if not url.startswith(("http://", "https://")):
+    if not request.url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Only http/https URLs allowed")
-    target = HTTP_ROOT / dest if dest else HTTP_ROOT / Path(url).name
+    target = HTTP_ROOT / request.dest if request.dest else HTTP_ROOT / Path(request.url).name
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with requests.get(url, stream=True, timeout=60) as r:
+        with requests.get(request.url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with open(target, "wb") as fh:
                 shutil.copyfileobj(r.raw, fh)

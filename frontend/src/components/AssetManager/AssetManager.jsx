@@ -1,39 +1,114 @@
 import { useState, useEffect } from 'react'
 import './AssetManager.css'
 
-// Downloadable distros with URLs
+// Downloadable distros with URLs and menu configurations
 const DOWNLOADABLE_DISTROS = [
   {
     id: 'ubuntu-24.04',
-    name: 'Ubuntu 24.04 LTS',
+    name: 'Ubuntu 24.04 LTS (Noble)',
     kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
     initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
     dest_folder: 'ubuntu-24.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' }
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~70 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-24.04/',
+      requires_internet: true
+    }
   },
   {
     id: 'ubuntu-22.04',
-    name: 'Ubuntu 22.04 LTS',
+    name: 'Ubuntu 22.04 LTS (Jammy)',
     kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
     initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
     dest_folder: 'ubuntu-22.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' }
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~70 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-22.04/',
+      requires_internet: true
+    }
   },
   {
     id: 'ubuntu-20.04',
-    name: 'Ubuntu 20.04 LTS',
+    name: 'Ubuntu 20.04 LTS (Focal)',
     kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
     initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
     dest_folder: 'ubuntu-20.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' }
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~60 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-20.04/',
+      requires_internet: true
+    }
+  },
+  {
+    id: 'debian-13',
+    name: 'Debian 13 (Trixie) Testing',
+    kernel_url: 'http://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
+    initrd_url: 'http://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
+    dest_folder: 'debian-13',
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~45 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp',
+      requires_internet: true
+    }
   },
   {
     id: 'debian-12',
-    name: 'Debian 12 (Bookworm)',
+    name: 'Debian 12 (Bookworm) Stable',
     kernel_url: 'http://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
     initrd_url: 'http://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
     dest_folder: 'debian-12',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' }
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~45 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp',
+      requires_internet: true
+    }
+  },
+  {
+    id: 'debian-11',
+    name: 'Debian 11 (Bullseye) OldStable',
+    kernel_url: 'http://deb.debian.org/debian/dists/bullseye/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
+    initrd_url: 'http://deb.debian.org/debian/dists/bullseye/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
+    dest_folder: 'debian-11',
+    files: { kernel: 'vmlinuz', initrd: 'initrd' },
+    size: '~40 MB',
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'netboot',
+      cmdline: 'ip=dhcp',
+      requires_internet: true
+    }
+  },
+  {
+    id: 'systemrescue',
+    name: 'SystemRescue 11.x',
+    kernel_url: 'https://sourceforge.net/projects/systemrescuecd/files/sysresccd-x86/11.02/systemrescue-11.02-amd64.iso/download',
+    initrd_url: null,
+    dest_folder: 'rescue',
+    files: { iso: 'systemrescue.iso' },
+    size: '~950 MB',
+    iso_only: true,
+    menu_config: {
+      entry_type: 'boot',
+      boot_mode: 'iso',
+      cmdline: 'root=/dev/ram0 initrd=initrd img_dev=/dev/disk/by-label/RESCUE img_loop=/systemrescue.iso',
+      requires_iso: true,
+      requires_internet: false
+    }
   }
 ]
 
@@ -71,39 +146,58 @@ function AssetManager() {
 
   const downloadDistro = async (distro) => {
     setDownloading(prev => ({ ...prev, [distro.id]: true }))
-    setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading kernel...' }))
 
     try {
-      // Download kernel
-      const kernelDest = `${distro.dest_folder}/${distro.files.kernel}`
-      const kernelResponse = await fetch('/api/assets/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: distro.kernel_url,
-          dest: kernelDest
+      if (distro.iso_only) {
+        // ISO-only download (SystemRescue)
+        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading ISO...' }))
+        const isoDest = `${distro.dest_folder}/${distro.files.iso}`
+        const isoResponse = await fetch('/api/assets/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: distro.kernel_url, // For ISO-only, kernel_url contains the ISO URL
+            dest: isoDest
+          })
         })
-      })
 
-      if (!kernelResponse.ok) {
-        throw new Error('Failed to download kernel')
-      }
-
-      setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading initrd...' }))
-
-      // Download initrd
-      const initrdDest = `${distro.dest_folder}/${distro.files.initrd}`
-      const initrdResponse = await fetch('/api/assets/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: distro.initrd_url,
-          dest: initrdDest
+        if (!isoResponse.ok) {
+          const error = await isoResponse.json()
+          throw new Error(error.detail || 'Failed to download ISO')
+        }
+      } else {
+        // Kernel + Initrd download
+        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading kernel...' }))
+        const kernelDest = `${distro.dest_folder}/${distro.files.kernel}`
+        const kernelResponse = await fetch('/api/assets/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: distro.kernel_url,
+            dest: kernelDest
+          })
         })
-      })
 
-      if (!initrdResponse.ok) {
-        throw new Error('Failed to download initrd')
+        if (!kernelResponse.ok) {
+          const error = await kernelResponse.json()
+          throw new Error(error.detail || 'Failed to download kernel')
+        }
+
+        setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading initrd...' }))
+        const initrdDest = `${distro.dest_folder}/${distro.files.initrd}`
+        const initrdResponse = await fetch('/api/assets/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: distro.initrd_url,
+            dest: initrdDest
+          })
+        })
+
+        if (!initrdResponse.ok) {
+          const error = await initrdResponse.json()
+          throw new Error(error.detail || 'Failed to download initrd')
+        }
       }
 
       setDownloadStatus(prev => ({ ...prev, [distro.id]: '✅ Downloaded!' }))
@@ -118,7 +212,7 @@ function AssetManager() {
       setDownloadStatus(prev => ({ ...prev, [distro.id]: `❌ Error: ${error.message}` }))
       setTimeout(() => {
         setDownloadStatus(prev => ({ ...prev, [distro.id]: '' }))
-      }, 3000)
+      }, 5000)
     } finally {
       setDownloading(prev => ({ ...prev, [distro.id]: false }))
     }
@@ -200,7 +294,7 @@ function AssetManager() {
               {DOWNLOADABLE_DISTROS.map(distro => (
                 <div key={distro.id} className="download-card">
                   <div className="download-name">{distro.name}</div>
-                  <div className="download-size">~50 MB</div>
+                  <div className="download-size">{distro.size}</div>
                   {downloadStatus[distro.id] && (
                     <div className="download-status">{downloadStatus[distro.id]}</div>
                   )}
@@ -208,8 +302,9 @@ function AssetManager() {
                     className="btn btn-primary btn-sm"
                     onClick={() => downloadDistro(distro)}
                     disabled={downloading[distro.id]}
+                    title={distro.iso_only ? 'Download ISO file' : 'Download kernel + initrd'}
                   >
-                    {downloading[distro.id] ? '⏳ Downloading...' : '⬇️ Download'}
+                    {downloading[distro.id] ? '⏳ Downloading...' : (distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download')}
                   </button>
                 </div>
               ))}
