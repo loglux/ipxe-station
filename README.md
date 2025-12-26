@@ -1,306 +1,328 @@
 # iPXE Station
 
-**iPXE Station** is a modern PXE/iPXE server solution with multi-version Ubuntu support, featuring a web interface for managing boot resources and persistent storage.
+**iPXE Station** is a modern PXE/iPXE server with a powerful web interface for managing network boot infrastructure. Build complex boot menus, manage assets, and configure DHCP - all through an intuitive UI.
 
-## 🚀 Features
+## ✨ Key Features
 
-- **Multi-Version Ubuntu Support**: Download and manage multiple Ubuntu versions simultaneously
-- **Persistent Storage**: Data survives container restarts using Docker volumes
-- **Web Interface** (Gradio) for:
-  - Downloading multiple Ubuntu versions (20.04, 22.04, 24.04)
-  - Managing installed versions (view, delete, check status)
-  - Creating and editing iPXE boot menus
-  - Generating DHCP configurations
-  - System monitoring and testing
-- **FastAPI REST API** for automation and external integration
-- **TFTP and HTTP file serving** with proper volume management
-- **Auto-generation of iPXE menus** based on installed Ubuntu versions
-- **Docker-ready** with volume support for persistent data
+### 🎨 **Visual Menu Builder**
+- **Scenario-based design** - Choose from pre-configured scenarios (Ubuntu, Debian, SystemRescue, Windows PE)
+- **Drag & drop ordering** - Reorder entries with intuitive up/down buttons
+- **Smart asset detection** - Automatically detects downloaded files and suggests versions
+- **Hierarchical menus** - Create submenus to organize boot options
+- **Live preview** - See generated iPXE script in real-time
+
+### 📦 **Asset Manager**
+- **Multi-distro support** - Ubuntu, Debian, Windows, SystemRescue
+- **Parallel downloads** - Kernel + initrd download simultaneously
+- **Progress tracking** - Real-time progress bars for each file (kernel, initrd, ISO)
+- **Persistent across tabs** - Download progress survives tab switches
+- **Automatic extraction** - ISO files automatically extracted for network boot
+- **Version catalog** - Browse and download specific versions
+
+### 🌐 **DHCP Configuration Helper**
+- **Multi-platform support** - dnsmasq, ISC DHCP, MikroTik RouterOS, Windows Server
+- **Auto-generation** - Generate ready-to-use DHCP configurations
+- **Network validation** - Test DHCP setup (requires NET_ADMIN capability)
+- **Copy-paste ready** - Configurations include architecture detection and iPXE chaining
+
+### 🚀 **REST API**
+- **Menu management** - Validate, generate, and save iPXE menus
+- **Asset operations** - Download, upload, extract ISOs
+- **DHCP tools** - Generate configs, validate network setup
+- **System status** - Monitor server health and file counts
 
 ## 📋 Requirements
 
-- **Docker** (recommended for deployment)
-- **Python 3.12+** (for development)
-- **Linux** (recommended for production)
-- **Sufficient disk space** (each Ubuntu version ~2-3GB)
+- **Docker** and Docker Compose
+- **Disk space**: ~5-10GB for typical setup (more for ISOs)
+- **Network**: Internet access for downloading distros
+- **Ports**: 9021 (HTTP), 69 (TFTP)
 
 ## 🚀 Quick Start
 
-### Option 1: Using Deploy Script (Recommended)
+### 1. Clone and Deploy
 
 ```bash
 git clone https://github.com/loglux/ipxe-station.git
 cd ipxe-station
-chmod +x deploy.sh
-./deploy.sh
+docker-compose up -d --build
 ```
 
-### Option 2: Using Docker Compose
+### 2. Access the UI
 
-```bash
-git clone https://github.com/loglux/ipxe-station.git
-cd ipxe-station
-docker-compose up -d
-```
+Open your browser: **http://localhost:9021/ui**
 
-### Option 3: Manual Docker
+### 3. Download a Distribution
 
-```bash
-git clone https://github.com/loglux/ipxe-station.git
-cd ipxe-station
+1. Go to **Assets** tab
+2. Select a distro (e.g., Ubuntu 22.04 Netboot)
+3. Click **Download**
+4. Watch real-time progress bars
 
-# Create data directories
-mkdir -p ./data/srv/{tftp,http,ipxe,dhcp}
+### 4. Create Boot Menu
 
-# Build and run
-docker build -t ipxe-station .
-docker run -d \
-  --name ipxe-station \
-  -p 9005:8000 \
-  -p 69:69/udp \
-  -v ./data/srv/tftp:/srv/tftp \
-  -v ./data/srv/http:/srv/http \
-  -v ./data/srv/ipxe:/srv/ipxe \
-  -v ./data/srv/dhcp:/srv/dhcp \
-  --restart unless-stopped \
-  ipxe-station
-```
+1. Go to **Builder** tab
+2. Click a category card (e.g., **Linux**)
+3. Select scenario (e.g., **Ubuntu Netboot**)
+4. Choose downloaded version from dropdown ✅
+5. Click **Create Entry** - kernel/initrd auto-filled!
+
+### 5. Save and Boot
+
+1. Click **💾 Save Menu** in the header
+2. Configure your DHCP server (see **DHCP** tab)
+3. Boot a client via PXE!
 
 ## 🌐 Access Points
 
-- **Web UI**: [http://localhost:9005/gradio](http://localhost:9005/gradio)
-- **Main Page**: [http://localhost:9005](http://localhost:9005)
-- **API Status**: [http://localhost:9005/status](http://localhost:9005/status)
-- **TFTP Server**: `localhost:69/UDP`
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Web UI** | http://localhost:9021/ui | Main interface |
+| **API Docs** | http://localhost:9021/docs | Interactive API documentation |
+| **Status** | http://localhost:9021/status | Server health check |
+| **iPXE Boot** | http://localhost:9021/ipxe/boot.ipxe | Boot script endpoint |
+| **TFTP** | tftp://localhost:69 | TFTP server |
 
-## 🧩 API (iPXE)
+## 🎯 Scenarios
 
-FastAPI endpoints for menu validation/generation (JSON schema based on `app/backend/ipxe_schema.py`):
+iPXE Station uses a **scenario-first approach** - instead of technical iPXE details, you pick what you want to do:
 
-- `POST /api/ipxe/validate` — body: `IpxeMenuModel`, returns `{"valid": bool, "errors": [...], "warnings": [...]}`.
-- `POST /api/ipxe/generate` — body: `IpxeMenuModel`, returns script + warnings.
-- `GET /api/ipxe/templates` — lists available template names.
-- `POST /api/ipxe/templates/{template_name}` — optional query params `server_ip`, `port`; returns template as JSON.
-- `POST /api/ipxe/menu/save` — validates, lints, saves `boot.ipxe`; returns script, warnings, path.
+### 🐧 Linux
+- **Ubuntu Netboot** - Network installation (requires internet)
+- **Ubuntu Live** - Boot from ISO (works offline)
+- **Ubuntu Preseed** - Automated installation
+- **Debian Netboot** - Network installation
 
-Default data roots are `/srv/{http,ipxe,tftp}`; in environments without permissions, FastAPI falls back to `/tmp/ipxe` (override with `IPXE_DATA_ROOT`).
+### 🛠️ Rescue & Tools
+- **SystemRescue** - Recovery and maintenance tools
+- **Memtest86+** - Memory testing
 
-## 📁 Persistent Storage Structure
+### 🪟 Windows
+- **Windows PE** - WIMBoot preinstallation environment
 
-The new volume system creates persistent storage on your host:
+### 📂 Organization
+- **Submenu** - Group related entries
+- **Separator** - Visual divider
 
-```bash
-./data/
-└── srv/
-    ├── tftp/           # TFTP boot files
-    │   ├── undionly.kpxe
-    │   ├── ipxe.efi
-    │   └── README.txt
-    ├── http/           # HTTP boot files (multi-version)
-    │   ├── ubuntu-20.04/
-    │   │   ├── vmlinuz
-    │   │   ├── initrd
-    │   │   └── preseed.cfg
-    │   ├── ubuntu-22.04/
-    │   │   ├── vmlinuz
-    │   │   ├── initrd
-    │   │   └── preseed.cfg
-    │   ├── ubuntu-24.04/
-    │   │   ├── vmlinuz
-    │   │   ├── initrd
-    │   │   └── preseed.cfg
-    │   └── iso/        # ISO storage
-    ├── ipxe/           # iPXE scripts
-    │   ├── boot.ipxe
-    │   └── README.txt
-    └── dhcp/           # DHCP configurations
-        ├── dhcpd.conf
-        ├── dnsmasq.conf
-        └── mikrotik_commands.txt
+### ⚙️ Actions
+- **Reboot** - Restart computer
+- **iPXE Shell** - Drop to command line
+- **Exit to BIOS** - Return to firmware
+
+### 🔧 Advanced
+- **Chain to Another Bootloader** - Transfer to PXELinux, GRUB, etc.
+- **Custom Entry** - Full manual control
+
+## 📁 Directory Structure
+
+```
+./data/srv/
+├── tftp/              # TFTP boot files
+│   ├── undionly.kpxe  # BIOS iPXE loader
+│   └── ipxe.efi       # UEFI iPXE loader
+├── http/              # HTTP boot files
+│   ├── ubuntu-22.04/  # Ubuntu 22.04 files
+│   │   ├── vmlinuz    # Kernel
+│   │   ├── initrd     # Initial ramdisk
+│   │   └── *.iso      # ISO file (optional)
+│   ├── rescue-12.03/  # SystemRescue
+│   └── debian-12/     # Debian
+├── ipxe/              # iPXE scripts
+│   └── boot.ipxe      # Generated boot menu
+└── dhcp/              # DHCP configs
+    ├── dnsmasq.conf
+    ├── dhcpd.conf
+    └── mikrotik-commands.txt
 ```
 
-## 🔧 Usage
-
-### 1. Download Ubuntu Versions
-
-1. Open Web UI → **Ubuntu Download** tab
-2. Select version (20.04, 22.04, or 24.04)
-3. Click **Download Ubuntu Files**
-4. Monitor progress and status
-
-### 2. Manage Installed Versions
-
-- **View all versions**: Click **Check All Versions**
-- **Check specific version**: Select from dropdown, click **Check Version**
-- **Delete version**: Select version, click **Delete Version**
-- **View summary**: Automatic summary shows installed vs available versions
-
-### 3. Create iPXE Menus
-
-1. Go to **iPXE Menu** tab
-2. Select **ubuntu** template
-3. Click **Create from Template** (automatically includes all installed Ubuntu versions)
-4. Customize if needed
-5. Click **Save Menu**
-
-### 4. Configure DHCP
-
-1. Go to **DHCP Configuration** tab
-2. Enter network settings
-3. Select DHCP server type (ISC, dnsmasq, MikroTik)
-4. Click **Generate Config**
-5. Copy configuration to your DHCP server
-
-### 5. Test System
-
-1. Go to **System Testing** tab
-2. Run **Full System Test** to verify all components
-3. Use manual testing tools for specific checks
-
-## 📊 Management Commands
-
-### Deploy Script Commands
-
-```bash
-./deploy.sh deploy    # Deploy with volumes
-./deploy.sh stop      # Stop container
-./deploy.sh start     # Start container
-./deploy.sh restart   # Restart container
-./deploy.sh logs      # View logs
-./deploy.sh status    # Show status
-./deploy.sh info      # Show volume information
-./deploy.sh backup    # Create data backup
-./deploy.sh restore   # Restore from backup
-./deploy.sh remove    # Remove container (keep data)
-```
-
-### Docker Compose Commands
-
-```bash
-docker-compose up -d       # Start services
-docker-compose down        # Stop services
-docker-compose logs -f     # View logs
-docker-compose restart     # Restart services
-```
-
-## 💾 Data Management
-
-### Backup Data
-
-```bash
-# Using deploy script
-./deploy.sh backup
-
-# Manual backup
-tar -czf ipxe-backup-$(date +%Y%m%d).tar.gz ./data
-```
-
-### Restore Data
-
-```bash
-# Using deploy script
-./deploy.sh restore ipxe-backup-20241220.tar.gz
-
-# Manual restore
-tar -xzf ipxe-backup-20241220.tar.gz
-```
-
-### Check Storage Usage
-
-```bash
-# View volume information
-./deploy.sh info
-
-# Check disk usage
-du -sh ./data/
-```
-
-## 🔧 Advanced Configuration
+## 🔧 Configuration
 
 ### Environment Variables
 
-- `PXE_SERVER_IP`: Server IP address (default: auto-detect)
-- `HTTP_PORT`: HTTP server port (default: 8000)
-- `TFTP_PORT`: TFTP server port (default: 69)
-
-### Custom Volume Paths
-
-Modify `docker-compose.yml` or deploy script to use different paths:
+Edit `docker-compose.yml`:
 
 ```yaml
-volumes:
-  - /custom/path/tftp:/srv/tftp:rw
-  - /custom/path/http:/srv/http:rw
+environment:
+  - PXE_SERVER_IP=192.168.10.32  # Your server IP
+  - HTTP_PORT=9021                # HTTP port
+  - TFTP_PORT=69                  # TFTP port
 ```
 
-## 🏗️ Project Structure
+### DHCP Server Setup
+
+1. Go to **DHCP** tab in UI
+2. Select your DHCP server type
+3. Enter server IP
+4. Click **Generate Configuration**
+5. Copy configuration to your DHCP server
+
+**Example for dnsmasq:**
+```bash
+# Add to /etc/dnsmasq.conf
+dhcp-match=set:ipxe,175
+dhcp-boot=tag:ipxe,http://192.168.10.32:9021/ipxe/boot.ipxe
+dhcp-boot=tag:!ipxe,undionly.kpxe,192.168.10.32
+```
+
+## 🎨 UI Features
+
+### Builder Tab
+- **Visual menu editor** with tree structure
+- **Entry properties** - Edit name, title, kernel, initrd, cmdline
+- **Order controls** - Move entries up/down with ▲/▼ buttons
+- **Delete confirmation** - Safe removal of entries
+- **Expert mode** - Toggle advanced fields
+
+### Assets Tab
+- **Download manager** with multiple distros
+- **Progress indicators** for kernel, initrd, and ISO separately
+- **Version selector** for Ubuntu and SystemRescue
+- **File browser** - View all downloaded files
+- **Catalog** - See what's available locally
+
+### DHCP Tab
+- **Server type selector** - dnsmasq, ISC DHCP, MikroTik, Windows
+- **IP configuration** - Set server IP and ports
+- **One-click generation** - Get ready-to-use configs
+- **Network validation** - Test DHCP response (requires capabilities)
+
+### Preview Tab
+- **Live iPXE script** - See what will be generated
+- **Syntax highlighting** - Readable script format
+- **Warnings** - Validation messages
+- **Refresh button** - Regenerate on demand
+
+## 🚀 API Examples
+
+### Create Entry via API
+
+```bash
+curl -X POST http://localhost:9021/api/ipxe/menu/save \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "PXE Boot Menu",
+    "timeout": 30000,
+    "entries": [
+      {
+        "name": "ubuntu_2204",
+        "title": "Ubuntu 22.04",
+        "entry_type": "boot",
+        "kernel": "ubuntu-22.04/vmlinuz",
+        "initrd": "ubuntu-22.04/initrd",
+        "cmdline": "ip=dhcp",
+        "enabled": true,
+        "order": 1
+      }
+    ]
+  }'
+```
+
+### Download Asset
+
+```bash
+curl -X POST http://localhost:9021/api/assets/download \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso",
+    "dest": "ubuntu-22.04/ubuntu-22.04.5.iso"
+  }'
+```
+
+### Extract ISO
+
+```bash
+curl -X POST http://localhost:9021/api/assets/extract-iso \
+  -H "Content-Type: application/json" \
+  -d '{
+    "iso_path": "rescue/systemrescue-12.03-amd64.iso",
+    "dest_dir": "rescue-12.03",
+    "kernel_path": "sysresccd/boot/x86_64/vmlinuz",
+    "initrd_path": "sysresccd/boot/x86_64/sysresccd.img"
+  }'
+```
+
+## 🏗️ Architecture
 
 ```
-ipxe-station/
-├── app/                    # Application code
-│   ├── main.py            # FastAPI application
-│   ├── gradio_ui.py       # Web interface
-│   ├── ubuntu_downloader.py  # Multi-version Ubuntu handler
-│   ├── ipxe_manager.py    # iPXE menu management
-│   ├── dhcp_config.py     # DHCP configuration
-│   ├── system_status.py   # System monitoring
-│   └── tests.py           # System testing
-├── scripts/                # Container scripts
-│   ├── setup-volumes.sh   # Volume initialization
-│   └── start.sh           # Container startup
-├── data/                   # Persistent data (created on first run)
-│   └── srv/               # Volume mount points
-├── Dockerfile             # Container definition
-├── docker-compose.yml     # Compose configuration
-├── deploy.sh              # Deployment script
-├── requirements.txt       # Python dependencies
-└── README.md              # This file
+┌─────────────────────────────────────────────────┐
+│  React Frontend (Vite + React 18)               │
+│  ├─ Menu Builder (scenarios, drag-drop)         │
+│  ├─ Asset Manager (downloads, progress)         │
+│  ├─ DHCP Helper (multi-platform configs)        │
+│  └─ Property Editor (smart fields)              │
+└─────────────────┬───────────────────────────────┘
+                  │ REST API
+┌─────────────────┴───────────────────────────────┐
+│  FastAPI Backend                                 │
+│  ├─ iPXE Manager (validation, generation)       │
+│  ├─ Asset Manager (download, extract)           │
+│  ├─ DHCP Helper (config generation, validation) │
+│  └─ File Serving (static files, iPXE scripts)   │
+└─────────────────┬───────────────────────────────┘
+                  │
+┌─────────────────┴───────────────────────────────┐
+│  Storage (Docker Volumes)                        │
+│  ├─ /srv/tftp  (TFTP boot files)                │
+│  ├─ /srv/http  (HTTP assets)                    │
+│  ├─ /srv/ipxe  (iPXE scripts)                   │
+│  └─ /srv/dhcp  (DHCP configs)                   │
+└──────────────────────────────────────────────────┘
 ```
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+### Downloads not working
+- Check internet connectivity
+- Verify disk space: `df -h`
+- Check container logs: `docker-compose logs -f`
 
-1. **Port 69 UDP in use**
-   - Check if another TFTP server is running
-   - Use different port or stop conflicting service
+### DHCP validation fails
+- Ensure container has `NET_ADMIN` capability (already in docker-compose.yml)
+- Check network interface accessibility
+- Validation is optional - config generation works without it
 
-2. **Permission issues with volumes**
-   - Ensure Docker has access to the data directory
-   - Check file permissions: `chmod -R 755 ./data`
+### PXE boot not working
+1. Verify DHCP server configuration
+2. Check TFTP files exist: `ls -la data/srv/tftp/`
+3. Test iPXE script: `curl http://localhost:9021/ipxe/boot.ipxe`
+4. Check firewall rules for ports 69 and 9021
 
-3. **Large downloads failing**
-   - Check disk space: `df -h`
-   - Ensure stable internet connection
-   - Downloads can be resumed by restarting
+### Progress bars disappear
+- Fixed! Progress now persists across tab switches
+- If issue persists: `docker-compose restart`
 
-4. **Container not starting**
-   - Check logs: `./deploy.sh logs`
-   - Verify port availability
-   - Check Docker daemon status
+## 💡 Tips & Tricks
 
-### Debug Commands
+### Parallel Downloads
+When downloading a distro with netboot + ISO:
+- Kernel and initrd download in parallel
+- ISO downloads after (to avoid saturating network)
+- Total time savings: ~30-50%
 
-```bash
-# Check container status
-docker ps -a
+### Asset Detection
+The wizard automatically:
+- Scans for downloaded versions
+- Auto-populates kernel/initrd paths
+- Suggests version in title
+- Works for Ubuntu, Debian, SystemRescue
 
-# View detailed logs
-docker logs -f ipxe-station
+### Keyboard Shortcuts
+- Builder: Select entry → edit in main area
+- Category cards: Click to open wizard pre-selected
+- Version selector: Auto-selects if only one version
 
-# Enter container for debugging
-docker exec -it ipxe-station bash
+## 📚 Documentation
 
-# Check volume mounts
-docker inspect ipxe-station | grep -A 10 "Mounts"
-```
+- **API Docs**: http://localhost:9021/docs (Swagger UI)
+- **Scenarios Reference**: See `frontend/src/data/scenarios.js`
+- **DHCP Examples**: Check DHCP tab for your server type
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create feature branch: `git checkout -b feature-name`
-3. Make changes and test
-4. Commit: `git commit -am 'Add feature'`
+3. Test your changes: `docker-compose up -d --build`
+4. Commit: `git commit -m 'Add feature'`
 5. Push: `git push origin feature-name`
 6. Create Pull Request
 
@@ -310,14 +332,20 @@ MIT License - see LICENSE file for details
 
 ## 🎯 Roadmap
 
-- [ ] User authentication and authorization
-- [ ] REST API for Ubuntu version management
-- [ ] Integration with cloud storage (S3, GCS)
-- [ ] Support for other Linux distributions
-- [ ] Web-based file manager
-- [ ] Automatic Ubuntu version updates
-- [ ] Metrics and monitoring dashboard
+- [x] Visual menu builder
+- [x] Asset manager with parallel downloads
+- [x] DHCP configuration helper
+- [x] ISO extraction API
+- [x] Smart asset detection in wizard
+- [ ] Menu templates gallery
+- [ ] Preseed/cloud-init editor
+- [ ] Multi-language support
+- [ ] Theme customization
+- [ ] Webhook notifications
+- [ ] Metrics dashboard
 
 ---
 
-**Author:** [iPXE Station Team](https://github.com/loglux/ipxe-station)
+**Made with ❤️ by the iPXE Station Team**
+
+🌟 Star us on GitHub: [loglux/ipxe-station](https://github.com/loglux/ipxe-station)
