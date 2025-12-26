@@ -14,6 +14,9 @@ function App() {
   const [menuTimeout, setMenuTimeout] = useState(30000)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
+  const [generatedScript, setGeneratedScript] = useState('')
+  const [scriptWarnings, setScriptWarnings] = useState([])
+  const [generatingScript, setGeneratingScript] = useState(false)
   const [entries, setEntries] = useState([
     // Starter menu with submenus
     {
@@ -56,6 +59,61 @@ function App() {
     setEntries(prev => prev.filter(e => e.name !== entryName))
     if (selectedEntryId === entryName) {
       setSelectedEntryId(null)
+    }
+  }
+
+  const generateScript = async () => {
+    setGeneratingScript(true)
+
+    try {
+      const menuData = {
+        title: menuTitle,
+        timeout: menuTimeout,
+        default_entry: null,
+        entries: entries.map(entry => ({
+          name: entry.name,
+          title: entry.title,
+          kernel: entry.kernel || null,
+          initrd: entry.initrd || null,
+          cmdline: entry.cmdline || '',
+          description: entry.description || '',
+          enabled: entry.enabled !== false,
+          order: entry.order || 0,
+          entry_type: entry.entry_type || 'boot',
+          url: entry.url || null,
+          boot_mode: entry.boot_mode || 'netboot',
+          requires_iso: entry.requires_iso || false,
+          requires_internet: entry.requires_internet || false,
+          parent: entry.parent || null,
+        })),
+        header_text: '',
+        footer_text: '',
+        server_ip: 'localhost',
+        http_port: 8000,
+      }
+
+      const response = await fetch('/api/ipxe/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(menuData),
+      })
+
+      const result = await response.json()
+
+      if (result.valid) {
+        setGeneratedScript(result.script || '')
+        setScriptWarnings(result.warnings || [])
+      } else {
+        setGeneratedScript(`# Error generating script:\n# ${result.message}`)
+        setScriptWarnings([])
+      }
+    } catch (error) {
+      setGeneratedScript(`# Failed to generate: ${error.message}`)
+      setScriptWarnings([])
+    } finally {
+      setGeneratingScript(false)
     }
   }
 
@@ -117,6 +175,13 @@ function App() {
       setTimeout(() => setSaveMessage(null), 5000)
     }
   }
+
+  // Auto-generate script when switching to preview tab
+  useEffect(() => {
+    if (activeTab === 'preview') {
+      generateScript()
+    }
+  }, [activeTab, entries, menuTitle, menuTimeout])
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
@@ -224,23 +289,30 @@ function App() {
 
             {activeTab === 'preview' && (
               <div className="preview-view">
-                <h2>iPXE Script Preview</h2>
+                <div className="preview-header">
+                  <h2>iPXE Script Preview</h2>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={generateScript}
+                    disabled={generatingScript}
+                  >
+                    {generatingScript ? '⏳ Generating...' : '🔄 Refresh'}
+                  </button>
+                </div>
+
+                {scriptWarnings.length > 0 && (
+                  <div className="warnings-panel">
+                    <h4>⚠️ Warnings</h4>
+                    <ul>
+                      {scriptWarnings.map((warning, i) => (
+                        <li key={i}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <pre className="code-preview">
-                  {`#!ipxe
-
-:start
-menu ${menuTitle}
-${entries.map(e => `item ${e.name} ${e.title}`).join('\n')}
-choose selected && goto \${selected}
-
-${entries.map(e => `
-:${e.name}
-${e.entry_type === 'boot' && e.kernel ? `kernel ${e.kernel}` : ''}
-${e.entry_type === 'boot' && e.initrd ? `initrd ${e.initrd}` : ''}
-${e.entry_type === 'boot' ? 'boot' : ''}
-${e.entry_type === 'action' ? e.cmdline || '' : ''}
-`).join('\n')}
-`}
+                  {generatingScript ? '# Generating script...' : (generatedScript || '# No script generated yet')}
                 </pre>
               </div>
             )}

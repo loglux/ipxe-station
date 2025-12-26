@@ -403,6 +403,45 @@ code, pre {
   gap: var(--spacing-md);
 }
 
+/* ========== PREVIEW VIEW ========== */
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+}
+
+.preview-header h2 {
+  margin: 0;
+}
+
+.warnings-panel {
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.warnings-panel h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.warnings-panel ul {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  color: #92400e;
+}
+
+.warnings-panel li {
+  margin-bottom: var(--spacing-xs);
+  font-size: 13px;
+}
+
 /* ========== UTILITY CLASSES ========== */
 
 .text-center {
