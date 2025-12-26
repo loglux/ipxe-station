@@ -123,7 +123,7 @@ header p {
 
 .entries-row {
   display: grid;
-  grid-template-columns: 0.4fr 1fr 1fr 0.9fr 0.9fr 1fr 1fr 1fr 1fr 1.2fr 0.8fr;
+  grid-template-columns: 0.4fr 0.4fr 1fr 1fr 0.9fr 0.9fr 1fr 1fr 1fr 1fr 1.2fr 0.8fr;
   gap: 6px;
   align-items: center;
 }
@@ -184,6 +184,18 @@ header p {
   min-height: 200px;
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.script-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.save-path {
+  font-size: 12px;
+  color: #52606d;
 }
 
 @media (max-width: 900px) {

@@ -28,6 +28,7 @@ function App() {
   const [warnings, setWarnings] = useState([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
+  const [lastSavePath, setLastSavePath] = useState('')
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState('')
 
@@ -82,6 +83,7 @@ function App() {
         description: '',
         requires_iso: false,
         requires_internet: false,
+        enabled: true,
         order: entries.length + 1,
       },
     ]
@@ -133,6 +135,7 @@ function App() {
       }
       setWarnings(data.warnings || [])
       setScript(data.script || '')
+      if (data.config_path) setLastSavePath(data.config_path)
       setStatus('✅ Success')
     } catch (err) {
       setErrors([String(err)])
@@ -260,6 +263,10 @@ function App() {
             </ul>
           )}
           <h3>Generated iPXE Script</h3>
+          <div className="script-actions">
+            <button onClick={() => navigator.clipboard.writeText(script || '')} disabled={!script}>Copy</button>
+            {lastSavePath && <span className="save-path">Saved to: {lastSavePath}</span>}
+          </div>
           <pre className="script">{script || '—'}</pre>
         </div>
         <div className="entries">
@@ -271,6 +278,7 @@ function App() {
             <div className="entries-table">
               <div className="entries-row entries-head">
                 <div>#</div>
+                <div>On</div>
                 <div>Name</div>
                 <div>Title</div>
                 <div>Type</div>
@@ -285,6 +293,7 @@ function App() {
               {entries.map((entry, idx) => (
                 <div className="entries-row" key={idx}>
                   <div><input type="number" value={entry.order || idx + 1} onChange={(e) => updateEntryField(idx, 'order', Number(e.target.value))} /></div>
+                  <div><input type="checkbox" checked={entry.enabled !== false} onChange={(e) => updateEntryField(idx, 'enabled', e.target.checked)} /></div>
                   <div><input value={entry.name || ''} onChange={(e) => updateEntryField(idx, 'name', e.target.value)} /></div>
                   <div><input value={entry.title || ''} onChange={(e) => updateEntryField(idx, 'title', e.target.value)} /></div>
                   <div>
