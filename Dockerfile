@@ -31,6 +31,8 @@ ENV PYTHONPATH=/
 # Copy application files to /app (preserving the app/ structure)
 COPY app/ /app/
 COPY tftpd-hpa /etc/default/tftpd-hpa
+# Copy built frontend (if present)
+COPY frontend/dist /app/frontend/dist
 
 # Install Python dependencies
 COPY requirements.txt /
