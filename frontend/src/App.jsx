@@ -67,6 +67,9 @@ function App() {
         kernel: '',
         initrd: '',
         cmdline: '',
+        description: '',
+        requires_iso: false,
+        requires_internet: false,
       },
     ]
     const next = { ...menuObj, entries: nextEntries }
@@ -76,6 +79,19 @@ function App() {
 
   const removeEntry = (idx) => {
     const nextEntries = entries.filter((_, i) => i !== idx)
+    const next = { ...menuObj, entries: nextEntries }
+    setMenuObj(next)
+    setMenuJson(JSON.stringify(next, null, 2))
+  }
+
+  const moveEntry = (idx, direction) => {
+    const nextEntries = [...entries]
+    if (direction === 'up' && idx > 0) {
+      ;[nextEntries[idx - 1], nextEntries[idx]] = [nextEntries[idx], nextEntries[idx - 1]]
+    }
+    if (direction === 'down' && idx < nextEntries.length - 1) {
+      ;[nextEntries[idx + 1], nextEntries[idx]] = [nextEntries[idx], nextEntries[idx + 1]]
+    }
     const next = { ...menuObj, entries: nextEntries }
     setMenuObj(next)
     setMenuJson(JSON.stringify(next, null, 2))
@@ -245,6 +261,9 @@ function App() {
                 <div>Boot Mode</div>
                 <div>Kernel</div>
                 <div>Initrd</div>
+                <div>Cmdline</div>
+                <div>Description</div>
+                <div>Requires</div>
                 <div>Actions</div>
               </div>
               {entries.map((entry, idx) => (
@@ -271,8 +290,16 @@ function App() {
                   </div>
                   <div><input value={entry.kernel || ''} onChange={(e) => updateEntryField(idx, 'kernel', e.target.value)} /></div>
                   <div><input value={entry.initrd || ''} onChange={(e) => updateEntryField(idx, 'initrd', e.target.value)} /></div>
-                  <div>
-                    <button onClick={() => removeEntry(idx)} disabled={loading}>Remove</button>
+                  <div><input value={entry.cmdline || ''} onChange={(e) => updateEntryField(idx, 'cmdline', e.target.value)} /></div>
+                  <div><input value={entry.description || ''} onChange={(e) => updateEntryField(idx, 'description', e.target.value)} /></div>
+                  <div className="requires">
+                    <label><input type="checkbox" checked={!!entry.requires_iso} onChange={(e) => updateEntryField(idx, 'requires_iso', e.target.checked)} /> ISO</label>
+                    <label><input type="checkbox" checked={!!entry.requires_internet} onChange={(e) => updateEntryField(idx, 'requires_internet', e.target.checked)} /> Internet</label>
+                  </div>
+                  <div className="entry-actions">
+                    <button onClick={() => moveEntry(idx, 'up')} disabled={idx === 0 || loading}>↑</button>
+                    <button onClick={() => moveEntry(idx, 'down')} disabled={idx === entries.length - 1 || loading}>↓</button>
+                    <button onClick={() => removeEntry(idx)} disabled={loading}>✕</button>
                   </div>
                 </div>
               ))}

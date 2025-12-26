@@ -123,7 +123,7 @@ header p {
 
 .entries-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.9fr 0.9fr 1fr 1fr 0.6fr;
+  grid-template-columns: 1fr 1fr 0.9fr 0.9fr 1fr 1fr 1fr 1fr 1.2fr 0.8fr;
   gap: 6px;
   align-items: center;
 }
@@ -148,6 +148,22 @@ header p {
 .entries-head {
   font-weight: 600;
   color: #52606d;
+}
+
+.requires {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+.requires label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.entry-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .warnings li {
