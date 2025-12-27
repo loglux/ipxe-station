@@ -270,6 +270,79 @@ export const SCENARIOS = {
     `,
   },
 
+  kaspersky: {
+    id: 'kaspersky',
+    displayName: 'Kaspersky Rescue Disk',
+    description: 'Antivirus and malware removal tool',
+    icon: '🛡️',
+    category: 'rescue',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'rescue',
+      requires_iso: true,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: (vars = {}) => ({
+      cmdline: `dostartx netboot=http://\${server_ip}:\${port}/kaspersky/`,
+    }),
+
+    assetDiscovery: {
+      pattern: 'kaspersky-*/k-x86_64',
+      requiredFiles: ['k-x86_64', 'initrd.xz', '*.iso'],
+    },
+
+    downloadUrls: {
+      '24': {
+        name: 'Kaspersky Rescue Disk 24 (Recommended)',
+        iso: 'https://rescuedisk.s.kaspersky-labs.com/updatable/2024/krd.iso',
+        extractFiles: {
+          kernel: 'krd/boot/grub/k-x86_64',
+          initrd: 'krd/boot/grub/initrd.xz',
+        },
+        size: '~800 MB',
+        notes: 'Better UEFI support, requires 2.5GB+ RAM',
+      },
+      '18': {
+        name: 'Kaspersky Rescue Disk 18',
+        iso: 'https://rescuedisk.s.kaspersky-labs.com/krd.iso',
+        extractFiles: {
+          kernel: 'krd/boot/grub/k-x86_64',
+          initrd: 'krd/boot/grub/initrd.xz',
+        },
+        size: '~670 MB',
+        notes: 'UEFI Secure Boot NOT supported - must be disabled',
+      },
+    },
+
+    help: `
+      Kaspersky Rescue Disk is a free bootable environment for malware removal.
+
+      Version recommendations:
+      - Version 24: Better UEFI support (recommended)
+      - Version 18: UEFI Secure Boot must be disabled in BIOS
+
+      Requirements:
+      - ISO file extracted to server
+      - Kernel (k-x86_64) and initrd (initrd.xz)
+      - All ISO contents available via HTTP
+      - Minimum 2.5GB RAM for network boot
+      - Wired Ethernet connection (WiFi not supported)
+
+      Boot process:
+      1. Boots kernel with initrd
+      2. Downloads full system from HTTP server
+      3. Runs antivirus scan in isolated environment
+    `,
+  },
+
   memtest: {
     id: 'memtest',
     displayName: 'Memtest86+',

@@ -6,37 +6,37 @@ const DOWNLOADABLE_DISTROS = [
   {
     id: 'ubuntu-24.04',
     name: 'Ubuntu 24.04 LTS (Noble)',
-    kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
-    initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
+    // No netboot images available for 24.04 - use ISO only
     iso_url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso',
     dest_folder: 'ubuntu-24.04',
     files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-24.04-live-server-amd64.iso' },
-    size: '~70 MB',
+    size: 'ISO only',
     iso_size: '~2.6 GB',
     supports_iso: true,
+    iso_only: true,
     menu_config: {
       entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-24.04/',
-      requires_internet: true
+      boot_mode: 'casper',
+      cmdline: 'boot=casper netboot=url url=http://${server_ip}:${port}/ubuntu-24.04/',
+      requires_internet: false
     }
   },
   {
     id: 'ubuntu-22.04',
     name: 'Ubuntu 22.04 LTS (Jammy)',
-    kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
-    initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
+    // No netboot images available for 22.04 - use ISO only
     iso_url: 'https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso',
     dest_folder: 'ubuntu-22.04',
     files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-22.04-live-server-amd64.iso' },
-    size: '~70 MB',
+    size: 'ISO only',
     iso_size: '~2.4 GB',
     supports_iso: true,
+    iso_only: true,
     menu_config: {
       entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-22.04/',
-      requires_internet: true
+      boot_mode: 'casper',
+      cmdline: 'boot=casper netboot=url url=http://${server_ip}:${port}/ubuntu-22.04/',
+      requires_internet: false
     }
   },
   {
@@ -112,6 +112,14 @@ const SYSTEMRESCUE_CONFIG = {
   dynamic_versions: true
 }
 
+// Kaspersky Rescue Disk with version selection
+const KASPERSKY_CONFIG = {
+  id: 'kaspersky',
+  name: 'Kaspersky Rescue Disk',
+  dest_folder: 'kaspersky',
+  dynamic_versions: true
+}
+
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
@@ -122,11 +130,14 @@ function AssetManager() {
   const [downloadIso, setDownloadIso] = useState({}) // Track ISO download option for each distro
   const [systemRescueVersions, setSystemRescueVersions] = useState([])
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
+  const [kasperskyVersions, setKasperskyVersions] = useState([])
+  const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
 
   useEffect(() => {
     fetchAssets()
     fetchCatalog()
     fetchSystemRescueVersions()
+    fetchKasperskyVersions()
   }, [])
 
   // Poll for download progress
@@ -140,12 +151,21 @@ function AssetManager() {
 
           // Auto-detect active downloads and update downloading state
           const activeDownloads = {}
+          const completedDownloads = {}
           Object.keys(data.downloads).forEach(key => {
-            if (data.downloads[key].status === 'downloading') {
+            const status = data.downloads[key].status
+            if (status === 'downloading' || status === 'extracting') {
               // Try to match to a distro ID
               DOWNLOADABLE_DISTROS.forEach(distro => {
                 if (key.includes(distro.dest_folder)) {
                   activeDownloads[distro.id] = true
+                }
+              })
+            } else if (status === 'extracted' || status === 'complete') {
+              // Mark as completed to clear downloading state
+              DOWNLOADABLE_DISTROS.forEach(distro => {
+                if (key.includes(distro.dest_folder)) {
+                  completedDownloads[distro.id] = false
                 }
               })
             }
@@ -154,6 +174,10 @@ function AssetManager() {
           // Update downloading state if we found active downloads
           if (Object.keys(activeDownloads).length > 0) {
             setDownloading(prev => ({ ...prev, ...activeDownloads }))
+          }
+          // Clear downloading state for completed downloads
+          if (Object.keys(completedDownloads).length > 0) {
+            setDownloading(prev => ({ ...prev, ...completedDownloads }))
           }
         }
       } catch (error) {
@@ -166,7 +190,10 @@ function AssetManager() {
 
     // Poll every 2 seconds if there are active downloads OR we just mounted
     const hasActiveDownloads = Object.keys(downloading).some(key => downloading[key]) ||
-                               Object.keys(downloadProgress).some(key => downloadProgress[key]?.status === 'downloading')
+                               Object.keys(downloadProgress).some(key => {
+                                 const status = downloadProgress[key]?.status
+                                 return status === 'downloading' || status === 'extracting'
+                               })
 
     if (hasActiveDownloads) {
       const interval = setInterval(pollProgress, 2000)
@@ -204,6 +231,19 @@ function AssetManager() {
       }
     } catch (error) {
       console.error('Failed to fetch SystemRescue versions:', error)
+    }
+  }
+
+  const fetchKasperskyVersions = async () => {
+    try {
+      const response = await fetch('/api/assets/versions/kaspersky')
+      const data = await response.json()
+      setKasperskyVersions(data.versions || [])
+      if (data.versions && data.versions.length > 0) {
+        setSelectedKasperskyVersion(data.versions[0]) // Select version 24 (recommended) by default
+      }
+    } catch (error) {
+      console.error('Failed to fetch Kaspersky versions:', error)
     }
   }
 
@@ -255,7 +295,7 @@ function AssetManager() {
       if (distro.iso_only || (distro.supports_iso && includeIso)) {
         setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading ISO... (this may take a while)' }))
         const isoDest = `${distro.dest_folder}/${distro.files.iso}`
-        const isoUrl = distro.iso_only ? distro.kernel_url : distro.iso_url
+        const isoUrl = distro.iso_url
 
         const isoResponse = await fetch('/api/assets/download', {
           method: 'POST',
@@ -320,6 +360,48 @@ function AssetManager() {
         fetchCatalog()
         setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
       }, 2000)
+
+    } catch (error) {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
+      setTimeout(() => {
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 5000)
+    } finally {
+      setDownloading(prev => ({ ...prev, [distroId]: false }))
+    }
+  }
+
+  const downloadKaspersky = async () => {
+    if (!selectedKasperskyVersion) return
+
+    const distroId = 'kaspersky-' + selectedKasperskyVersion.version
+    setDownloading(prev => ({ ...prev, [distroId]: true }))
+
+    try {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: 'Downloading ISO... (this may take a while)' }))
+      // Download to kaspersky-{version}/ folder to match backend scanning pattern
+      const isoDest = `kaspersky-${selectedKasperskyVersion.version}/${selectedKasperskyVersion.iso_name}`
+
+      const isoResponse = await fetch('/api/assets/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: selectedKasperskyVersion.iso_url,
+          dest: isoDest
+        })
+      })
+
+      if (!isoResponse.ok) {
+        const error = await isoResponse.json()
+        throw new Error(error.detail || 'Failed to download ISO')
+      }
+
+      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded! Remember to extract ISO.' }))
+
+      setTimeout(() => {
+        fetchCatalog()
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 3000)
 
     } catch (error) {
       setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
@@ -454,7 +536,17 @@ function AssetManager() {
                       {/* ISO progress */}
                       {distro.supports_iso && distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
                         <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>ISO</div>
+                          <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>
+                            ISO
+                            {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracting' &&
+                              <span style={{ marginLeft: '8px', color: '#10b981' }}>(Extracting...)</span>
+                            }
+                            {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracted' &&
+                              <span style={{ marginLeft: '8px', color: '#10b981' }}>
+                                ✓ Extracted ({downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].file_count} files)
+                              </span>
+                            }
+                          </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
                             <span>{downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%</span>
                             <span>{(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].downloaded / 1024 / 1024).toFixed(0)} MB / {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].total / 1024 / 1024).toFixed(0)} MB</span>
@@ -519,7 +611,17 @@ function AssetManager() {
                     {/* Progress bar for SystemRescue */}
                     {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>SystemRescue ISO</div>
+                        <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>
+                          SystemRescue ISO
+                          {downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
+                            <span style={{ marginLeft: '8px', color: '#10b981' }}>(Extracting...)</span>
+                          }
+                          {downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
+                            <span style={{ marginLeft: '8px', color: '#10b981' }}>
+                              ✓ Extracted ({downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
+                            </span>
+                          }
+                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
                           <span>{downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
                           <span>
@@ -544,6 +646,91 @@ function AssetManager() {
                       disabled={!selectedSysrescueVersion || downloading['systemrescue-' + selectedSysrescueVersion?.version]}
                     >
                       {downloading['systemrescue-' + selectedSysrescueVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Loading versions...</p>
+              )}
+            </div>
+
+            {/* Kaspersky Rescue Disk Version Selector */}
+            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
+              <h4>🛡️ Kaspersky Rescue Disk</h4>
+              <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+                Select a version to download (ISO will need to be extracted)
+              </p>
+              {kasperskyVersions.length > 0 ? (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>
+                      Version
+                    </label>
+                    <select
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        fontSize: '14px'
+                      }}
+                      value={selectedKasperskyVersion?.version || ''}
+                      onChange={(e) => {
+                        const version = kasperskyVersions.find(v => v.version === e.target.value)
+                        setSelectedKasperskyVersion(version)
+                      }}
+                    >
+                      {kasperskyVersions.map(v => (
+                        <option key={v.version} value={v.version}>
+                          {v.name} ({v.size_est})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedKasperskyVersion?.notes && (
+                      <div style={{ fontSize: '11px', marginTop: '4px', color: '#6b7280' }}>
+                        ℹ️ {selectedKasperskyVersion.notes}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ minWidth: '300px' }}>
+                    {/* Progress bar for Kaspersky */}
+                    {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '2px', color: '#6b7280' }}>
+                          Kaspersky ISO
+                          {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracting' &&
+                            <span style={{ marginLeft: '8px', color: '#f59e0b' }}>(Extracting...)</span>
+                          }
+                          {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracted' &&
+                            <span style={{ marginLeft: '8px', color: '#10b981' }}>
+                              ✓ Extracted ({downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].file_count} files)
+                            </span>
+                          }
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                          <span>{downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%</span>
+                          <span>
+                            {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].downloaded / 1024 / 1024).toFixed(0)} MB /
+                            {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].total / 1024 / 1024).toFixed(0)} MB
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: '#e5e7eb', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%`, height: '100%', background: '#f59e0b', transition: 'width 0.3s' }}></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version] && (
+                      <div className="download-status" style={{ marginBottom: '8px' }}>
+                        {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version]}
+                      </div>
+                    )}
+                    <button
+                      className="btn btn-primary"
+                      onClick={downloadKaspersky}
+                      disabled={!selectedKasperskyVersion || downloading['kaspersky-' + selectedKasperskyVersion?.version]}
+                    >
+                      {downloading['kaspersky-' + selectedKasperskyVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
                     </button>
                   </div>
                 </div>

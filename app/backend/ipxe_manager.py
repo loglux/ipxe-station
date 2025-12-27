@@ -609,7 +609,10 @@ class iPXEGenerator:
                 # Determine kernel URL
                 if entry.kernel:
                     kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
-                    script_lines.append(f"kernel {kernel_url} {entry.cmdline}".strip())
+                    # Substitute variables in cmdline (${server_ip}, ${port})
+                    cmdline = entry.cmdline if entry.cmdline else ""
+                    cmdline = cmdline.replace('${server_ip}', menu.server_ip).replace('${port}', str(menu.http_port))
+                    script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
                 # Add initrd if provided
                 if entry.initrd:

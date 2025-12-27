@@ -8,11 +8,14 @@ import PropertyPanel from './components/PropertyPanel/PropertyPanel'
 import AssetManager from './components/AssetManager/AssetManager'
 import DHCPHelper from './components/DHCPHelper/DHCPHelper'
 import AddEntryWizard from './components/Wizard/AddEntryWizard'
+import Settings from './components/Settings/Settings'
+import Monitoring from './components/Monitoring/Monitoring'
 
 function App() {
   const [activeTab, setActiveTab] = useState('builder')
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
   const [menuTitle, setMenuTitle] = useState('PXE Boot Menu')
   const [menuTimeout, setMenuTimeout] = useState(30000)
@@ -21,33 +24,86 @@ function App() {
   const [generatedScript, setGeneratedScript] = useState('')
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
-  const [entries, setEntries] = useState([
-    // Starter menu with submenus
-    {
-      name: 'linux',
-      title: 'Linux',
-      entry_type: 'submenu',
-      enabled: true,
-      order: 1,
-      parent: null,
-    },
-    {
-      name: 'windows',
-      title: 'Windows',
-      entry_type: 'submenu',
-      enabled: true,
-      order: 2,
-      parent: null,
-    },
-    {
-      name: 'tools',
-      title: 'Rescue & Tools',
-      entry_type: 'submenu',
-      enabled: true,
-      order: 3,
-      parent: null,
-    },
-  ])
+  const [entries, setEntries] = useState([])
+  const [menuLoaded, setMenuLoaded] = useState(false)
+
+  // Load saved menu structure on mount
+  useEffect(() => {
+    const loadMenu = async () => {
+      try {
+        const response = await fetch('/api/ipxe/menu/structure')
+        const data = await response.json()
+
+        if (data.success && data.menu) {
+          // Load saved menu
+          setEntries(data.menu.entries || [])
+          setMenuTitle(data.menu.title || 'PXE Boot Menu')
+          setMenuTimeout(data.menu.timeout || 30000)
+        } else {
+          // No saved menu, use default starter structure
+          setEntries([
+            {
+              name: 'linux',
+              title: 'Linux',
+              entry_type: 'submenu',
+              enabled: true,
+              order: 1,
+              parent: null,
+            },
+            {
+              name: 'windows',
+              title: 'Windows',
+              entry_type: 'submenu',
+              enabled: true,
+              order: 2,
+              parent: null,
+            },
+            {
+              name: 'tools',
+              title: 'Rescue & Tools',
+              entry_type: 'submenu',
+              enabled: true,
+              order: 3,
+              parent: null,
+            },
+          ])
+        }
+        setMenuLoaded(true)
+      } catch (error) {
+        console.error('Failed to load menu:', error)
+        // Fallback to default starter structure
+        setEntries([
+          {
+            name: 'linux',
+            title: 'Linux',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 1,
+            parent: null,
+          },
+          {
+            name: 'windows',
+            title: 'Windows',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 2,
+            parent: null,
+          },
+          {
+            name: 'tools',
+            title: 'Rescue & Tools',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 3,
+            parent: null,
+          },
+        ])
+        setMenuLoaded(true)
+      }
+    }
+
+    loadMenu()
+  }, [])
 
   const addEntry = (newEntry) => {
     setEntries(prev => [...prev, { ...newEntry, order: prev.length }])
@@ -70,6 +126,10 @@ function App() {
     setGeneratingScript(true)
 
     try {
+      // Load settings to get correct server_ip and http_port
+      const settingsResponse = await fetch('/api/settings')
+      const settings = await settingsResponse.json()
+
       const menuData = {
         title: menuTitle,
         timeout: menuTimeout,
@@ -92,8 +152,8 @@ function App() {
         })),
         header_text: '',
         footer_text: '',
-        server_ip: 'localhost',
-        http_port: 8000,
+        server_ip: settings.server_ip || 'localhost',
+        http_port: settings.http_port || 8000,
       }
 
       const response = await fetch('/api/ipxe/generate', {
@@ -126,6 +186,10 @@ function App() {
     setSaveMessage(null)
 
     try {
+      // Load settings to get correct server_ip and http_port
+      const settingsResponse = await fetch('/api/settings')
+      const settings = await settingsResponse.json()
+
       // Convert entries to backend format
       const menuData = {
         title: menuTitle,
@@ -149,8 +213,8 @@ function App() {
         })),
         header_text: '',
         footer_text: '',
-        server_ip: 'localhost',
-        http_port: 8000,
+        server_ip: settings.server_ip || 'localhost',
+        http_port: settings.http_port || 8000,
       }
 
       const response = await fetch('/api/ipxe/menu/save', {
@@ -176,6 +240,62 @@ function App() {
     } finally {
       setSaving(false)
       // Clear message after 5 seconds
+      setTimeout(() => setSaveMessage(null), 5000)
+    }
+  }
+
+  const deleteMenu = async () => {
+    if (!confirm('Are you sure you want to delete the entire menu? This will remove both boot.ipxe and menu.json files. This action cannot be undone.')) {
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/ipxe/menu', {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSaveMessage({ type: 'success', text: `✅ ${result.message}` })
+        // Reset to default starter structure
+        setEntries([
+          {
+            name: 'linux',
+            title: 'Linux',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 1,
+            parent: null,
+          },
+          {
+            name: 'windows',
+            title: 'Windows',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 2,
+            parent: null,
+          },
+          {
+            name: 'tools',
+            title: 'Rescue & Tools',
+            entry_type: 'submenu',
+            enabled: true,
+            order: 3,
+            parent: null,
+          },
+        ])
+        setMenuTitle('PXE Boot Menu')
+        setMenuTimeout(30000)
+        setSelectedEntryId(null)
+      } else {
+        setSaveMessage({ type: 'error', text: `❌ ${result.message}` })
+      }
+    } catch (error) {
+      setSaveMessage({ type: 'error', text: `❌ Failed to delete: ${error.message}` })
+    } finally {
+      setSaving(false)
       setTimeout(() => setSaveMessage(null), 5000)
     }
   }
@@ -213,7 +333,15 @@ function App() {
               {saveMessage.text}
             </div>
           )}
-          <button className="btn btn-secondary">⚙️ Settings</button>
+          <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>⚙️ Settings</button>
+          <button
+            className="btn btn-danger"
+            onClick={deleteMenu}
+            disabled={saving}
+            title="Delete entire menu (boot.ipxe and menu.json)"
+          >
+            🗑️ Delete Menu
+          </button>
           <button
             className="btn btn-primary"
             onClick={saveMenu}
@@ -277,6 +405,12 @@ function App() {
               onClick={() => setActiveTab('export')}
             >
               💾 Export
+            </button>
+            <button
+              className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
+              onClick={() => setActiveTab('monitoring')}
+            >
+              📊 Monitoring
             </button>
           </div>
 
@@ -369,6 +503,10 @@ function App() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'monitoring' && (
+              <Monitoring />
+            )}
           </div>
         </main>
 
@@ -410,6 +548,11 @@ function App() {
         }}
         entries={entries}
         initialCategory={wizardInitialCategory}
+      />
+
+      <Settings
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   )

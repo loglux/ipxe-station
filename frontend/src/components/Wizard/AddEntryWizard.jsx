@@ -49,6 +49,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         versions = catalog.debian || []
       } else if (selectedScenario.includes('systemrescue')) {
         versions = catalog.rescue || []
+      } else if (selectedScenario.includes('kaspersky')) {
+        // Kaspersky has its own catalog entry
+        versions = catalog.kaspersky || []
       }
 
       // Filter to only versions that have required files
