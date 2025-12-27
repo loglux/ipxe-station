@@ -1,0 +1,240 @@
+.boot-files {
+  padding: 20px;
+  height: 100%;
+  overflow: auto;
+}
+
+.boot-files-loading {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+
+.boot-files-layout {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 20px;
+  height: 100%;
+}
+
+.boot-files-editor,
+.boot-files-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.section h2 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.section-description {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.message {
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.message.success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Template Selector */
+.template-selector {
+  margin-bottom: 16px;
+}
+
+.template-selector label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.template-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.template-btn {
+  padding: 8px 16px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.template-btn:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.template-btn.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+}
+
+.template-info {
+  padding: 12px;
+  background: #f8f9fa;
+  border-left: 3px solid #2563eb;
+  margin-bottom: 16px;
+  border-radius: 4px;
+}
+
+.template-info strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #2563eb;
+}
+
+.template-info p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Code Editor */
+.code-editor {
+  margin-bottom: 16px;
+}
+
+.code-editor textarea {
+  width: 100%;
+  min-height: 300px;
+  padding: 12px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  resize: vertical;
+  background: #f8f9fa;
+}
+
+.code-editor textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: white;
+}
+
+/* Actions */
+.editor-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Boot Files List */
+.files-table {
+  overflow-x: auto;
+}
+
+.files-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.files-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.files-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: #495057;
+}
+
+.files-table td {
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 14px;
+}
+
+.files-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.file-icon {
+  margin-right: 8px;
+}
+
+.file-date {
+  color: #666;
+  font-size: 13px;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .boot-files-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .boot-files-list {
+    margin-top: 20px;
+  }
+}

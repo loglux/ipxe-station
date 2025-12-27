@@ -20,6 +20,37 @@ app = FastAPI(title="iPXE Station", description="Network Boot Server")
 # Global dictionary to track download progress
 download_progress = {}
 
+# HTTP Request Logging Middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log HTTP requests to monitoring system."""
+    # Skip logging for monitoring endpoints to avoid noise
+    if not request.url.path.startswith("/api/monitoring"):
+        from datetime import datetime
+        start_time = datetime.now()
+
+        response = await call_next(request)
+
+        # Log significant requests (not static assets)
+        if not request.url.path.startswith(("/ui/", "/status")):
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+
+            # Determine log level based on status code
+            level = "info"
+            if response.status_code >= 400:
+                level = "warning" if response.status_code < 500 else "error"
+
+            # Log the request
+            message = f"{request.method} {request.url.path} - {response.status_code} ({duration_ms:.0f}ms)"
+            if request.client:
+                message = f"{request.client.host} - {message}"
+
+            add_log("http", level, message)
+
+        return response
+    else:
+        return await call_next(request)
+
 # In-memory log storage for monitoring
 SYSTEM_LOGS = []
 MAX_LOGS = 1000
@@ -461,6 +492,190 @@ def save_menu(menu: IpxeMenuModel):
 
 
 app.include_router(ipxe_router)
+
+
+# ==============================================================================
+# BOOT FILES MANAGEMENT
+# ==============================================================================
+
+boot_router = APIRouter(prefix="/api/boot", tags=["boot"])
+
+# Templates for autoexec.ipxe
+AUTOEXEC_TEMPLATES = {
+    "direct": {
+        "name": "Direct Boot (HTTP with TFTP fallback)",
+        "description": "Fastest - loads boot menu directly via HTTP with TFTP fallback",
+        "content": """#!ipxe
+dhcp || echo DHCP failed, trying static config...
+echo Loading PXE boot menu...
+chain http://${next-server}:${http-port}/ipxe/boot.ipxe || chain tftp://${next-server}/boot.ipxe
+"""
+    },
+    "chainload": {
+        "name": "Chainload Full iPXE",
+        "description": "For limited PXE ROMs - loads full-featured iPXE first",
+        "content": """#!ipxe
+dhcp || echo DHCP failed...
+echo Loading full iPXE...
+chain tftp://${next-server}/undionly.kpxe || chain tftp://${next-server}/ipxe.efi
+"""
+    },
+    "custom": {
+        "name": "Custom Script",
+        "description": "Write your own iPXE script",
+        "content": """#!ipxe
+# Custom iPXE script
+# Available variables: ${next-server}, ${http-port}
+
+dhcp
+
+# Your code here
+"""
+    }
+}
+
+
+@boot_router.get("/autoexec")
+def get_autoexec():
+    """Get current autoexec.ipxe content."""
+    autoexec_path = TFTP_ROOT / "autoexec.ipxe"
+
+    if not autoexec_path.exists():
+        return {
+            "exists": False,
+            "content": "",
+            "message": "autoexec.ipxe not found"
+        }
+
+    try:
+        with open(autoexec_path, 'r') as f:
+            content = f.read()
+
+        return {
+            "exists": True,
+            "content": content,
+            "path": str(autoexec_path)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read autoexec.ipxe: {str(e)}")
+
+
+@boot_router.post("/autoexec")
+def save_autoexec(request: Request):
+    """Save autoexec.ipxe content."""
+    import json
+
+    autoexec_path = TFTP_ROOT / "autoexec.ipxe"
+
+    try:
+        # Get request body
+        body = request._body
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+
+        data = json.loads(body) if isinstance(body, str) else body
+        content = data.get("content", "")
+
+        # Save file
+        with open(autoexec_path, 'w') as f:
+            f.write(content)
+
+        # Set executable permission
+        os.chmod(autoexec_path, 0o755)
+
+        add_log("system", "info", f"autoexec.ipxe saved ({len(content)} bytes)")
+
+        return {
+            "success": True,
+            "message": "autoexec.ipxe saved successfully",
+            "path": str(autoexec_path),
+            "size": len(content)
+        }
+    except Exception as e:
+        add_log("system", "error", f"Failed to save autoexec.ipxe: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save autoexec.ipxe: {str(e)}")
+
+
+class AutoexecTemplateRequest(BaseModel):
+    template: str
+    next_server: str = "192.168.10.32"
+    http_port: int = 9021
+
+
+@boot_router.post("/autoexec/apply-template")
+def apply_autoexec_template(request: AutoexecTemplateRequest):
+    """Apply a template to autoexec.ipxe with variable substitution."""
+
+    if request.template not in AUTOEXEC_TEMPLATES:
+        raise HTTPException(status_code=400, detail=f"Unknown template: {request.template}")
+
+    template = AUTOEXEC_TEMPLATES[request.template]
+    content = template["content"]
+
+    # Substitute variables
+    content = content.replace("${next-server}", request.next_server)
+    content = content.replace("${http-port}", str(request.http_port))
+
+    autoexec_path = TFTP_ROOT / "autoexec.ipxe"
+
+    try:
+        with open(autoexec_path, 'w') as f:
+            f.write(content)
+
+        os.chmod(autoexec_path, 0o755)
+
+        add_log("system", "info", f"Applied template '{template['name']}' to autoexec.ipxe")
+
+        return {
+            "success": True,
+            "message": f"Applied template: {template['name']}",
+            "content": content,
+            "template": request.template
+        }
+    except Exception as e:
+        add_log("system", "error", f"Failed to apply template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to apply template: {str(e)}")
+
+
+@boot_router.get("/autoexec/templates")
+def get_autoexec_templates():
+    """Get available autoexec.ipxe templates."""
+    return {
+        "templates": {
+            key: {
+                "name": tpl["name"],
+                "description": tpl["description"]
+            }
+            for key, tpl in AUTOEXEC_TEMPLATES.items()
+        }
+    }
+
+
+@boot_router.get("/files")
+def get_boot_files():
+    """Get list of boot files in TFTP root."""
+    try:
+        boot_files = []
+
+        for file_path in TFTP_ROOT.glob("*"):
+            if file_path.is_file():
+                stat = file_path.stat()
+                boot_files.append({
+                    "name": file_path.name,
+                    "size": stat.st_size,
+                    "modified": stat.st_mtime,
+                    "executable": os.access(file_path, os.X_OK)
+                })
+
+        return {
+            "files": boot_files,
+            "path": str(TFTP_ROOT)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list boot files: {str(e)}")
+
+
+app.include_router(boot_router)
 
 
 @app.get("/api/assets")
@@ -1070,8 +1285,71 @@ async def get_metrics():
         return {"success": False, "error": str(e)}
 
 
+# ==============================================================================
+# SYSLOG INTEGRATION FOR TFTP LOGS
+# ==============================================================================
+
+# Track last read position in syslog
+syslog_position = 0
+syslog_monitor_running = False
+
+def parse_syslog_tftp():
+    """Parse syslog for TFTP entries and add to monitoring."""
+    global syslog_position
+
+    syslog_path = Path("/var/log/syslog")
+    if not syslog_path.exists():
+        return
+
+    try:
+        with open(syslog_path, 'r') as f:
+            # Seek to last position
+            f.seek(syslog_position)
+
+            for line in f:
+                # Parse TFTP log lines
+                if "in.tftpd" in line:
+                    # Extract timestamp, IP, and message
+                    parts = line.strip().split()
+                    if len(parts) >= 6:
+                        timestamp = " ".join(parts[0:2])
+                        message = " ".join(parts[5:])
+
+                        # Extract client IP if present
+                        client_ip = "unknown"
+                        if "RRQ from" in message:
+                            try:
+                                client_ip = message.split("RRQ from ")[1].split()[0]
+                                filename = message.split("filename ")[1] if "filename" in message else "unknown"
+                                add_log("tftp", "info", f"Download request from {client_ip}: {filename}")
+                            except:
+                                add_log("tftp", "info", message)
+                        elif "tftp:" in message:
+                            add_log("tftp", "warning", message)
+                        else:
+                            add_log("tftp", "debug", message)
+
+            # Update position
+            syslog_position = f.tell()
+    except Exception as e:
+        print(f"Error parsing syslog: {e}")
+
+def syslog_monitor_thread():
+    """Background thread to monitor syslog."""
+    global syslog_monitor_running
+    syslog_monitor_running = True
+
+    while syslog_monitor_running:
+        parse_syslog_tftp()
+        time.sleep(2)  # Check every 2 seconds
+
+# Start syslog monitor in background
+monitor_thread = threading.Thread(target=syslog_monitor_thread, daemon=True)
+monitor_thread.start()
+
 # Add initial log entry
 add_log("system", "info", "iPXE Station monitoring initialized")
+add_log("system", "info", "TFTP log integration started")
 
 
 # Serve built frontend (Vite)

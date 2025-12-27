@@ -499,9 +499,8 @@ class iPXEGenerator:
         label = cls._menu_label(current)
         lines.extend([
             f":{label}",
-            "menu",
-            f"item --gap -- {title}",
-            "item --gap -- -------------------------------",
+            f"menu {title}",
+            f"item --gap -- -------------------------------",
         ])
 
         if current is not None:

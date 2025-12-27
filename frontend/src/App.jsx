@@ -10,6 +10,7 @@ import DHCPHelper from './components/DHCPHelper/DHCPHelper'
 import AddEntryWizard from './components/Wizard/AddEntryWizard'
 import Settings from './components/Settings/Settings'
 import Monitoring from './components/Monitoring/Monitoring'
+import BootFiles from './components/BootFiles/BootFiles'
 
 function App() {
   const [activeTab, setActiveTab] = useState('builder')
@@ -395,6 +396,12 @@ function App() {
               🌐 DHCP
             </button>
             <button
+              className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
+              onClick={() => setActiveTab('boot')}
+            >
+              🚀 Boot Files
+            </button>
+            <button
               className={`tab ${activeTab === 'preview' ? 'active' : ''}`}
               onClick={() => setActiveTab('preview')}
             >
@@ -460,6 +467,10 @@ function App() {
 
             {activeTab === 'dhcp' && (
               <DHCPHelper />
+            )}
+
+            {activeTab === 'boot' && (
+              <BootFiles />
             )}
 
             {activeTab === 'preview' && (
