@@ -401,7 +401,8 @@ def load_menu_structure():
                 "source": "json"
             }
         except Exception as e:
-            pass  # Fall through to boot.ipxe parsing
+            # Log error and fall through to boot.ipxe parsing
+            add_log("system", "warning", f"Failed to parse menu.json, falling back to boot.ipxe: {str(e)}")
 
     # If menu.json doesn't exist, try to parse boot.ipxe
     if boot_ipxe_path.exists():
@@ -1082,8 +1083,9 @@ def load_settings() -> SettingsModel:
             with open(SETTINGS_FILE, 'r') as f:
                 data = json.load(f)
                 return SettingsModel(**data)
-        except Exception:
-            pass
+        except Exception as e:
+            # Log error but return defaults to avoid breaking startup
+            add_log("system", "warning", f"Failed to load settings from {SETTINGS_FILE}: {str(e)}")
     return SettingsModel()
 
 
