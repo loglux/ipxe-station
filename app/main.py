@@ -349,14 +349,23 @@ def _parse_boot_ipxe(script_content: str) -> dict:
                         next_line = lines[j].strip()
 
                         if next_line.startswith('kernel '):
-                            entry['kernel'] = next_line.split(None, 1)[1].split()[0]
+                            parts = next_line.split(None, 1)
+                            if len(parts) >= 2:
+                                entry['kernel'] = parts[1].split()[0] if parts[1] else ''
                         elif next_line.startswith('initrd '):
-                            entry['initrd'] = next_line.split(None, 1)[1]
+                            parts = next_line.split(None, 1)
+                            if len(parts) >= 2:
+                                entry['initrd'] = parts[1].strip()
                         elif next_line.startswith('imgargs '):
-                            # Extract cmdline from imgargs
-                            cmdline_match = re.search(r'imgargs\s+\w+\s+(.+)', next_line)
-                            if cmdline_match:
-                                entry['cmdline'] = cmdline_match.group(1).replace(' ---', '').strip()
+                            # Extract cmdline from imgargs (with validation)
+                            try:
+                                cmdline_match = re.search(r'imgargs\s+\w+\s+(.+)', next_line)
+                                if cmdline_match:
+                                    # Remove --- separator and strip whitespace
+                                    entry['cmdline'] = cmdline_match.group(1).replace(' ---', '').strip()
+                            except (IndexError, AttributeError):
+                                # Malformed imgargs line, skip it
+                                pass
                         elif next_line.startswith('boot'):
                             break
                         elif next_line.startswith(':'):
