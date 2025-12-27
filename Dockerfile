@@ -64,7 +64,7 @@ RUN chmod +x /app/setup-volumes.sh /app/start.sh
 RUN echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
 # Expose ports
-EXPOSE 69/udp 8000 9005
+EXPOSE 69/udp 9021 9005
 
 # Change working directory back to /app for running the application
 WORKDIR /app
@@ -76,8 +76,9 @@ CMD ["/app/start.sh"]
 VOLUME ["/srv/tftp", "/srv/http", "/srv/ipxe", "/srv/dhcp"]
 
 # Health check
+# Uses UVICORN_PORT (default 9021) for health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/status || exit 1
+    CMD curl -f http://localhost:9021/status || exit 1
 
 # Labels for metadata
 LABEL maintainer="iPXE Station Team"

@@ -100,21 +100,43 @@ app.mount("/http", StaticFiles(directory=str(HTTP_ROOT)), name="http")
 @app.head("/ipxe/{filename}")
 async def serve_ipxe(filename: str):
     """Serve iPXE files"""
-    file_path = IPXE_ROOT / filename
-    if file_path.exists():
-        return FileResponse(
-            file_path,
-        media_type="text/plain",
-        headers={"Cache-Control": "no-cache"})
+    try:
+        # Construct and resolve path
+        file_path = (IPXE_ROOT / filename).resolve()
+        ipxe_root_resolved = IPXE_ROOT.resolve()
+
+        # Validate path is within IPXE_ROOT (prevent directory traversal)
+        file_path.relative_to(ipxe_root_resolved)
+
+        if file_path.exists():
+            return FileResponse(
+                file_path,
+            media_type="text/plain",
+            headers={"Cache-Control": "no-cache"})
+    except (ValueError, OSError):
+        # Path traversal attempt or invalid path
+        pass
+
     return Response("File not found", status_code=404)
 
 # Mount TFTP files (for HTTP access if needed)
 @app.get("/tftp/{filename}")
 async def serve_tftp(filename: str):
     """Serve TFTP files via HTTP"""
-    file_path = TFTP_ROOT / filename
-    if file_path.exists():
-        return FileResponse(file_path)
+    try:
+        # Construct and resolve path
+        file_path = (TFTP_ROOT / filename).resolve()
+        tftp_root_resolved = TFTP_ROOT.resolve()
+
+        # Validate path is within TFTP_ROOT (prevent directory traversal)
+        file_path.relative_to(tftp_root_resolved)
+
+        if file_path.exists():
+            return FileResponse(file_path)
+    except (ValueError, OSError):
+        # Path traversal attempt or invalid path
+        pass
+
     return Response("File not found", status_code=404)
 
 @app.get("/")
@@ -1069,20 +1091,20 @@ def save_settings(settings: SettingsModel):
     """Save settings to file."""
     import json
     with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings.dict(), f, indent=2)
+        json.dump(settings.model_dump(), f, indent=2)
 
 
 @app.get("/api/settings")
 def get_settings():
     """Get current settings."""
-    return load_settings().dict()
+    return load_settings().model_dump()
 
 
 @app.post("/api/settings")
 def update_settings(settings: SettingsModel):
     """Update and save settings."""
     save_settings(settings)
-    return {"success": True, "settings": settings.dict()}
+    return {"success": True, "settings": settings.model_dump()}
 
 
 @app.get("/api/network/detect")
@@ -1363,6 +1385,6 @@ else:
 if __name__ == "__main__":
     import uvicorn
     print("Starting server...")
-    port = int(os.getenv("UVICORN_PORT", "8000"))
+    port = int(os.getenv("UVICORN_PORT", "9021"))
     host = os.getenv("UVICORN_HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port)
