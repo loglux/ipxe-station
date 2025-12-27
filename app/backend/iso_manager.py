@@ -47,10 +47,48 @@ class ISOManager:
         }
 
     def get_iso_dir(self, folder_name: str) -> Path:
-        """Get directory path for specific ISO folder"""
-        # Sanitize folder name
-        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name)
-        return self.base_path / safe_name
+        """
+        Get directory path for specific ISO folder.
+
+        Validates that the resulting path is within base_path to prevent
+        directory traversal attacks.
+
+        Raises:
+            ValueError: If folder_name is empty or results in invalid path
+        """
+        # Validate input
+        if not folder_name or not folder_name.strip():
+            raise ValueError("Folder name cannot be empty")
+
+        # Sanitize folder name (replace non-alphanumeric chars except - and _)
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name.strip())
+
+        # Ensure safe_name is not empty after sanitization
+        if not safe_name or safe_name == '_':
+            raise ValueError(f"Invalid folder name: '{folder_name}'")
+
+        # Construct path
+        target_path = self.base_path / safe_name
+
+        # Resolve to absolute path and validate it's within base_path
+        try:
+            resolved_target = target_path.resolve()
+            resolved_base = self.base_path.resolve()
+
+            # Check if target is within base_path
+            # Use is_relative_to() if Python 3.9+, otherwise manual check
+            try:
+                resolved_target.relative_to(resolved_base)
+            except ValueError:
+                raise ValueError(
+                    f"Path traversal attempt detected: '{folder_name}' "
+                    f"resolves outside base directory"
+                )
+
+        except Exception as e:
+            raise ValueError(f"Invalid path for folder '{folder_name}': {e}")
+
+        return target_path
 
     @safe_operation("ISO download")
     def download_iso_from_url(self, url: str, folder_name: str, display_name: str,
@@ -275,7 +313,10 @@ class ISOManager:
 
     def delete_iso(self, folder_name: str) -> str:
         """Delete ISO and its directory"""
-        iso_dir = self.get_iso_dir(folder_name)
+        try:
+            iso_dir = self.get_iso_dir(folder_name)
+        except ValueError as e:
+            return f"❌ Invalid folder name: {e}"
 
         if not iso_dir.exists():
             return f"ℹ️ ISO folder '{folder_name}' does not exist"
@@ -317,9 +358,13 @@ class ISOManager:
             total_size += iso['size_gb']
 
             # Check if files were extracted
-            iso_dir = self.get_iso_dir(iso['folder_name'])
-            if (iso_dir / "vmlinuz").exists() or (iso_dir / "initrd").exists():
-                extracted_count += 1
+            try:
+                iso_dir = self.get_iso_dir(iso['folder_name'])
+                if (iso_dir / "vmlinuz").exists() or (iso_dir / "initrd").exists():
+                    extracted_count += 1
+            except ValueError:
+                # Skip invalid folder names (shouldn't happen with existing ISOs)
+                continue
 
         summary.append(f"📁 Total ISOs: {len(isos)}")
         summary.append(f"💾 Total size: {total_size:.1f} GB")
@@ -531,7 +576,10 @@ class ISOManager:
 
     def _get_single_iso_status(self, folder_name: str) -> str:
         """Get status for single ISO"""
-        iso_dir = self.get_iso_dir(folder_name)
+        try:
+            iso_dir = self.get_iso_dir(folder_name)
+        except ValueError as e:
+            return f"❌ Invalid folder name: {e}"
 
         if not iso_dir.exists():
             return f"❌ ISO folder '{folder_name}' not found"
