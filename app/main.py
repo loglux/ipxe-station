@@ -17,8 +17,9 @@ import time
 
 app = FastAPI(title="iPXE Station", description="Network Boot Server")
 
-# Global dictionary to track download progress
+# Global dictionary to track download progress (with thread safety)
 download_progress = {}
+download_progress_lock = threading.Lock()
 
 # HTTP Request Logging Middleware
 @app.middleware("http")
@@ -748,12 +749,13 @@ def download_asset(request: DownloadRequest):
             total_size = int(r.headers.get('content-length', 0))
 
             # Initialize progress tracking
-            download_progress[progress_key] = {
-                "downloaded": 0,
-                "total": total_size,
-                "percentage": 0,
-                "status": "downloading"
-            }
+            with download_progress_lock:
+                download_progress[progress_key] = {
+                    "downloaded": 0,
+                    "total": total_size,
+                    "percentage": 0,
+                    "status": "downloading"
+                }
 
             # Log download start
             add_log("download", "info", f"Started downloading {progress_key} ({total_size} bytes)")
@@ -768,27 +770,30 @@ def download_asset(request: DownloadRequest):
                         # Update progress every MB or so
                         if downloaded % (1024 * 1024) < 8192 or downloaded == total_size:
                             percentage = (downloaded / total_size * 100) if total_size > 0 else 0
-                            download_progress[progress_key] = {
-                                "downloaded": downloaded,
-                                "total": total_size,
-                                "percentage": round(percentage, 1),
-                                "status": "downloading"
-                            }
+                            with download_progress_lock:
+                                download_progress[progress_key] = {
+                                    "downloaded": downloaded,
+                                    "total": total_size,
+                                    "percentage": round(percentage, 1),
+                                    "status": "downloading"
+                                }
 
             # Mark download as complete
-            download_progress[progress_key] = {
-                "downloaded": downloaded,
-                "total": total_size,
-                "percentage": 100,
-                "status": "complete"
-            }
+            with download_progress_lock:
+                download_progress[progress_key] = {
+                    "downloaded": downloaded,
+                    "total": total_size,
+                    "percentage": 100,
+                    "status": "complete"
+                }
 
             # Log download completion
             add_log("download", "info", f"Completed downloading {progress_key} ({downloaded} bytes)")
 
             # Auto-extract ISO files
             if target.suffix.lower() == '.iso':
-                download_progress[progress_key]["status"] = "extracting"
+                with download_progress_lock:
+                    download_progress[progress_key]["status"] = "extracting"
                 add_log("download", "info", f"Starting ISO extraction for {progress_key}")
 
                 # Determine extraction directory (same as ISO parent folder)
@@ -798,22 +803,25 @@ def download_asset(request: DownloadRequest):
                 extraction_result = _extract_full_iso(target, extract_dir)
 
                 if extraction_result["success"]:
-                    download_progress[progress_key]["status"] = "extracted"
-                    download_progress[progress_key]["file_count"] = extraction_result.get("file_count", 0)
+                    with download_progress_lock:
+                        download_progress[progress_key]["status"] = "extracted"
+                        download_progress[progress_key]["file_count"] = extraction_result.get("file_count", 0)
                     add_log("download", "info", f"Extracted {extraction_result.get('file_count', 0)} files from {progress_key}")
                 else:
-                    download_progress[progress_key]["status"] = "extraction_failed"
-                    download_progress[progress_key]["extraction_error"] = extraction_result.get("error", "Unknown error")
+                    with download_progress_lock:
+                        download_progress[progress_key]["status"] = "extraction_failed"
+                        download_progress[progress_key]["extraction_error"] = extraction_result.get("error", "Unknown error")
                     add_log("download", "error", f"ISO extraction failed for {progress_key}: {extraction_result.get('error', 'Unknown error')}")
 
     except Exception as exc:
-        download_progress[progress_key] = {
-            "downloaded": 0,
-            "total": 0,
-            "percentage": 0,
-            "status": "error",
-            "error": str(exc)
-        }
+        with download_progress_lock:
+            download_progress[progress_key] = {
+                "downloaded": 0,
+                "total": 0,
+                "percentage": 0,
+                "status": "error",
+                "error": str(exc)
+            }
         add_log("download", "error", f"Download failed for {progress_key}: {str(exc)}")
         raise HTTPException(status_code=500, detail=f"Download failed: {exc}")
 
@@ -823,10 +831,11 @@ def download_asset(request: DownloadRequest):
 @app.get("/api/assets/download/progress/{file_path:path}")
 def get_download_progress(file_path: str):
     """Get download progress for a specific file."""
-    if file_path in download_progress:
-        return download_progress[file_path]
-    else:
-        return {"status": "not_found"}
+    with download_progress_lock:
+        if file_path in download_progress:
+            return download_progress[file_path].copy()
+        else:
+            return {"status": "not_found"}
 
 
 @app.get("/api/assets/download/progress")
@@ -1290,8 +1299,9 @@ async def get_metrics():
         disk_used = stat.used
         disk_free = stat.free
 
-        # Count active downloads
-        active_downloads = len([k for k, v in download_progress.items() if v.get("status") == "downloading"])
+        # Count active downloads (with thread safety)
+        with download_progress_lock:
+            active_downloads = len([k for k, v in download_progress.items() if v.get("status") == "downloading"])
 
         # Total requests (we don't track this yet, placeholder)
         total_requests = 0
