@@ -393,8 +393,9 @@ def load_menu_structure():
             try:
                 with open(menu_json_path, 'w') as f:
                     json.dump(menu_data, f, indent=2)
-            except Exception:
-                pass  # Don't fail if we can't save
+            except Exception as e:
+                # Log the error but don't fail the parsing operation
+                add_log("system", "warning", f"Failed to save menu.json: {str(e)}")
 
             return {
                 "success": True,
