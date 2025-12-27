@@ -570,7 +570,7 @@ class iPXEGenerator:
         # Add header text if provided
         if menu.header_text:
             script_lines.extend([
-                f"echo {menu.header_text}",
+                f"echo {iPXEGenerator._escape_echo_text(menu.header_text)}",
                 "sleep 2",
                 ""
             ])
@@ -592,12 +592,12 @@ class iPXEGenerator:
             if entry.entry_type == "boot" and entry.kernel:
                 script_lines.extend([
                     f":{entry.name}",
-                    f"echo Booting {entry.title}...",
+                    f"echo Booting {iPXEGenerator._escape_echo_text(entry.title)}...",
                 ])
 
                 # Add description and requirements info
                 if entry.description:
-                    script_lines.append(f"echo {entry.description}")
+                    script_lines.append(f"echo {iPXEGenerator._escape_echo_text(entry.description)}")
 
                 if entry.requires_internet:
                     script_lines.append("echo Note: Internet connection required")
@@ -627,7 +627,7 @@ class iPXEGenerator:
             elif entry.entry_type == "chain" and entry.url:
                 script_lines.extend([
                     f":{entry.name}",
-                    f"echo Chaining to {entry.title}...",
+                    f"echo Chaining to {iPXEGenerator._escape_echo_text(entry.title)}...",
                 ])
                 chain_target = iPXEGenerator._resolve_kernel_url(entry.url, menu.server_ip, menu.http_port)
                 script_lines.extend([
@@ -675,7 +675,7 @@ class iPXEGenerator:
         if menu.footer_text:
             script_lines.extend([
                 "",
-                f"echo {menu.footer_text}",
+                f"echo {iPXEGenerator._escape_echo_text(menu.footer_text)}",
             ])
 
         return "\n".join(script_lines)
@@ -693,6 +693,34 @@ class iPXEGenerator:
         else:
             # Relative path - convert to HTTP URL
             return f"http://{server_ip}:{port}/{path.lstrip('/')}"
+
+    @staticmethod
+    def _escape_echo_text(text: str) -> str:
+        """
+        Escape text for safe use in iPXE echo statements.
+
+        - Replaces newlines with spaces (iPXE echo doesn't support multiline)
+        - Escapes ${} to prevent variable expansion
+        - Strips control characters
+        """
+        if not text:
+            return ""
+
+        # Replace newlines and other control chars with space
+        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+
+        # Escape ${} variable expansion by replacing $ with $$
+        # (iPXE uses $$ to represent literal $)
+        text = text.replace('${', '$${')
+
+        # Remove other control characters
+        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+
+        # Collapse multiple spaces
+        import re
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        return text
 
     @staticmethod
     def generate_grub_config(menu: iPXEMenu) -> str:
