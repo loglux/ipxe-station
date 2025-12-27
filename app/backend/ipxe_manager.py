@@ -723,6 +723,59 @@ class iPXEGenerator:
         return text
 
     @staticmethod
+    def _escape_grub_single_quoted(text: str) -> str:
+        """
+        Escape text for use in GRUB single-quoted strings.
+
+        In GRUB, single quotes prevent variable expansion but don't escape
+        single quotes themselves. To include a literal single quote, use: '\''
+
+        Example: "It's test" -> "It'\''s test"
+        """
+        if not text:
+            return ""
+
+        # Replace single quote with '\'' (end quote, escaped quote, start quote)
+        text = text.replace("'", "'\\''")
+
+        # Remove control characters (newlines, tabs, etc.)
+        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+
+        # Collapse multiple spaces
+        import re
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        return text
+
+    @staticmethod
+    def _escape_grub_argument(text: str) -> str:
+        """
+        Escape text for use as GRUB command argument (kernel, initrd paths, cmdline).
+
+        Escapes shell special characters that could cause issues in GRUB commands.
+        Note: Spaces are NOT escaped as they're natural argument separators in cmdline.
+        """
+        if not text:
+            return ""
+
+        # Remove newlines and control characters (replace with space)
+        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+
+        # Escape shell special characters with backslash
+        # Characters that need escaping in GRUB: $, `, \, ", ;, &, |, <, >, (, ), {, }
+        # Note: Space is NOT escaped as it's the natural separator for kernel arguments
+        special_chars = ['$', '`', '\\', '"', ';', '&', '|', '<', '>', '(', ')', '{', '}']
+        for char in special_chars:
+            text = text.replace(char, '\\' + char)
+
+        # Collapse multiple spaces
+        import re
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        return text
+
+    @staticmethod
     def generate_grub_config(menu: iPXEMenu) -> str:
         """Generate GRUB configuration (for comparison/fallback)"""
         grub_lines = [
@@ -737,14 +790,22 @@ class iPXEGenerator:
         boot_entries = [entry for entry in menu.entries if entry.enabled and entry.entry_type == "boot"]
 
         for i, entry in enumerate(boot_entries):
+            # Escape title for single-quoted strings
+            escaped_title = iPXEGenerator._escape_grub_single_quoted(entry.title)
+
+            # Escape kernel path and cmdline for command arguments
+            escaped_kernel = iPXEGenerator._escape_grub_argument(entry.kernel) if entry.kernel else ""
+            escaped_cmdline = iPXEGenerator._escape_grub_argument(entry.cmdline) if entry.cmdline else ""
+
             grub_lines.extend([
-                f"menuentry '{entry.title}' {{",
-                f"    echo 'Loading {entry.title}...'",
-                f"    linux {entry.kernel} {entry.cmdline}".strip(),
+                f"menuentry '{escaped_title}' {{",
+                f"    echo 'Loading {escaped_title}...'",
+                f"    linux {escaped_kernel} {escaped_cmdline}".strip(),
             ])
 
             if entry.initrd:
-                grub_lines.append(f"    initrd {entry.initrd}")
+                escaped_initrd = iPXEGenerator._escape_grub_argument(entry.initrd)
+                grub_lines.append(f"    initrd {escaped_initrd}")
 
             grub_lines.extend([
                 "}",
