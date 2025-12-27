@@ -623,7 +623,7 @@ def save_autoexec(request: Request):
 
 class AutoexecTemplateRequest(BaseModel):
     template: str
-    next_server: str = "192.168.10.32"
+    next_server: str = os.getenv("PXE_SERVER_IP", "192.168.1.1")  # Default to common router IP
     http_port: int = 9021
 
 
@@ -1070,7 +1070,7 @@ def get_kaspersky_versions():
 
 # Settings management
 class SettingsModel(BaseModel):
-    server_ip: str = "192.168.10.32"
+    server_ip: str = os.getenv("PXE_SERVER_IP", "192.168.1.1")  # Default to common router IP
     http_port: int = 9021
     tftp_port: int = 69
     default_timeout: int = 30000  # milliseconds
