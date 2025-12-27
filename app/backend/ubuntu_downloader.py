@@ -347,8 +347,9 @@ class UbuntuDownloader:
         try:
             shutil.rmtree(extract_dir)
             status += "🧹 Extraction directory cleaned up\n"
-        except:
-            pass
+        except Exception as e:
+            # Log but don't fail - cleanup is best-effort
+            status += f"⚠️ Failed to cleanup temp directory: {str(e)}\n"
 
         if kernel_found and initrd_found:
             status += "🎉 ISO extraction completed successfully!\n"

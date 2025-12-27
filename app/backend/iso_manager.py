@@ -447,8 +447,9 @@ class ISOManager:
         try:
             shutil.rmtree(extract_temp_dir)
             status += "🧹 Temporary extraction directory cleaned up\n"
-        except:
-            pass
+        except Exception as e:
+            # Log but don't fail - cleanup is best-effort
+            status += f"⚠️ Failed to cleanup temp directory: {str(e)}\n"
 
         return status
 

@@ -744,7 +744,8 @@ def download_asset(request: DownloadRequest):
     progress_key = str(target.relative_to(HTTP_ROOT))
 
     try:
-        with requests.get(request.url, stream=True, timeout=60) as r:
+        # Timeout: (connect=30s, read=600s) to handle large ISO downloads
+        with requests.get(request.url, stream=True, timeout=(30, 600)) as r:
             r.raise_for_status()
             total_size = int(r.headers.get('content-length', 0))
 
