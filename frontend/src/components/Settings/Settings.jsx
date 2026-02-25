@@ -47,7 +47,7 @@ export default function Settings({ isOpen, onClose }) {
         setMessage({ type: 'success', text: `Detected IP: ${data.detected_ip}` })
         setTimeout(() => setMessage(null), 3000)
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to detect IP address' })
       setTimeout(() => setMessage(null), 3000)
     } finally {
@@ -72,7 +72,7 @@ export default function Settings({ isOpen, onClose }) {
           onClose()
         }, 1500)
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save settings' })
       setTimeout(() => setMessage(null), 3000)
     } finally {

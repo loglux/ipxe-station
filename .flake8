@@ -1,0 +1,10 @@
+[flake8]
+max-line-length = 100
+select = E9, F63, F7, F82
+extend-ignore = E203, W503
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    frontend/node_modules,
+    frontend/dist

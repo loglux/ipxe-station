@@ -2,17 +2,16 @@
 
 import os
 
+
 def list_files(directory):
     """
     Return a list of filenames in the given directory.
     """
     try:
-        return [
-            f for f in os.listdir(directory)
-            if os.path.isfile(os.path.join(directory, f))
-        ]
+        return [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
     except Exception:
         return []
+
 
 def save_uploaded_file(file_obj, directory):
     """
@@ -24,6 +23,7 @@ def save_uploaded_file(file_obj, directory):
     with open(target_path, "wb") as out_file:
         out_file.write(file_obj.read())
     return target_path
+
 
 def delete_file(filename, directory):
     """

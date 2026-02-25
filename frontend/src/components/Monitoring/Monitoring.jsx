@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import './Monitoring.css'
 
 export default function Monitoring() {
@@ -20,32 +20,7 @@ export default function Monitoring() {
   })
   const logsEndRef = useRef(null)
 
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    if (autoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [logs, autoScroll])
-
-  // Load initial logs and start polling
-  useEffect(() => {
-    loadLogs()
-    loadServiceStatus()
-    loadMetrics()
-
-    // Poll for updates every 2 seconds
-    const interval = setInterval(() => {
-      if (!isPaused) {
-        loadLogs()
-        loadServiceStatus()
-        loadMetrics()
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [isPaused, logType, logLevel])
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       if (logType !== 'all') params.append('type', logType)
@@ -61,9 +36,9 @@ export default function Monitoring() {
     } catch (error) {
       console.error('Failed to load logs:', error)
     }
-  }
+  }, [logLevel, logType])
 
-  const loadServiceStatus = async () => {
+  const loadServiceStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/monitoring/services')
       const data = await response.json()
@@ -74,9 +49,9 @@ export default function Monitoring() {
     } catch (error) {
       console.error('Failed to load service status:', error)
     }
-  }
+  }, [])
 
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     try {
       const response = await fetch('/api/monitoring/metrics')
       const data = await response.json()
@@ -87,7 +62,36 @@ export default function Monitoring() {
     } catch (error) {
       console.error('Failed to load metrics:', error)
     }
-  }
+  }, [])
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (autoScroll && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logs, autoScroll])
+
+  // Load initial logs and start polling
+  useEffect(() => {
+    const runLoad = () => {
+      loadLogs()
+      loadServiceStatus()
+      loadMetrics()
+    }
+
+    const initialTimer = setTimeout(runLoad, 0)
+
+    const interval = setInterval(() => {
+      if (!isPaused) {
+        runLoad()
+      }
+    }, 2000)
+
+    return () => {
+      clearTimeout(initialTimer)
+      clearInterval(interval)
+    }
+  }, [isPaused, loadLogs, loadMetrics, loadServiceStatus])
 
   const clearLogs = async () => {
     if (confirm('Clear all logs? This cannot be undone.')) {

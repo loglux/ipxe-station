@@ -1,25 +1,27 @@
-from fastapi import FastAPI, Request, UploadFile, File, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response, RedirectResponse
 import os
-from pathlib import Path
-from fastapi import APIRouter
-from typing import List
 import shutil
-import requests
-
-from app.backend.ipxe_manager import iPXEManager
-from app.backend.ipxe_schema import IpxeMenuModel, model_to_menu
-from app.backend.dhcp_helper import DHCPConfigGenerator, DHCPConfig, DHCPValidator
-from pydantic import BaseModel
 import threading
 import time
+from pathlib import Path
+from typing import List
+from urllib.parse import urlparse
+
+import requests
+from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from app.backend.dhcp_helper import DHCPConfig, DHCPConfigGenerator, DHCPValidator
+from app.backend.ipxe_manager import iPXEManager
+from app.backend.ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
 
 app = FastAPI(title="iPXE Station", description="Network Boot Server")
 
 # Global dictionary to track download progress (with thread safety)
 download_progress = {}
 download_progress_lock = threading.Lock()
+
 
 # HTTP Request Logging Middleware
 @app.middleware("http")
@@ -28,6 +30,7 @@ async def log_requests(request: Request, call_next):
     # Skip logging for monitoring endpoints to avoid noise
     if not request.url.path.startswith("/api/monitoring"):
         from datetime import datetime
+
         start_time = datetime.now()
 
         response = await call_next(request)
@@ -52,6 +55,7 @@ async def log_requests(request: Request, call_next):
     else:
         return await call_next(request)
 
+
 # In-memory log storage for monitoring
 SYSTEM_LOGS = []
 MAX_LOGS = 1000
@@ -66,7 +70,7 @@ def add_log(log_type: str, level: str, message: str):
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "type": log_type,
         "level": level,
-        "message": message
+        "message": message,
     }
 
     SYSTEM_LOGS.append(log_entry)
@@ -93,8 +97,62 @@ TFTP_ROOT = BASE_ROOT / "tftp"
 for d in (HTTP_ROOT, IPXE_ROOT, TFTP_ROOT):
     d.mkdir(parents=True, exist_ok=True)
 
+
+def _resolve_within_root(
+    root: Path,
+    raw_path: str,
+    *,
+    allow_empty: bool = False,
+    fallback_name: str = "",
+    path_label: str = "path",
+) -> Path:
+    """Resolve a user-supplied path and ensure it stays inside root."""
+    value = (raw_path or "").strip()
+
+    if not value:
+        if fallback_name:
+            value = fallback_name
+        elif allow_empty:
+            return root.resolve()
+        else:
+            raise HTTPException(status_code=400, detail=f"Missing {path_label}")
+
+    candidate = Path(value)
+    if candidate.is_absolute():
+        raise HTTPException(
+            status_code=400, detail=f"Invalid {path_label}: absolute paths are not allowed"
+        )
+
+    resolved = (root / candidate).resolve()
+    root_resolved = root.resolve()
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid {path_label}: path escapes root directory"
+        )
+
+    return resolved
+
+
+def _validate_filename(filename: str) -> str:
+    """Validate uploaded filename and reject traversal attempts."""
+    value = (filename or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="Invalid filename: empty filename")
+
+    name = Path(value).name
+    if value != name or name in {".", ".."}:
+        raise HTTPException(
+            status_code=400, detail="Invalid filename: nested paths are not allowed"
+        )
+
+    return name
+
+
 # Mount static file serving for HTTP boot
 app.mount("/http", StaticFiles(directory=str(HTTP_ROOT)), name="http")
+
 
 # Mount iPXE files
 @app.get("/ipxe/{filename}")
@@ -111,14 +169,14 @@ async def serve_ipxe(filename: str):
 
         if file_path.exists():
             return FileResponse(
-                file_path,
-            media_type="text/plain",
-            headers={"Cache-Control": "no-cache"})
+                file_path, media_type="text/plain", headers={"Cache-Control": "no-cache"}
+            )
     except (ValueError, OSError):
         # Path traversal attempt or invalid path
         pass
 
     return Response("File not found", status_code=404)
+
 
 # Mount TFTP files (for HTTP access if needed)
 @app.get("/tftp/{filename}")
@@ -140,10 +198,12 @@ async def serve_tftp(filename: str):
 
     return Response("File not found", status_code=404)
 
+
 @app.get("/")
 async def root():
     """Redirect to React UI"""
     return RedirectResponse(url="/ui")
+
 
 @app.get("/status")
 async def status():
@@ -151,7 +211,7 @@ async def status():
     return {
         "tftp_files": len(list(TFTP_ROOT.glob("*"))),
         "http_files": len(list(HTTP_ROOT.rglob("*"))),
-        "ipxe_files": len(list(IPXE_ROOT.glob("*")))
+        "ipxe_files": len(list(IPXE_ROOT.glob("*"))),
     }
 
 
@@ -215,7 +275,9 @@ def _scan_distro_versions(prefix: str, base: Path):
             wim = f"{path.name}/{item.name}"
             break
 
-        results.append({"version": version, "kernel": kernel, "initrd": initrd, "iso": iso, "wim": wim})
+        results.append(
+            {"version": version, "kernel": kernel, "initrd": initrd, "iso": iso, "wim": wim}
+        )
     return results
 
 
@@ -224,8 +286,69 @@ ipxe_router = APIRouter(prefix="/api/ipxe", tags=["ipxe"])
 ipxe_manager = iPXEManager(config_path=IPXE_ROOT / "boot.ipxe")
 
 
+def _default_menu_structure() -> dict:
+    """Return backend-owned starter menu structure."""
+    settings = load_settings()
+    return {
+        "title": "PXE Boot Menu",
+        "timeout": settings.default_timeout,
+        "default_entry": None,
+        "entries": [
+            {
+                "name": "linux",
+                "title": "Linux",
+                "entry_type": "submenu",
+                "enabled": True,
+                "order": 1,
+                "parent": None,
+            },
+            {
+                "name": "windows",
+                "title": "Windows",
+                "entry_type": "submenu",
+                "enabled": True,
+                "order": 2,
+                "parent": None,
+            },
+            {
+                "name": "tools",
+                "title": "Rescue & Tools",
+                "entry_type": "submenu",
+                "enabled": True,
+                "order": 3,
+                "parent": None,
+            },
+        ],
+        "header_text": "",
+        "footer_text": "",
+        "server_ip": settings.server_ip,
+        "http_port": settings.http_port,
+    }
+
+
+def _apply_runtime_network_defaults(menu: IpxeMenuModel) -> IpxeMenuModel:
+    """Apply backend settings when client did not provide explicit network values."""
+    settings = load_settings()
+    updates = {}
+
+    if menu.server_ip in {"", "localhost", "127.0.0.1"}:
+        updates["server_ip"] = settings.server_ip
+
+    if menu.http_port in {0, 8000}:
+        updates["http_port"] = settings.http_port
+
+    return menu.model_copy(update=updates) if updates else menu
+
+
+@ipxe_router.get("/menu/default")
+def get_default_menu():
+    """Return backend-defined starter menu for thin clients."""
+    return {"success": True, "menu": _default_menu_structure(), "source": "default"}
+
+
 @ipxe_router.post("/validate")
 def validate_ipxe(menu: IpxeMenuModel):
+    menu = _apply_runtime_network_defaults(menu)
     menu_dc = model_to_menu(menu)
     is_valid, errors = ipxe_manager.validator.validate_menu(menu_dc)
     warnings = ipxe_manager.validator.lint_menu(menu_dc)
@@ -238,6 +361,7 @@ def validate_ipxe(menu: IpxeMenuModel):
 
 @ipxe_router.post("/generate")
 def generate_ipxe(menu: IpxeMenuModel):
+    menu = _apply_runtime_network_defaults(menu)
     menu_dc = model_to_menu(menu)
     is_valid, message, script_content = ipxe_manager.validate_and_generate(menu_dc)
     warnings = ipxe_manager.validator.lint_menu(menu_dc)
@@ -280,7 +404,7 @@ def _parse_boot_ipxe(script_content: str) -> dict:
     import re
 
     entries = []
-    lines = script_content.split('\n')
+    lines = script_content.split("\n")
 
     # Extract menu items from :start section
     in_start_menu = False
@@ -291,45 +415,45 @@ def _parse_boot_ipxe(script_content: str) -> dict:
     for line in lines:
         line = line.strip()
 
-        if line == ':start':
+        if line == ":start":
             in_start_menu = True
             continue
-        elif line.startswith(':submenu_'):
+        elif line.startswith(":submenu_"):
             in_submenu = line[1:]  # Remove ':' prefix
             current_submenu_items = []
             continue
-        elif line.startswith(':') and in_start_menu:
+        elif line.startswith(":") and in_start_menu:
             in_start_menu = False
-        elif line.startswith(':') and in_submenu:
+        elif line.startswith(":") and in_submenu:
             in_submenu = None
 
         # Parse menu item lines
-        if line.startswith('item ') and not line.startswith('item --gap'):
+        if line.startswith("item ") and not line.startswith("item --gap"):
             parts = line.split(None, 2)  # Split into max 3 parts
             if len(parts) >= 3:
                 name = parts[1]
                 title = parts[2]
 
                 # Check if it's a submenu (ends with -->)
-                is_submenu = title.endswith('-->')
+                is_submenu = title.endswith("-->")
                 if is_submenu:
                     title = title[:-3].strip()
 
                 # Determine entry type
                 if is_submenu:
-                    entry_type = 'submenu'
-                elif name.startswith('back_') or name in ['shell', 'reboot', 'exit']:
-                    entry_type = 'action'
+                    entry_type = "submenu"
+                elif name.startswith("back_") or name in ["shell", "reboot", "exit"]:
+                    entry_type = "action"
                 else:
-                    entry_type = 'boot'
+                    entry_type = "boot"
 
                 entry = {
-                    'name': name,
-                    'title': title,
-                    'entry_type': entry_type,
-                    'enabled': True,
-                    'order': len(entries),
-                    'parent': in_submenu.replace('submenu_', '') if in_submenu else None,
+                    "name": name,
+                    "title": title,
+                    "entry_type": entry_type,
+                    "enabled": True,
+                    "order": len(entries),
+                    "parent": in_submenu.replace("submenu_", "") if in_submenu else None,
                 }
                 entries.append(entry)
 
@@ -338,57 +462,64 @@ def _parse_boot_ipxe(script_content: str) -> dict:
     for i, line in enumerate(lines):
         line = line.strip()
 
-        if line.startswith(':') and not line.startswith(':start') and not line.startswith(':submenu'):
+        if (
+            line.startswith(":")
+            and not line.startswith(":start")
+            and not line.startswith(":submenu")
+        ):
             current_label = line[1:]  # Remove ':'
 
             # Find matching entry
             for entry in entries:
-                if entry['name'] == current_label and entry['entry_type'] == 'boot':
+                if entry["name"] == current_label and entry["entry_type"] == "boot":
                     # Look ahead for kernel, initrd, imgargs
-                    for j in range(i+1, min(i+20, len(lines))):
+                    for j in range(i + 1, min(i + 20, len(lines))):
                         next_line = lines[j].strip()
 
-                        if next_line.startswith('kernel '):
+                        if next_line.startswith("kernel "):
                             parts = next_line.split(None, 1)
                             if len(parts) >= 2:
-                                entry['kernel'] = parts[1].split()[0] if parts[1] else ''
-                        elif next_line.startswith('initrd '):
+                                entry["kernel"] = parts[1].split()[0] if parts[1] else ""
+                        elif next_line.startswith("initrd "):
                             parts = next_line.split(None, 1)
                             if len(parts) >= 2:
-                                entry['initrd'] = parts[1].strip()
-                        elif next_line.startswith('imgargs '):
+                                entry["initrd"] = parts[1].strip()
+                        elif next_line.startswith("imgargs "):
                             # Extract cmdline from imgargs (with validation)
                             try:
-                                cmdline_match = re.search(r'imgargs\s+\w+\s+(.+)', next_line)
+                                cmdline_match = re.search(r"imgargs\s+\w+\s+(.+)", next_line)
                                 if cmdline_match:
                                     # Remove --- separator and strip whitespace
-                                    entry['cmdline'] = cmdline_match.group(1).replace(' ---', '').strip()
+                                    entry["cmdline"] = (
+                                        cmdline_match.group(1).replace(" ---", "").strip()
+                                    )
                             except (IndexError, AttributeError):
                                 # Malformed imgargs line, skip it
                                 pass
-                        elif next_line.startswith('boot'):
+                        elif next_line.startswith("boot"):
                             break
-                        elif next_line.startswith(':'):
+                        elif next_line.startswith(":"):
                             break
 
                     # Set defaults for missing fields
-                    entry.setdefault('kernel', '')
-                    entry.setdefault('initrd', '')
-                    entry.setdefault('cmdline', '')
-                    entry.setdefault('description', '')
-                    entry.setdefault('url', '')
-                    entry.setdefault('boot_mode', 'netboot')
-                    entry.setdefault('requires_iso', False)
-                    entry.setdefault('requires_internet', False)
+                    entry.setdefault("kernel", "")
+                    entry.setdefault("initrd", "")
+                    entry.setdefault("cmdline", "")
+                    entry.setdefault("description", "")
+                    entry.setdefault("url", "")
+                    entry.setdefault("boot_mode", "netboot")
+                    entry.setdefault("requires_iso", False)
+                    entry.setdefault("requires_internet", False)
 
+    settings = load_settings()
     return {
-        'title': 'PXE Boot Menu',
-        'timeout': 30000,
-        'entries': entries,
-        'header_text': '',
-        'footer_text': '',
-        'server_ip': 'localhost',
-        'http_port': 8000
+        "title": "PXE Boot Menu",
+        "timeout": settings.default_timeout,
+        "entries": entries,
+        "header_text": "",
+        "footer_text": "",
+        "server_ip": settings.server_ip,
+        "http_port": settings.http_port,
     }
 
 
@@ -396,35 +527,40 @@ def _parse_boot_ipxe(script_content: str) -> dict:
 def load_menu_structure():
     """Load the saved menu structure (menu.json) or parse from boot.ipxe."""
     import json
+
     menu_json_path = IPXE_ROOT / "menu.json"
     boot_ipxe_path = IPXE_ROOT / "boot.ipxe"
 
     # Try to load menu.json first
     if menu_json_path.exists():
         try:
-            with open(menu_json_path, 'r') as f:
+            with open(menu_json_path, "r") as f:
                 menu_data = json.load(f)
             return {
                 "success": True,
                 "message": "Menu structure loaded from menu.json",
                 "menu": menu_data,
-                "source": "json"
+                "source": "json",
             }
         except Exception as e:
             # Log error and fall through to boot.ipxe parsing
-            add_log("system", "warning", f"Failed to parse menu.json, falling back to boot.ipxe: {str(e)}")
+            add_log(
+                "system",
+                "warning",
+                f"Failed to parse menu.json, falling back to boot.ipxe: {str(e)}",
+            )
 
     # If menu.json doesn't exist, try to parse boot.ipxe
     if boot_ipxe_path.exists():
         try:
-            with open(boot_ipxe_path, 'r') as f:
+            with open(boot_ipxe_path, "r") as f:
                 script_content = f.read()
 
             menu_data = _parse_boot_ipxe(script_content)
 
             # Save parsed structure as menu.json for future use
             try:
-                with open(menu_json_path, 'w') as f:
+                with open(menu_json_path, "w") as f:
                     json.dump(menu_data, f, indent=2)
             except Exception as e:
                 # Log the error but don't fail the parsing operation
@@ -434,21 +570,17 @@ def load_menu_structure():
                 "success": True,
                 "message": "Menu structure parsed from boot.ipxe",
                 "menu": menu_data,
-                "source": "parsed"
+                "source": "parsed",
             }
         except Exception as e:
             return {
                 "success": False,
                 "message": f"Failed to parse boot.ipxe: {str(e)}",
-                "menu": None
+                "menu": None,
             }
 
     # No files found
-    return {
-        "success": False,
-        "message": "No saved menu structure found",
-        "menu": None
-    }
+    return {"success": False, "message": "No saved menu structure found", "menu": None}
 
 
 @ipxe_router.delete("/menu")
@@ -480,7 +612,7 @@ def delete_menu():
         "success": len(errors) == 0,
         "message": f"Deleted: {', '.join(deleted)}" if deleted else "No files to delete",
         "deleted": deleted,
-        "errors": errors
+        "errors": errors,
     }
 
 
@@ -488,6 +620,7 @@ def delete_menu():
 def save_menu(menu: IpxeMenuModel):
     import json
 
+    menu = _apply_runtime_network_defaults(menu)
     menu_dc = model_to_menu(menu)
     is_valid, message, script_content = ipxe_manager.validate_and_generate(menu_dc)
     warnings = ipxe_manager.validator.lint_menu(menu_dc)
@@ -507,7 +640,7 @@ def save_menu(menu: IpxeMenuModel):
         add_log("system", "info", f"Menu saved successfully: {len(menu.entries)} entries")
         menu_json_path = IPXE_ROOT / "menu.json"
         try:
-            with open(menu_json_path, 'w') as f:
+            with open(menu_json_path, "w") as f:
                 json.dump(menu.model_dump(), f, indent=2)
         except Exception as e:
             # Don't fail if JSON save fails, just log it
@@ -543,7 +676,7 @@ AUTOEXEC_TEMPLATES = {
 dhcp || echo DHCP failed, trying static config...
 echo Loading PXE boot menu...
 chain http://${next-server}:${http-port}/ipxe/boot.ipxe || chain tftp://${next-server}/boot.ipxe
-"""
+""",
     },
     "chainload": {
         "name": "Chainload Full iPXE",
@@ -552,7 +685,7 @@ chain http://${next-server}:${http-port}/ipxe/boot.ipxe || chain tftp://${next-s
 dhcp || echo DHCP failed...
 echo Loading full iPXE...
 chain tftp://${next-server}/undionly.kpxe || chain tftp://${next-server}/ipxe.efi
-"""
+""",
     },
     "custom": {
         "name": "Custom Script",
@@ -564,8 +697,8 @@ chain tftp://${next-server}/undionly.kpxe || chain tftp://${next-server}/ipxe.ef
 dhcp
 
 # Your code here
-"""
-    }
+""",
+    },
 }
 
 
@@ -575,43 +708,27 @@ def get_autoexec():
     autoexec_path = TFTP_ROOT / "autoexec.ipxe"
 
     if not autoexec_path.exists():
-        return {
-            "exists": False,
-            "content": "",
-            "message": "autoexec.ipxe not found"
-        }
+        return {"exists": False, "content": "", "message": "autoexec.ipxe not found"}
 
     try:
-        with open(autoexec_path, 'r') as f:
+        with open(autoexec_path, "r") as f:
             content = f.read()
 
-        return {
-            "exists": True,
-            "content": content,
-            "path": str(autoexec_path)
-        }
+        return {"exists": True, "content": content, "path": str(autoexec_path)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read autoexec.ipxe: {str(e)}")
 
 
 @boot_router.post("/autoexec")
-def save_autoexec(request: Request):
+def save_autoexec(payload: "AutoexecSaveRequest"):
     """Save autoexec.ipxe content."""
-    import json
-
     autoexec_path = TFTP_ROOT / "autoexec.ipxe"
 
     try:
-        # Get request body
-        body = request._body
-        if isinstance(body, bytes):
-            body = body.decode('utf-8')
-
-        data = json.loads(body) if isinstance(body, str) else body
-        content = data.get("content", "")
+        content = payload.content
 
         # Save file
-        with open(autoexec_path, 'w') as f:
+        with open(autoexec_path, "w") as f:
             f.write(content)
 
         # Set executable permission
@@ -623,7 +740,7 @@ def save_autoexec(request: Request):
             "success": True,
             "message": "autoexec.ipxe saved successfully",
             "path": str(autoexec_path),
-            "size": len(content)
+            "size": len(content),
         }
     except Exception as e:
         add_log("system", "error", f"Failed to save autoexec.ipxe: {str(e)}")
@@ -634,6 +751,10 @@ class AutoexecTemplateRequest(BaseModel):
     template: str
     next_server: str = os.getenv("PXE_SERVER_IP", "192.168.1.1")  # Default to common router IP
     http_port: int = 9021
+
+
+class AutoexecSaveRequest(BaseModel):
+    content: str = ""
 
 
 @boot_router.post("/autoexec/apply-template")
@@ -653,7 +774,7 @@ def apply_autoexec_template(request: AutoexecTemplateRequest):
     autoexec_path = TFTP_ROOT / "autoexec.ipxe"
 
     try:
-        with open(autoexec_path, 'w') as f:
+        with open(autoexec_path, "w") as f:
             f.write(content)
 
         os.chmod(autoexec_path, 0o755)
@@ -664,7 +785,7 @@ def apply_autoexec_template(request: AutoexecTemplateRequest):
             "success": True,
             "message": f"Applied template: {template['name']}",
             "content": content,
-            "template": request.template
+            "template": request.template,
         }
     except Exception as e:
         add_log("system", "error", f"Failed to apply template: {str(e)}")
@@ -676,10 +797,7 @@ def get_autoexec_templates():
     """Get available autoexec.ipxe templates."""
     return {
         "templates": {
-            key: {
-                "name": tpl["name"],
-                "description": tpl["description"]
-            }
+            key: {"name": tpl["name"], "description": tpl["description"]}
             for key, tpl in AUTOEXEC_TEMPLATES.items()
         }
     }
@@ -694,17 +812,16 @@ def get_boot_files():
         for file_path in TFTP_ROOT.glob("*"):
             if file_path.is_file():
                 stat = file_path.stat()
-                boot_files.append({
-                    "name": file_path.name,
-                    "size": stat.st_size,
-                    "modified": stat.st_mtime,
-                    "executable": os.access(file_path, os.X_OK)
-                })
+                boot_files.append(
+                    {
+                        "name": file_path.name,
+                        "size": stat.st_size,
+                        "modified": stat.st_mtime,
+                        "executable": os.access(file_path, os.X_OK),
+                    }
+                )
 
-        return {
-            "files": boot_files,
-            "path": str(TFTP_ROOT)
-        }
+        return {"files": boot_files, "path": str(TFTP_ROOT)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list boot files: {str(e)}")
 
@@ -732,7 +849,13 @@ def assets_catalog():
     kaspersky = _scan_distro_versions("kaspersky", HTTP_ROOT)
 
     # Keep rescue and kaspersky separate to avoid confusion in the wizard
-    return {"ubuntu": ubuntu, "debian": debian, "windows": windows, "rescue": rescue, "kaspersky": kaspersky}
+    return {
+        "ubuntu": ubuntu,
+        "debian": debian,
+        "windows": windows,
+        "rescue": rescue,
+        "kaspersky": kaspersky,
+    }
 
 
 class DownloadRequest(BaseModel):
@@ -746,17 +869,23 @@ def download_asset(request: DownloadRequest):
     if not request.url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Only http/https URLs allowed")
 
-    target = HTTP_ROOT / request.dest if request.dest else HTTP_ROOT / Path(request.url).name
+    default_filename = Path(urlparse(request.url).path).name or "download.bin"
+    target = _resolve_within_root(
+        HTTP_ROOT,
+        request.dest,
+        fallback_name=default_filename,
+        path_label="dest",
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
 
     # Create progress tracking key
-    progress_key = str(target.relative_to(HTTP_ROOT))
+    progress_key = str(target.relative_to(HTTP_ROOT.resolve()))
 
     try:
         # Timeout: (connect=30s, read=600s) to handle large ISO downloads
         with requests.get(request.url, stream=True, timeout=(30, 600)) as r:
             r.raise_for_status()
-            total_size = int(r.headers.get('content-length', 0))
+            total_size = int(r.headers.get("content-length", 0))
 
             # Initialize progress tracking
             with download_progress_lock:
@@ -764,7 +893,7 @@ def download_asset(request: DownloadRequest):
                     "downloaded": 0,
                     "total": total_size,
                     "percentage": 0,
-                    "status": "downloading"
+                    "status": "downloading",
                 }
 
             # Log download start
@@ -785,7 +914,7 @@ def download_asset(request: DownloadRequest):
                                     "downloaded": downloaded,
                                     "total": total_size,
                                     "percentage": round(percentage, 1),
-                                    "status": "downloading"
+                                    "status": "downloading",
                                 }
 
             # Mark download as complete
@@ -794,14 +923,16 @@ def download_asset(request: DownloadRequest):
                     "downloaded": downloaded,
                     "total": total_size,
                     "percentage": 100,
-                    "status": "complete"
+                    "status": "complete",
                 }
 
             # Log download completion
-            add_log("download", "info", f"Completed downloading {progress_key} ({downloaded} bytes)")
+            add_log(
+                "download", "info", f"Completed downloading {progress_key} ({downloaded} bytes)"
+            )
 
             # Auto-extract ISO files
-            if target.suffix.lower() == '.iso':
+            if target.suffix.lower() == ".iso":
                 with download_progress_lock:
                     download_progress[progress_key]["status"] = "extracting"
                 add_log("download", "info", f"Starting ISO extraction for {progress_key}")
@@ -815,13 +946,25 @@ def download_asset(request: DownloadRequest):
                 if extraction_result["success"]:
                     with download_progress_lock:
                         download_progress[progress_key]["status"] = "extracted"
-                        download_progress[progress_key]["file_count"] = extraction_result.get("file_count", 0)
-                    add_log("download", "info", f"Extracted {extraction_result.get('file_count', 0)} files from {progress_key}")
+                        download_progress[progress_key]["file_count"] = extraction_result.get(
+                            "file_count", 0
+                        )
+                    add_log(
+                        "download",
+                        "info",
+                        f"Extracted {extraction_result.get('file_count', 0)} files from {progress_key}",
+                    )
                 else:
                     with download_progress_lock:
                         download_progress[progress_key]["status"] = "extraction_failed"
-                        download_progress[progress_key]["extraction_error"] = extraction_result.get("error", "Unknown error")
-                    add_log("download", "error", f"ISO extraction failed for {progress_key}: {extraction_result.get('error', 'Unknown error')}")
+                        download_progress[progress_key]["extraction_error"] = extraction_result.get(
+                            "error", "Unknown error"
+                        )
+                    add_log(
+                        "download",
+                        "error",
+                        f"ISO extraction failed for {progress_key}: {extraction_result.get('error', 'Unknown error')}",
+                    )
 
     except Exception as exc:
         with download_progress_lock:
@@ -830,7 +973,7 @@ def download_asset(request: DownloadRequest):
                 "total": 0,
                 "percentage": 0,
                 "status": "error",
-                "error": str(exc)
+                "error": str(exc),
             }
         add_log("download", "error", f"Download failed for {progress_key}: {str(exc)}")
         raise HTTPException(status_code=500, detail=f"Download failed: {exc}")
@@ -851,16 +994,17 @@ def get_download_progress(file_path: str):
 @app.get("/api/assets/download/progress")
 def get_all_download_progress():
     """Get all active download progress."""
-    return {"downloads": download_progress}
+    with download_progress_lock:
+        return {"downloads": download_progress.copy()}
 
 
 @app.post("/api/assets/upload")
 async def upload_asset(file: UploadFile = File(...), dest: str = ""):
     """Upload a file into /srv/http/<dest> (relative)."""
-    safe_dest = dest.strip("/") if dest else ""
-    target_dir = HTTP_ROOT / safe_dest
+    target_dir = _resolve_within_root(HTTP_ROOT, dest, allow_empty=True, path_label="dest")
     target_dir.mkdir(parents=True, exist_ok=True)
-    target_path = target_dir / file.filename
+    safe_filename = _validate_filename(file.filename)
+    target_path = _resolve_within_root(target_dir, safe_filename, path_label="filename")
     try:
         with open(target_path, "wb") as fh:
             content = await file.read()
@@ -891,23 +1035,16 @@ def _extract_full_iso(iso_path: Path, dest_dir: Path) -> dict:
         result = subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
 
         # Count extracted files
-        file_count = sum(1 for _ in dest_dir.rglob('*') if _.is_file())
+        file_count = sum(1 for _ in dest_dir.rglob("*") if _.is_file())
 
-        return {
-            "success": True,
-            "dest_dir": str(dest_dir),
-            "file_count": file_count
-        }
+        return {"success": True, "dest_dir": str(dest_dir), "file_count": file_count}
     except subprocess.CalledProcessError as e:
         return {
             "success": False,
-            "error": f"Extraction failed: {e.stderr.decode() if e.stderr else str(e)}"
+            "error": f"Extraction failed: {e.stderr if e.stderr else str(e)}",
         }
     except Exception as exc:
-        return {
-            "success": False,
-            "error": f"Extraction failed: {exc}"
-        }
+        return {"success": False, "error": f"Extraction failed: {exc}"}
 
 
 @app.post("/api/assets/extract-iso")
@@ -916,13 +1053,21 @@ def extract_iso(request: ExtractISORequest):
     import subprocess
 
     # Resolve ISO path (relative to HTTP_ROOT)
-    iso_file = HTTP_ROOT / request.iso_path
+    iso_file = _resolve_within_root(HTTP_ROOT, request.iso_path, path_label="iso_path")
     if not iso_file.exists():
         raise HTTPException(status_code=404, detail=f"ISO file not found: {request.iso_path}")
 
     # Determine destination directory
-    dest_dir = HTTP_ROOT / request.dest_dir if request.dest_dir else iso_file.parent / iso_file.stem
+    if request.dest_dir:
+        dest_dir = _resolve_within_root(HTTP_ROOT, request.dest_dir, path_label="dest_dir")
+    else:
+        dest_dir = _resolve_within_root(
+            HTTP_ROOT, str(iso_file.relative_to(HTTP_ROOT.resolve()).parent / iso_file.stem)
+        )
     dest_dir.mkdir(parents=True, exist_ok=True)
+
+    kernel_filename = _validate_filename(request.kernel_filename)
+    initrd_filename = _validate_filename(request.initrd_filename)
 
     try:
         # List contents of ISO to find kernel and initrd
@@ -936,21 +1081,28 @@ def extract_iso(request: ExtractISORequest):
 
         if not kernel_in_iso or not initrd_in_iso:
             # Try to find common paths
-            lines = iso_contents.split('\n')
+            lines = iso_contents.split("\n")
             for line in lines:
-                if not kernel_in_iso and any(x in line.lower() for x in ['vmlinuz', 'linux', 'kernel']):
+                if not kernel_in_iso and any(
+                    x in line.lower() for x in ["vmlinuz", "linux", "kernel"]
+                ):
                     # Extract path from 7z output
                     parts = line.split()
                     if len(parts) >= 6:
-                        potential_path = ' '.join(parts[5:])
-                        if 'vmlinuz' in potential_path or 'linux' in potential_path:
+                        potential_path = " ".join(parts[5:])
+                        if "vmlinuz" in potential_path or "linux" in potential_path:
                             kernel_in_iso = potential_path
 
-                if not initrd_in_iso and any(x in line.lower() for x in ['initrd', 'initramfs', 'sysresccd.img']):
+                if not initrd_in_iso and any(
+                    x in line.lower() for x in ["initrd", "initramfs", "sysresccd.img"]
+                ):
                     parts = line.split()
                     if len(parts) >= 6:
-                        potential_path = ' '.join(parts[5:])
-                        if any(x in potential_path.lower() for x in ['initrd', 'initramfs', 'sysresccd.img']):
+                        potential_path = " ".join(parts[5:])
+                        if any(
+                            x in potential_path.lower()
+                            for x in ["initrd", "initramfs", "sysresccd.img"]
+                        ):
                             initrd_in_iso = potential_path
 
         extracted_files = {}
@@ -963,13 +1115,13 @@ def extract_iso(request: ExtractISORequest):
             # Rename if necessary
             extracted_name = Path(kernel_in_iso).name
             source_file = dest_dir / extracted_name
-            target_file = dest_dir / request.kernel_filename
+            target_file = dest_dir / kernel_filename
 
             if source_file.exists() and source_file != target_file:
                 source_file.rename(target_file)
-                extracted_files['kernel'] = str(target_file.relative_to(HTTP_ROOT))
+                extracted_files["kernel"] = str(target_file.relative_to(HTTP_ROOT))
             elif target_file.exists():
-                extracted_files['kernel'] = str(target_file.relative_to(HTTP_ROOT))
+                extracted_files["kernel"] = str(target_file.relative_to(HTTP_ROOT))
 
         # Extract initrd
         if initrd_in_iso:
@@ -979,32 +1131,31 @@ def extract_iso(request: ExtractISORequest):
             # Rename if necessary
             extracted_name = Path(initrd_in_iso).name
             source_file = dest_dir / extracted_name
-            target_file = dest_dir / request.initrd_filename
+            target_file = dest_dir / initrd_filename
 
             if source_file.exists() and source_file != target_file:
                 source_file.rename(target_file)
-                extracted_files['initrd'] = str(target_file.relative_to(HTTP_ROOT))
+                extracted_files["initrd"] = str(target_file.relative_to(HTTP_ROOT))
             elif target_file.exists():
-                extracted_files['initrd'] = str(target_file.relative_to(HTTP_ROOT))
+                extracted_files["initrd"] = str(target_file.relative_to(HTTP_ROOT))
 
         # Create symlink to original ISO in dest directory
         iso_link = dest_dir / iso_file.name
         if not iso_link.exists():
             iso_link.symlink_to(iso_file)
-            extracted_files['iso'] = str(iso_link.relative_to(HTTP_ROOT))
+            extracted_files["iso"] = str(iso_link.relative_to(HTTP_ROOT))
 
         return {
             "success": True,
             "dest_dir": str(dest_dir.relative_to(HTTP_ROOT)),
             "extracted_files": extracted_files,
             "kernel_path": kernel_in_iso,
-            "initrd_path": initrd_in_iso
+            "initrd_path": initrd_in_iso,
         }
 
     except subprocess.CalledProcessError as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Extraction failed: {e.stderr.decode() if e.stderr else str(e)}"
+            status_code=500, detail=f"Extraction failed: {e.stderr if e.stderr else str(e)}"
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {exc}")
@@ -1015,20 +1166,21 @@ def get_systemrescue_versions():
     """Fetch available SystemRescue versions from SourceForge."""
     try:
         import re
+
         from bs4 import BeautifulSoup
 
         url = "https://sourceforge.net/projects/systemrescuecd/files/sysresccd-x86/"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
         versions_dict = {}  # Use dict to deduplicate by version number
 
         # Find all version folders (format: X.Y.Z/)
-        for link in soup.find_all('a', href=True):
-            href = link['href']
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
             # Match version pattern like /projects/systemrescuecd/files/sysresccd-x86/11.02/
-            match = re.search(r'/sysresccd-x86/(\d+\.\d+(?:\.\d+)?)', href)
+            match = re.search(r"/sysresccd-x86/(\d+\.\d+(?:\.\d+)?)", href)
             if match:
                 version = match.group(1)
                 if version not in versions_dict:  # Deduplicate
@@ -1041,12 +1193,12 @@ def get_systemrescue_versions():
                         "name": f"SystemRescue {version}",
                         "iso_url": download_url,
                         "iso_name": iso_name,
-                        "size_est": "~950 MB"
+                        "size_est": "~950 MB",
                     }
 
         # Convert to list and sort by version (newest first)
         versions = list(versions_dict.values())
-        versions.sort(key=lambda x: [int(n) for n in x['version'].split('.')], reverse=True)
+        versions.sort(key=lambda x: [int(n) for n in x["version"].split(".")], reverse=True)
         return {"versions": versions[:10]}  # Return top 10 versions
 
     except Exception as exc:
@@ -1063,7 +1215,7 @@ def get_kaspersky_versions():
             "iso_url": "https://rescuedisk.s.kaspersky-labs.com/updatable/2024/krd.iso",
             "iso_name": "krd-24.iso",
             "size_est": "~800 MB",
-            "notes": "Better UEFI support, requires 2.5GB+ RAM"
+            "notes": "Better UEFI support, requires 2.5GB+ RAM",
         },
         {
             "version": "18",
@@ -1071,8 +1223,8 @@ def get_kaspersky_versions():
             "iso_url": "https://rescuedisk.s.kaspersky-labs.com/krd.iso",
             "iso_name": "krd-18.iso",
             "size_est": "~670 MB",
-            "notes": "UEFI Secure Boot NOT supported"
-        }
+            "notes": "UEFI Secure Boot NOT supported",
+        },
     ]
     return {"versions": versions}
 
@@ -1098,8 +1250,9 @@ def load_settings() -> SettingsModel:
     """Load settings from file or return defaults."""
     if SETTINGS_FILE.exists():
         import json
+
         try:
-            with open(SETTINGS_FILE, 'r') as f:
+            with open(SETTINGS_FILE, "r") as f:
                 data = json.load(f)
                 return SettingsModel(**data)
         except Exception as e:
@@ -1111,7 +1264,8 @@ def load_settings() -> SettingsModel:
 def save_settings(settings: SettingsModel):
     """Save settings to file."""
     import json
-    with open(SETTINGS_FILE, 'w') as f:
+
+    with open(SETTINGS_FILE, "w") as f:
         json.dump(settings.model_dump(), f, indent=2)
 
 
@@ -1132,6 +1286,7 @@ def update_settings(settings: SettingsModel):
 def detect_network():
     """Auto-detect server IP address."""
     import socket
+
     try:
         # Create a socket to detect the primary network interface IP
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1143,17 +1298,13 @@ def detect_network():
         hostname = socket.gethostname()
         all_ips = socket.gethostbyname_ex(hostname)[2]
 
-        return {
-            "detected_ip": ip_address,
-            "hostname": hostname,
-            "all_ips": all_ips
-        }
+        return {"detected_ip": ip_address, "hostname": hostname, "all_ips": all_ips}
     except Exception as e:
         return {
             "detected_ip": "127.0.0.1",
             "hostname": "localhost",
             "all_ips": ["127.0.0.1"],
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -1174,7 +1325,7 @@ def generate_dhcp_config(
     server_type: str = "dnsmasq",
     pxe_server_ip: str = "192.168.10.32",
     http_port: int = 9021,
-    tftp_port: int = 69
+    tftp_port: int = 69,
 ):
     """Generate DHCP configuration for specified server type"""
     try:
@@ -1182,7 +1333,7 @@ def generate_dhcp_config(
             pxe_server_ip=pxe_server_ip,
             http_port=http_port,
             tftp_port=tftp_port,
-            server_type=server_type
+            server_type=server_type,
         )
         result = dhcp_generator.generate(config)
         return result
@@ -1204,31 +1355,25 @@ app.include_router(dhcp_router)
 # MONITORING ENDPOINTS
 # ==============================================================================
 
+
 @app.get("/api/monitoring/logs")
-async def get_logs(
-    type: str = None,
-    level: str = None,
-    limit: int = 100
-):
+async def get_logs(type: str = None, level: str = None, limit: int = 100):
     """Get system logs with optional filtering."""
     try:
         filtered_logs = SYSTEM_LOGS.copy()
 
         # Filter by type
-        if type and type != 'all':
-            filtered_logs = [log for log in filtered_logs if log.get('type') == type]
+        if type and type != "all":
+            filtered_logs = [log for log in filtered_logs if log.get("type") == type]
 
         # Filter by level
-        if level and level != 'all':
-            filtered_logs = [log for log in filtered_logs if log.get('level') == level]
+        if level and level != "all":
+            filtered_logs = [log for log in filtered_logs if log.get("level") == level]
 
         # Limit results
         filtered_logs = filtered_logs[-limit:]
 
-        return {
-            "success": True,
-            "logs": filtered_logs
-        }
+        return {"success": True, "logs": filtered_logs}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -1251,10 +1396,7 @@ async def get_service_status():
         tftp_status = "unknown"
         try:
             result = subprocess.run(
-                ["service", "tftpd-hpa", "status"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["service", "tftpd-hpa", "status"], capture_output=True, text=True, timeout=5
             )
             tftp_status = "running" if result.returncode == 0 else "stopped"
         except:
@@ -1264,10 +1406,7 @@ async def get_service_status():
         rsyslog_status = "unknown"
         try:
             result = subprocess.run(
-                ["service", "rsyslog", "status"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["service", "rsyslog", "status"], capture_output=True, text=True, timeout=5
             )
             rsyslog_status = "running" if result.returncode == 0 else "stopped"
         except:
@@ -1280,18 +1419,10 @@ async def get_service_status():
         return {
             "success": True,
             "services": {
-                "tftp": {
-                    "status": tftp_status,
-                    "uptime": 0
-                },
-                "http": {
-                    "status": http_status,
-                    "port": http_port
-                },
-                "rsyslog": {
-                    "status": rsyslog_status
-                }
-            }
+                "tftp": {"status": tftp_status, "uptime": 0},
+                "http": {"status": http_status, "port": http_port},
+                "rsyslog": {"status": rsyslog_status},
+            },
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -1311,7 +1442,9 @@ async def get_metrics():
 
         # Count active downloads (with thread safety)
         with download_progress_lock:
-            active_downloads = len([k for k, v in download_progress.items() if v.get("status") == "downloading"])
+            active_downloads = len(
+                [k for k, v in download_progress.items() if v.get("status") == "downloading"]
+            )
 
         # Total requests (we don't track this yet, placeholder)
         total_requests = 0
@@ -1323,8 +1456,8 @@ async def get_metrics():
                 "disk_used": disk_used,
                 "disk_free": disk_free,
                 "active_connections": active_downloads,
-                "total_requests": total_requests
-            }
+                "total_requests": total_requests,
+            },
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -1338,6 +1471,7 @@ async def get_metrics():
 syslog_position = 0
 syslog_monitor_running = False
 
+
 def parse_syslog_tftp():
     """Parse syslog for TFTP entries and add to monitoring."""
     global syslog_position
@@ -1347,7 +1481,7 @@ def parse_syslog_tftp():
         return
 
     try:
-        with open(syslog_path, 'r') as f:
+        with open(syslog_path, "r") as f:
             # Seek to last position
             f.seek(syslog_position)
 
@@ -1365,8 +1499,14 @@ def parse_syslog_tftp():
                         if "RRQ from" in message:
                             try:
                                 client_ip = message.split("RRQ from ")[1].split()[0]
-                                filename = message.split("filename ")[1] if "filename" in message else "unknown"
-                                add_log("tftp", "info", f"Download request from {client_ip}: {filename}")
+                                filename = (
+                                    message.split("filename ")[1]
+                                    if "filename" in message
+                                    else "unknown"
+                                )
+                                add_log(
+                                    "tftp", "info", f"Download request from {client_ip}: {filename}"
+                                )
                             except:
                                 add_log("tftp", "info", message)
                         elif "tftp:" in message:
@@ -1379,6 +1519,7 @@ def parse_syslog_tftp():
     except Exception as e:
         print(f"Error parsing syslog: {e}")
 
+
 def syslog_monitor_thread():
     """Background thread to monitor syslog."""
     global syslog_monitor_running
@@ -1387,6 +1528,7 @@ def syslog_monitor_thread():
     while syslog_monitor_running:
         parse_syslog_tftp()
         time.sleep(2)  # Check every 2 seconds
+
 
 # Start syslog monitor in background
 monitor_thread = threading.Thread(target=syslog_monitor_thread, daemon=True)
@@ -1406,6 +1548,7 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
+
     print("Starting server...")
     port = int(os.getenv("UVICORN_PORT", "9021"))
     host = os.getenv("UVICORN_HOST", "0.0.0.0")

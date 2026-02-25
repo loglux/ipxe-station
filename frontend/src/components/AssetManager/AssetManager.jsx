@@ -123,7 +123,6 @@ const KASPERSKY_CONFIG = {
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
-  const [loading, setLoading] = useState(false)
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
   const [downloadProgress, setDownloadProgress] = useState({}) // Track download progress percentages

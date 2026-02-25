@@ -3,15 +3,16 @@ DHCP Configuration Helper
 Generates recommended DHCP configurations for various DHCP servers
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
 import socket
 import struct
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class DHCPConfig:
     """DHCP configuration parameters"""
+
     pxe_server_ip: str
     http_port: int = 9021
     tftp_port: int = 69
@@ -190,9 +191,21 @@ Set-DhcpServerv4OptionValue -OptionId 67 -Value "undionly.kpxe"
         """List all supported server types"""
         return [
             {"id": "dnsmasq", "name": "dnsmasq", "description": self._get_description("dnsmasq")},
-            {"id": "isc-dhcp", "name": "ISC DHCP Server", "description": self._get_description("isc-dhcp")},
-            {"id": "mikrotik", "name": "MikroTik RouterOS", "description": self._get_description("mikrotik")},
-            {"id": "windows", "name": "Windows DHCP Server", "description": self._get_description("windows")},
+            {
+                "id": "isc-dhcp",
+                "name": "ISC DHCP Server",
+                "description": self._get_description("isc-dhcp"),
+            },
+            {
+                "id": "mikrotik",
+                "name": "MikroTik RouterOS",
+                "description": self._get_description("mikrotik"),
+            },
+            {
+                "id": "windows",
+                "name": "Windows DHCP Server",
+                "description": self._get_description("windows"),
+            },
         ]
 
 
@@ -202,13 +215,26 @@ class DHCPValidator:
     def __init__(self):
         self.timeout = 5  # seconds
 
-    def check_network(self, interface: Optional[str] = None, expected_server_ip: str = "192.168.10.32") -> Dict[str, Any]:
+    def check_network(
+        self, interface: Optional[str] = None, expected_server_ip: str = "192.168.10.32"
+    ) -> Dict[str, Any]:
         """
         Check DHCP configuration on the network using DHCP DISCOVER/OFFER
         """
         try:
-            from scapy.all import conf, get_if_hwaddr, get_if_addr, Ether, IP, UDP, BOOTP, DHCP, srp1
             import random
+
+            from scapy.all import (
+                BOOTP,
+                DHCP,
+                IP,
+                UDP,
+                Ether,
+                conf,
+                get_if_addr,
+                get_if_hwaddr,
+                srp1,
+            )
 
             # Use default interface if not specified
             if interface is None:
@@ -229,8 +255,8 @@ class DHCPValidator:
                     "suggestions": [
                         "Check if the interface exists",
                         "Ensure the container has NET_ADMIN capability",
-                        "Try specifying a different interface"
-                    ]
+                        "Try specifying a different interface",
+                    ],
                 }
 
             # Generate random transaction ID
@@ -238,30 +264,27 @@ class DHCPValidator:
 
             # Create DHCP DISCOVER packet
             discover = (
-                Ether(dst="ff:ff:ff:ff:ff:ff", src=mac_addr) /
-                IP(src="0.0.0.0", dst="255.255.255.255") /
-                UDP(sport=68, dport=67) /
-                BOOTP(
-                    op=1,  # BOOTREQUEST
-                    chaddr=mac_addr,
-                    xid=xid,
-                    flags=0x8000  # Broadcast flag
-                ) /
-                DHCP(options=[
-                    ("message-type", "discover"),
-                    ("client_id", b'\x01' + bytes.fromhex(mac_addr.replace(':', ''))),
-                    ("param_req_list", [1, 3, 6, 15, 66, 67, 175]),  # Request options including PXE options
-                    "end"
-                ])
+                Ether(dst="ff:ff:ff:ff:ff:ff", src=mac_addr)
+                / IP(src="0.0.0.0", dst="255.255.255.255")
+                / UDP(sport=68, dport=67)
+                / BOOTP(
+                    op=1, chaddr=mac_addr, xid=xid, flags=0x8000  # BOOTREQUEST  # Broadcast flag
+                )
+                / DHCP(
+                    options=[
+                        ("message-type", "discover"),
+                        ("client_id", b"\x01" + bytes.fromhex(mac_addr.replace(":", ""))),
+                        (
+                            "param_req_list",
+                            [1, 3, 6, 15, 66, 67, 175],
+                        ),  # Request options including PXE options
+                        "end",
+                    ]
+                )
             )
 
             # Send DISCOVER and wait for OFFER
-            offer = srp1(
-                discover,
-                iface=interface_name,
-                timeout=self.timeout,
-                verbose=False
-            )
+            offer = srp1(discover, iface=interface_name, timeout=self.timeout, verbose=False)
 
             if offer is None:
                 return {
@@ -271,8 +294,8 @@ class DHCPValidator:
                     "suggestions": [
                         "Check if DHCP server is running on the network",
                         "Verify network connectivity",
-                        "Try increasing timeout or using different interface"
-                    ]
+                        "Try increasing timeout or using different interface",
+                    ],
                 }
 
             # Parse DHCP options from OFFER
@@ -293,14 +316,14 @@ class DHCPValidator:
             if 66 in dhcp_options or "tftp_server" in dhcp_options:
                 tftp_server = dhcp_options.get(66) or dhcp_options.get("tftp_server")
                 if isinstance(tftp_server, bytes):
-                    tftp_server = tftp_server.decode('utf-8', errors='ignore')
+                    tftp_server = tftp_server.decode("utf-8", errors="ignore")
                 detected["option_66_tftp_server"] = tftp_server
 
             # Option 67: Bootfile name
             if 67 in dhcp_options or "bootfile" in dhcp_options:
                 bootfile = dhcp_options.get(67) or dhcp_options.get("bootfile")
                 if isinstance(bootfile, bytes):
-                    bootfile = bootfile.decode('utf-8', errors='ignore')
+                    bootfile = bootfile.decode("utf-8", errors="ignore")
                 detected["option_67_bootfile"] = bootfile
 
             # Check if PXE options are configured
@@ -347,7 +370,7 @@ class DHCPValidator:
                     str(k): str(v) if not isinstance(v, (list, tuple)) else [str(x) for x in v]
                     for k, v in dhcp_options.items()
                     if k != "end"
-                }
+                },
             }
 
         except ImportError:
@@ -356,8 +379,8 @@ class DHCPValidator:
                 "message": "Scapy library not installed",
                 "suggestions": [
                     "Install scapy: pip install scapy",
-                    "Rebuild the container with updated requirements.txt"
-                ]
+                    "Rebuild the container with updated requirements.txt",
+                ],
             }
         except PermissionError:
             return {
@@ -366,8 +389,8 @@ class DHCPValidator:
                 "suggestions": [
                     "Run container with NET_ADMIN capability",
                     "Add 'cap_add: [NET_ADMIN]' to docker-compose.yml",
-                    "Or run with --privileged flag (not recommended)"
-                ]
+                    "Or run with --privileged flag (not recommended)",
+                ],
             }
         except Exception as e:
             return {
@@ -377,11 +400,13 @@ class DHCPValidator:
                 "suggestions": [
                     "Check network connectivity",
                     "Verify interface name",
-                    "Ensure DHCP server is reachable"
-                ]
+                    "Ensure DHCP server is reachable",
+                ],
             }
 
-    def validate_config(self, detected_options: Dict[str, str], expected_server_ip: str) -> Dict[str, Any]:
+    def validate_config(
+        self, detected_options: Dict[str, str], expected_server_ip: str
+    ) -> Dict[str, Any]:
         """Validate detected DHCP options against expected values"""
         issues = []
         warnings = []
@@ -389,7 +414,9 @@ class DHCPValidator:
         # Check option 66 (Next Server)
         if "option_66" in detected_options:
             if detected_options["option_66"] != expected_server_ip:
-                issues.append(f"Option 66 (Next Server) is {detected_options['option_66']}, expected {expected_server_ip}")
+                issues.append(
+                    f"Option 66 (Next Server) is {detected_options['option_66']}, expected {expected_server_ip}"
+                )
         else:
             issues.append("Option 66 (Next Server) not found in DHCP response")
 
@@ -397,16 +424,16 @@ class DHCPValidator:
         if "option_67" in detected_options:
             valid_bootfiles = ["undionly.kpxe", "ipxe.efi", "ipxe.pxe"]
             if detected_options["option_67"] not in valid_bootfiles:
-                warnings.append(f"Option 67 (Boot Filename) is {detected_options['option_67']}, expected one of {valid_bootfiles}")
+                warnings.append(
+                    f"Option 67 (Boot Filename) is {detected_options['option_67']}, expected one of {valid_bootfiles}"
+                )
         else:
             issues.append("Option 67 (Boot Filename) not found in DHCP response")
 
         # Check option 175 (iPXE detection)
         if "option_175" not in detected_options:
-            warnings.append("Option 175 (iPXE detection) not configured - advanced iPXE features may not work")
+            warnings.append(
+                "Option 175 (iPXE detection) not configured - advanced iPXE features may not work"
+            )
 
-        return {
-            "valid": len(issues) == 0,
-            "issues": issues,
-            "warnings": warnings
-        }
+        return {"valid": len(issues) == 0, "issues": issues, "warnings": warnings}

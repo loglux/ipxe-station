@@ -4,26 +4,26 @@ Handles ISO download, upload, and management for various operating systems and u
 REFACTORED: Using common utilities to eliminate repetition
 """
 
-import shutil
-import subprocess
-from pathlib import Path
 import os
 import re
-from typing import Callable, Optional, Dict, Any, List
+import shutil
+import subprocess
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 # Import common utilities to eliminate repetition
 from .utils import (
-    format_file_size,
-    download_with_progress,
-    safe_operation,
-    ensure_directory,
     calculate_total_size,
-    safe_delete_directory,
     create_metadata_dict,
-    save_metadata,
+    download_with_progress,
+    ensure_directory,
+    format_file_size,
     load_metadata,
-    validate_string_field
+    safe_delete_directory,
+    safe_operation,
+    save_metadata,
+    validate_string_field,
 )
 
 
@@ -43,7 +43,7 @@ class ISOManager:
             "recovery": "Recovery & Rescue",
             "linux": "Linux Distributions",
             "windows": "Windows Images",
-            "custom": "Custom Images"
+            "custom": "Custom Images",
         }
 
     def get_iso_dir(self, folder_name: str) -> Path:
@@ -61,10 +61,10 @@ class ISOManager:
             raise ValueError("Folder name cannot be empty")
 
         # Sanitize folder name (replace non-alphanumeric chars except - and _)
-        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', folder_name.strip())
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", folder_name.strip())
 
         # Ensure safe_name is not empty after sanitization
-        if not safe_name or safe_name == '_':
+        if not safe_name or safe_name == "_":
             raise ValueError(f"Invalid folder name: '{folder_name}'")
 
         # Construct path
@@ -91,18 +91,23 @@ class ISOManager:
         return target_path
 
     @safe_operation("ISO download")
-    def download_iso_from_url(self, url: str, folder_name: str, display_name: str,
-                              category: str = "custom",
-                              extract_files: bool = False,
-                              iso_retention: str = "keep",
-                              progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+    def download_iso_from_url(
+        self,
+        url: str,
+        folder_name: str,
+        display_name: str,
+        category: str = "custom",
+        extract_files: bool = False,
+        iso_retention: str = "keep",
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> str:
         """Download ISO from URL with optional file extraction"""
 
         # Validate inputs using common utility
         validation_checks = [
             (url.strip(), "URL"),
             (folder_name.strip(), "Folder name"),
-            (display_name.strip(), "Display name")
+            (display_name.strip(), "Display name"),
         ]
 
         for value, field_name in validation_checks:
@@ -120,8 +125,8 @@ class ISOManager:
 
         # Get filename from URL or use default
         try:
-            filename = url.split('/')[-1]
-            if not filename.endswith('.iso'):
+            filename = url.split("/")[-1]
+            if not filename.endswith(".iso"):
                 filename = f"{folder_name}.iso"
         except:
             filename = f"{folder_name}.iso"
@@ -130,10 +135,7 @@ class ISOManager:
 
         # Download with progress tracking using common utility
         success, download_result = download_with_progress(
-            url=url,
-            filepath=str(iso_path),
-            filename=filename,
-            progress_callback=progress_callback
+            url=url, filepath=str(iso_path), filename=filename, progress_callback=progress_callback
         )
 
         status += download_result + "\n"
@@ -162,10 +164,15 @@ class ISOManager:
         return status
 
     @safe_operation("ISO upload")
-    def upload_iso_file(self, file_obj, folder_name: str, display_name: str,
-                        category: str = "custom",
-                        extract_files: bool = False,
-                        iso_retention: str = "keep") -> str:
+    def upload_iso_file(
+        self,
+        file_obj,
+        folder_name: str,
+        display_name: str,
+        category: str = "custom",
+        extract_files: bool = False,
+        iso_retention: str = "keep",
+    ) -> str:
         """Upload ISO file from local system with optional file extraction"""
 
         if not file_obj:
@@ -174,7 +181,7 @@ class ISOManager:
         # Validate inputs using common utility
         validation_checks = [
             (folder_name.strip(), "Folder name"),
-            (display_name.strip(), "Display name")
+            (display_name.strip(), "Display name"),
         ]
 
         for value, field_name in validation_checks:
@@ -197,20 +204,20 @@ class ISOManager:
             # Gradio passes file path as string
             source_path = file_obj
             filename = os.path.basename(source_path)
-        elif hasattr(file_obj, 'name') and isinstance(file_obj.name, str):
+        elif hasattr(file_obj, "name") and isinstance(file_obj.name, str):
             # File object with name attribute (path)
             source_path = file_obj.name
             filename = os.path.basename(source_path)
-        elif hasattr(file_obj, 'read'):
+        elif hasattr(file_obj, "read"):
             # File-like object with read method
             source_path = None
-            filename = getattr(file_obj, 'name', f"{folder_name}.iso")
+            filename = getattr(file_obj, "name", f"{folder_name}.iso")
         else:
             return "❌ Unsupported file object type"
 
         # Ensure filename ends with .iso
-        if not filename.endswith('.iso'):
-            filename += '.iso'
+        if not filename.endswith(".iso"):
+            filename += ".iso"
 
         iso_path = iso_dir / filename
 
@@ -263,11 +270,11 @@ class ISOManager:
                     continue
 
                 # Skip Ubuntu directories (managed separately)
-                if item.name.startswith('ubuntu-'):
+                if item.name.startswith("ubuntu-"):
                     continue
 
                 # Look for ISO files
-                iso_files = list(item.glob('*.iso'))
+                iso_files = list(item.glob("*.iso"))
                 if not iso_files:
                     continue
 
@@ -284,17 +291,17 @@ class ISOManager:
                     "source_url": metadata.get("source", "unknown"),
                     "filename": main_iso.name,
                     "file_path": str(main_iso),
-                    "size_gb": main_iso.stat().st_size / (1024 ** 3),
+                    "size_gb": main_iso.stat().st_size / (1024**3),
                     "created": datetime.fromtimestamp(main_iso.stat().st_ctime),
                     "modified": datetime.fromtimestamp(main_iso.stat().st_mtime),
                     "iso_count": len(iso_files),
-                    "has_metadata": (item / "metadata.json").exists()
+                    "has_metadata": (item / "metadata.json").exists(),
                 }
 
                 isos.append(iso_info)
 
             # Sort by creation date (newest first)
-            isos.sort(key=lambda x: x['created'], reverse=True)
+            isos.sort(key=lambda x: x["created"], reverse=True)
 
         except Exception:
             # Return empty list on error
@@ -351,15 +358,15 @@ class ISOManager:
         extracted_count = 0
 
         for iso in isos:
-            category = iso['category']
+            category = iso["category"]
             if category not in by_category:
                 by_category[category] = 0
             by_category[category] += 1
-            total_size += iso['size_gb']
+            total_size += iso["size_gb"]
 
             # Check if files were extracted
             try:
-                iso_dir = self.get_iso_dir(iso['folder_name'])
+                iso_dir = self.get_iso_dir(iso["folder_name"])
                 if (iso_dir / "vmlinuz").exists() or (iso_dir / "initrd").exists():
                     extracted_count += 1
             except ValueError:
@@ -395,13 +402,20 @@ class ISOManager:
         return {
             "keep": "Keep in same folder",
             "subfolder": "Move to iso/ subfolder",
-            "delete": "Delete after extraction"
+            "delete": "Delete after extraction",
         }
 
     @safe_operation("Metadata creation")
-    def _create_metadata(self, iso_dir: Path, display_name: str, category: str,
-                         source_url: str, filename: str, extract_files: bool = False,
-                         iso_retention: str = "keep") -> str:
+    def _create_metadata(
+        self,
+        iso_dir: Path,
+        display_name: str,
+        category: str,
+        source_url: str,
+        filename: str,
+        extract_files: bool = False,
+        iso_retention: str = "keep",
+    ) -> str:
         """Create metadata file for ISO using common utility"""
 
         metadata = create_metadata_dict(
@@ -411,7 +425,7 @@ class ISOManager:
             filename=filename,
             extract_files=extract_files,
             iso_retention=iso_retention,
-            version="1.1"
+            version="1.1",
         )
 
         success, message = save_metadata(iso_dir, metadata)
@@ -427,7 +441,7 @@ class ISOManager:
         ensure_directory(extract_temp_dir)
 
         # Extract ISO with 7-zip
-        cmd = ['7z', 'x', str(iso_path), f'-o{extract_temp_dir}', '-y']
+        cmd = ["7z", "x", str(iso_path), f"-o{extract_temp_dir}", "-y"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode != 0:
@@ -481,6 +495,7 @@ class ISOManager:
             if "*" in pattern:
                 # Use glob for wildcard patterns
                 import glob
+
                 matches = glob.glob(os.path.join(extract_dir, pattern))
                 if matches:
                     # Use first match
@@ -505,12 +520,13 @@ class ISOManager:
             "isolinux/isolinux.cfg",
             "boot/grub/grub.cfg",
             "syslinux/syslinux.cfg",
-            "*/menu.cfg"
+            "*/menu.cfg",
         ]
 
         for pattern in config_patterns:
             if "*" in pattern:
                 import glob
+
                 matches = glob.glob(os.path.join(extract_dir, pattern))
                 if matches:
                     source_file = matches[0]
@@ -532,9 +548,7 @@ class ISOManager:
         for dirname in ("live", "casper", "boot"):
             source_dir = Path(extract_dir) / dirname
             if source_dir.is_dir():
-                shutil.copytree(source_dir,
-                                target_dir / dirname,
-                                dirs_exist_ok=True)
+                shutil.copytree(source_dir, target_dir / dirname, dirs_exist_ok=True)
                 status += f"✅ Extracted directory: {dirname}/\n"
                 files_found += 1
 
@@ -598,15 +612,17 @@ class ISOManager:
             status_lines.append(f"🌐 **Source:** {metadata.get('source', 'Unknown')}")
 
             # Show extraction info
-            if metadata.get('extract_files'):
+            if metadata.get("extract_files"):
                 status_lines.append(f"📦 **Extraction:** Enabled")
-                status_lines.append(f"💾 **ISO Retention:** {metadata.get('iso_retention', 'unknown')}")
+                status_lines.append(
+                    f"💾 **ISO Retention:** {metadata.get('iso_retention', 'unknown')}"
+                )
 
         # Find ISO files
-        iso_files = list(iso_dir.glob('*.iso'))
+        iso_files = list(iso_dir.glob("*.iso"))
         iso_subdir = iso_dir / "iso"
         if iso_subdir.exists():
-            iso_files.extend(list(iso_subdir.glob('*.iso')))
+            iso_files.extend(list(iso_subdir.glob("*.iso")))
 
         if iso_files:
             status_lines.append(f"\n💿 **ISO Files:**")
@@ -615,7 +631,8 @@ class ISOManager:
                 mod_time = datetime.fromtimestamp(iso_file.stat().st_mtime)
                 relative_path = iso_file.relative_to(iso_dir)
                 status_lines.append(
-                    f"  • **{relative_path}** ({size_human}) - {mod_time.strftime('%Y-%m-%d %H:%M')}")
+                    f"  • **{relative_path}** ({size_human}) - {mod_time.strftime('%Y-%m-%d %H:%M')}"
+                )
 
         # Check for extracted boot files
         boot_files = ["vmlinuz", "initrd", "config.cfg"]
@@ -669,11 +686,11 @@ class ISOManager:
         by_category = {}
 
         for iso in isos:
-            category = iso['category']
+            category = iso["category"]
             if category not in by_category:
                 by_category[category] = []
             by_category[category].append(iso)
-            total_size += iso['size_gb']
+            total_size += iso["size_gb"]
 
         # Group by category
         for category, category_isos in by_category.items():

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './AddEntryWizard.css'
 import { CATEGORIES, getScenariosByCategory, getScenario, createEntryFromScenario } from '../../data/scenarios'
 
@@ -18,19 +18,25 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   // Handle initial category selection
   useEffect(() => {
     if (isOpen && initialCategory) {
-      setSelectedCategory(initialCategory)
-      setStep(2)
+      const timerId = setTimeout(() => {
+        setSelectedCategory(initialCategory)
+        setStep(2)
+      }, 0)
+      return () => clearTimeout(timerId)
     }
   }, [isOpen, initialCategory])
 
-  // Fetch available assets when scenario is selected
-  useEffect(() => {
-    if (selectedScenario) {
-      fetchAvailableAssets()
-    }
+  const handleVersionSelect = useCallback((version) => {
+    setSelectedVersion(version)
+    setKernel(version.kernel || '')
+    setInitrd(version.initrd || '')
+
+    // Update title to include version
+    const scenario = getScenario(selectedScenario)
+    setEntryTitle(`${scenario.displayName} ${version.version}`)
   }, [selectedScenario])
 
-  const fetchAvailableAssets = async () => {
+  const fetchAvailableAssets = useCallback(async () => {
     try {
       const response = await fetch('/api/assets/catalog')
       const catalog = await response.json()
@@ -66,17 +72,17 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       console.error('Failed to fetch assets:', error)
       setAvailableVersions([])
     }
-  }
+  }, [handleVersionSelect, selectedScenario])
 
-  const handleVersionSelect = (version) => {
-    setSelectedVersion(version)
-    setKernel(version.kernel || '')
-    setInitrd(version.initrd || '')
-
-    // Update title to include version
-    const scenario = getScenario(selectedScenario)
-    setEntryTitle(`${scenario.displayName} ${version.version}`)
-  }
+  // Fetch available assets when scenario is selected
+  useEffect(() => {
+    if (selectedScenario) {
+      const timerId = setTimeout(() => {
+        fetchAvailableAssets()
+      }, 0)
+      return () => clearTimeout(timerId)
+    }
+  }, [fetchAvailableAssets, selectedScenario])
 
   if (!isOpen) return null
 
@@ -89,9 +95,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedScenario(scenarioId)
     const scenario = getScenario(scenarioId)
 
-    // Auto-generate name and title
-    const timestamp = Date.now().toString().slice(-4)
-    setEntryName(`${scenarioId}_${timestamp}`)
+    // Auto-generate deterministic name and title
+    const existingCount = entries.filter((entry) => entry.name.startsWith(`${scenarioId}_`)).length + 1
+    setEntryName(`${scenarioId}_${existingCount}`)
     setEntryTitle(scenario.displayName)
 
     setStep(3)

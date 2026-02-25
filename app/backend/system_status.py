@@ -5,27 +5,23 @@ REFACTORED: Using common utilities to eliminate repetition
 """
 
 import os
-import psutil
 import socket
 import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import psutil
 
 # Import common utilities to eliminate repetition
-from .utils import (
-    get_file_info,
-    safe_operation,
-    export_status_as_json,
-    get_cross_platform_path
-)
+from .utils import export_status_as_json, get_cross_platform_path, get_file_info, safe_operation
 
 # Fix for Windows compatibility
 try:
-    import pwd
     import grp
+    import pwd
 except ImportError:
     pwd = None
     grp = None
@@ -33,6 +29,7 @@ except ImportError:
 
 class ServiceStatus(Enum):
     """Service status states"""
+
     RUNNING = "running"
     STOPPED = "stopped"
     ERROR = "error"
@@ -42,6 +39,7 @@ class ServiceStatus(Enum):
 @dataclass
 class DiskUsage:
     """Disk usage information"""
+
     path: str
     total: int
     used: int
@@ -51,22 +49,23 @@ class DiskUsage:
     @property
     def total_gb(self) -> float:
         """Total space in GB"""
-        return self.total / (1024 ** 3)
+        return self.total / (1024**3)
 
     @property
     def used_gb(self) -> float:
         """Used space in GB"""
-        return self.used / (1024 ** 3)
+        return self.used / (1024**3)
 
     @property
     def free_gb(self) -> float:
         """Free space in GB"""
-        return self.free / (1024 ** 3)
+        return self.free / (1024**3)
 
 
 @dataclass
 class NetworkInterface:
     """Network interface information"""
+
     name: str
     ip_address: Optional[str] = None
     netmask: Optional[str] = None
@@ -82,6 +81,7 @@ class NetworkInterface:
 @dataclass
 class ServiceInfo:
     """Service information"""
+
     name: str
     status: ServiceStatus
     pid: Optional[int] = None
@@ -95,6 +95,7 @@ class ServiceInfo:
 @dataclass
 class SystemInfo:
     """Complete system information"""
+
     hostname: str
     platform: str
     architecture: str
@@ -133,10 +134,10 @@ class ServiceChecker:
         """Check if process is running by name"""
         try:
             pids = []
-            for proc in psutil.process_iter(['pid', 'name']):
+            for proc in psutil.process_iter(["pid", "name"]):
                 try:
-                    if process_name.lower() in proc.info['name'].lower():
-                        pids.append(proc.info['pid'])
+                    if process_name.lower() in proc.info["name"].lower():
+                        pids.append(proc.info["pid"])
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
@@ -150,9 +151,12 @@ class ServiceChecker:
         try:
             connections = psutil.net_connections()
             for conn in connections:
-                if (hasattr(conn, 'laddr') and conn.laddr and
-                        conn.laddr.port == port and
-                        conn.type == getattr(socket, f"SOCK_{protocol.upper()}")):
+                if (
+                    hasattr(conn, "laddr")
+                    and conn.laddr
+                    and conn.laddr.port == port
+                    and conn.type == getattr(socket, f"SOCK_{protocol.upper()}")
+                ):
                     return True, conn.pid
             return False, None
         except Exception:
@@ -174,15 +178,13 @@ class ServiceChecker:
         """Check systemd service status"""
         # Check if systemctl is available
         result = subprocess.run(
-            ['systemctl', '--version'],
-            capture_output=True, text=True, timeout=2
+            ["systemctl", "--version"], capture_output=True, text=True, timeout=2
         )
         if result.returncode != 0:
             return ServiceStatus.UNKNOWN, "systemctl not available"
 
         result = subprocess.run(
-            ['systemctl', 'is-active', service_name],
-            capture_output=True, text=True, timeout=5
+            ["systemctl", "is-active", service_name], capture_output=True, text=True, timeout=5
         )
 
         status = result.stdout.strip()
@@ -210,9 +212,10 @@ class SystemMonitor:
         # Get architecture - cross-platform way
         try:
             import platform as plt
+
             architecture = plt.machine()
         except:
-            architecture = 'unknown'
+            architecture = "unknown"
 
         # CPU and memory
         cpu_count = psutil.cpu_count() or 1
@@ -226,7 +229,7 @@ class SystemMonitor:
         # Load average (Unix-like systems only)
         load_avg = None
         try:
-            if hasattr(os, 'getloadavg'):
+            if hasattr(os, "getloadavg"):
                 load_avg = os.getloadavg()
         except (OSError, AttributeError):
             pass
@@ -242,7 +245,7 @@ class SystemMonitor:
             cpu_percent=cpu_percent,
             uptime=uptime,
             load_average=load_avg,
-            boot_time=boot_time
+            boot_time=boot_time,
         )
 
     @staticmethod
@@ -250,7 +253,7 @@ class SystemMonitor:
         """Get disk usage for specified paths"""
         if paths is None:
             # Default paths - cross-platform
-            if os.name == 'nt':  # Windows
+            if os.name == "nt":  # Windows
                 paths = ["C:\\", "D:\\"]
             else:  # Unix-like
                 paths = ["/", "/srv", "/tmp"]
@@ -263,13 +266,15 @@ class SystemMonitor:
                     continue
 
                 usage = psutil.disk_usage(path)
-                disk_usage.append(DiskUsage(
-                    path=path,
-                    total=usage.total,
-                    used=usage.used,
-                    free=usage.free,
-                    percent=(usage.used / usage.total) * 100 if usage.total > 0 else 0
-                ))
+                disk_usage.append(
+                    DiskUsage(
+                        path=path,
+                        total=usage.total,
+                        used=usage.used,
+                        free=usage.free,
+                        percent=(usage.used / usage.total) * 100 if usage.total > 0 else 0,
+                    )
+                )
             except Exception:
                 continue
 
@@ -294,7 +299,7 @@ class SystemMonitor:
 
             for interface_name, addr_list in addresses.items():
                 # Skip loopback interface
-                if interface_name.startswith(('lo', 'Loopback')):
+                if interface_name.startswith(("lo", "Loopback")):
                     continue
 
                 interface = NetworkInterface(name=interface_name)
@@ -305,9 +310,11 @@ class SystemMonitor:
                         interface.ip_address = addr.address
                         interface.netmask = addr.netmask
                         interface.broadcast = addr.broadcast
-                    elif hasattr(psutil, 'AF_LINK') and addr.family == psutil.AF_LINK:  # MAC address (Unix)
+                    elif (
+                        hasattr(psutil, "AF_LINK") and addr.family == psutil.AF_LINK
+                    ):  # MAC address (Unix)
                         interface.mac_address = addr.address
-                    elif os.name == 'nt' and addr.family == socket.AF_INET:  # Windows MAC handling
+                    elif os.name == "nt" and addr.family == socket.AF_INET:  # Windows MAC handling
                         # On Windows, MAC address is usually in a different field
                         pass
 
@@ -346,7 +353,7 @@ class PXEServiceMonitor:
             status=ServiceStatus.UNKNOWN,
             port=69,
             protocol="udp",
-            description="Trivial File Transfer Protocol server"
+            description="Trivial File Transfer Protocol server",
         )
 
         # Check if port 69 is listening
@@ -376,7 +383,7 @@ class PXEServiceMonitor:
             status=ServiceStatus.UNKNOWN,
             port=port,
             protocol="tcp",
-            description="HTTP server for PXE boot files"
+            description="HTTP server for PXE boot files",
         )
 
         # Check if port is listening
@@ -407,7 +414,7 @@ class PXEServiceMonitor:
             status=ServiceStatus.UNKNOWN,
             port=port,
             protocol="tcp",
-            description="Gradio web interface"
+            description="Gradio web interface",
         )
 
         # Check if HTTP service is running first
@@ -417,6 +424,7 @@ class PXEServiceMonitor:
             # Try to test Gradio endpoint specifically
             try:
                 import requests
+
                 response = requests.get(f"http://localhost:{port}/pxe-station", timeout=2)
                 if response.status_code in [200, 302]:  # 302 for redirects
                     service.status = ServiceStatus.RUNNING
@@ -445,11 +453,11 @@ class PXEServiceMonitor:
             status=ServiceStatus.UNKNOWN,
             port=67,
             protocol="udp",
-            description="DHCP server (external)"
+            description="DHCP server (external)",
         )
 
         # Only check systemd services on Unix-like systems
-        if os.name != 'nt':
+        if os.name != "nt":
             # Check common DHCP services
             dhcp_services = ["isc-dhcp-server", "dhcpd", "dnsmasq"]
 
@@ -494,7 +502,7 @@ class FileSystemMonitor:
         ipxe_files = {
             "iPXE BIOS": f"{base_tftp}/undionly.kpxe",
             "iPXE UEFI": f"{base_tftp}/ipxe.efi",
-            "iPXE Menu": f"{base_ipxe}/boot.ipxe"
+            "iPXE Menu": f"{base_ipxe}/boot.ipxe",
         }
 
         # Process iPXE files using common utility
@@ -507,8 +515,9 @@ class FileSystemMonitor:
 
         if ubuntu_base.exists():
             # Look for ubuntu-* directories
-            ubuntu_dirs = [d for d in ubuntu_base.iterdir()
-                           if d.is_dir() and d.name.startswith('ubuntu-')]
+            ubuntu_dirs = [
+                d for d in ubuntu_base.iterdir() if d.is_dir() and d.name.startswith("ubuntu-")
+            ]
 
             if ubuntu_dirs:
                 # Found versioned Ubuntu directories
@@ -528,7 +537,7 @@ class FileSystemMonitor:
                             ubuntu_found = True
 
                         # Add version-specific entries using common utility
-                        version = ubuntu_dir.name.replace('ubuntu-', '')
+                        version = ubuntu_dir.name.replace("ubuntu-", "")
                         file_status[f"Ubuntu {version} Kernel"] = get_file_info(str(kernel_path))
                         file_status[f"Ubuntu {version} Initrd"] = get_file_info(str(initrd_path))
 
@@ -554,7 +563,7 @@ class FileSystemMonitor:
                 "size": 0,
                 "size_human": "0 B",
                 "modified": None,
-                "readable": False
+                "readable": False,
             }
             file_status["Ubuntu Initrd"] = {
                 "path": f"{base_http}/ubuntu*/initrd",
@@ -562,7 +571,7 @@ class FileSystemMonitor:
                 "size": 0,
                 "size_human": "0 B",
                 "modified": None,
-                "readable": False
+                "readable": False,
             }
 
         # Check for Ubuntu ISO (optional)
@@ -585,7 +594,7 @@ class FileSystemMonitor:
                 "size": 0,
                 "size_human": "0 B",
                 "modified": None,
-                "readable": False
+                "readable": False,
             }
 
         return file_status
@@ -610,7 +619,7 @@ class SystemStatusManager:
             "tftp": self.pxe_monitor.check_tftp_service(),
             "http": self.pxe_monitor.check_http_service(8000),  # Fixed: internal container port
             "gradio": self.pxe_monitor.check_gradio_service(8000),  # Fixed: same as HTTP
-            "dhcp": self.pxe_monitor.check_dhcp_service()
+            "dhcp": self.pxe_monitor.check_dhcp_service(),
         }
 
         # Disk usage
@@ -633,12 +642,12 @@ class SystemStatusManager:
                 "architecture": system_info.architecture,
                 "cpu_count": system_info.cpu_count,
                 "cpu_percent": system_info.cpu_percent,
-                "memory_total_gb": system_info.memory_total / (1024 ** 3),
-                "memory_available_gb": system_info.memory_available / (1024 ** 3),
+                "memory_total_gb": system_info.memory_total / (1024**3),
+                "memory_available_gb": system_info.memory_available / (1024**3),
                 "memory_percent": system_info.memory_percent,
                 "uptime": str(system_info.uptime),
                 "load_average": system_info.load_average,
-                "boot_time": system_info.boot_time
+                "boot_time": system_info.boot_time,
             },
             "services": {
                 name: {
@@ -648,7 +657,7 @@ class SystemStatusManager:
                     "protocol": service.protocol,
                     "description": service.description,
                     "error_message": service.error_message,
-                    "uptime": str(service.uptime) if service.uptime else None
+                    "uptime": str(service.uptime) if service.uptime else None,
                 }
                 for name, service in services.items()
             },
@@ -658,7 +667,7 @@ class SystemStatusManager:
                     "total_gb": disk.total_gb,
                     "used_gb": disk.used_gb,
                     "free_gb": disk.free_gb,
-                    "percent": disk.percent
+                    "percent": disk.percent,
                 }
                 for disk in disk_usage
             ],
@@ -669,19 +678,22 @@ class SystemStatusManager:
                     "netmask": iface.netmask,
                     "mac_address": iface.mac_address,
                     "is_up": iface.is_up,
-                    "bytes_sent_mb": iface.bytes_sent / (1024 ** 2),
-                    "bytes_recv_mb": iface.bytes_recv / (1024 ** 2)
+                    "bytes_sent_mb": iface.bytes_sent / (1024**2),
+                    "bytes_recv_mb": iface.bytes_recv / (1024**2),
                 }
                 for iface in network_interfaces
             ],
             "pxe_files": pxe_files,
             "health_score": health_score,
-            "recommendations": self._generate_recommendations(services, pxe_files, system_info)
+            "recommendations": self._generate_recommendations(services, pxe_files, system_info),
         }
 
-    def _calculate_health_score(self, services: Dict[str, ServiceInfo],
-                                pxe_files: Dict[str, Dict[str, Any]],
-                                system_info: SystemInfo) -> int:
+    def _calculate_health_score(
+        self,
+        services: Dict[str, ServiceInfo],
+        pxe_files: Dict[str, Dict[str, Any]],
+        system_info: SystemInfo,
+    ) -> int:
         """Calculate overall system health score (0-100)"""
         score = 100
 
@@ -728,9 +740,12 @@ class SystemStatusManager:
 
         return max(0, score)
 
-    def _generate_recommendations(self, services: Dict[str, ServiceInfo],
-                                  pxe_files: Dict[str, Dict[str, Any]],
-                                  system_info: SystemInfo) -> List[str]:
+    def _generate_recommendations(
+        self,
+        services: Dict[str, ServiceInfo],
+        pxe_files: Dict[str, Dict[str, Any]],
+        system_info: SystemInfo,
+    ) -> List[str]:
         """Generate system recommendations"""
         recommendations = []
 
@@ -749,8 +764,9 @@ class SystemStatusManager:
 
         # File recommendations - check for missing critical files
         critical_files = ["iPXE BIOS", "iPXE Menu"]
-        missing_files = [name for name in critical_files
-                         if name in pxe_files and not pxe_files[name]["exists"]]
+        missing_files = [
+            name for name in critical_files if name in pxe_files and not pxe_files[name]["exists"]
+        ]
 
         if missing_files:
             recommendations.append(f"📁 Install missing files: {', '.join(missing_files)}")
@@ -765,7 +781,9 @@ class SystemStatusManager:
         if not ubuntu_versions_found:
             recommendations.append("🐧 Download Ubuntu boot files (kernel + initrd)")
         else:
-            recommendations.append(f"✅ Ubuntu versions available: {', '.join(ubuntu_versions_found)}")
+            recommendations.append(
+                f"✅ Ubuntu versions available: {', '.join(ubuntu_versions_found)}"
+            )
 
         # System recommendations
         if system_info.memory_percent > 85:
@@ -791,6 +809,7 @@ def _calculate_dhcp_range(subnet: str, netmask: str) -> str:
     """Calculate DHCP range from subnet and netmask"""
     try:
         import ipaddress
+
         network = ipaddress.IPv4Network(f"{subnet}/{netmask}", strict=False)
         # Use middle 50% of the network for DHCP range
         hosts = list(network.hosts())
@@ -814,6 +833,7 @@ def _netmask_to_cidr(netmask: str) -> int:
     """Convert netmask to CIDR notation"""
     try:
         import ipaddress
+
         return ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
     except Exception:
         return 24  # Default /24
@@ -848,7 +868,7 @@ def check_services() -> Dict[str, ServiceInfo]:
         "tftp": monitor.check_tftp_service(),
         "http": monitor.check_http_service(8000),  # Fixed port
         "gradio": monitor.check_gradio_service(8000),  # Fixed port
-        "dhcp": monitor.check_dhcp_service()
+        "dhcp": monitor.check_dhcp_service(),
     }
 
 

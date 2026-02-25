@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import { CATEGORIES } from './data/scenarios'
 
@@ -13,6 +13,7 @@ import Monitoring from './components/Monitoring/Monitoring'
 import BootFiles from './components/BootFiles/BootFiles'
 
 function App() {
+  const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
   const [activeTab, setActiveTab] = useState('builder')
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -26,7 +27,18 @@ function App() {
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
   const [entries, setEntries] = useState([])
-  const [menuLoaded, setMenuLoaded] = useState(false)
+
+  const applyMenuFromResponse = (menu) => {
+    setEntries(menu?.entries || [])
+    setMenuTitle(menu?.title || 'PXE Boot Menu')
+    setMenuTimeout(menu?.timeout || 30000)
+  }
+
+  const buildMenuPayload = useCallback(() => ({
+    title: menuTitle,
+    timeout: menuTimeout,
+    entries,
+  }), [entries, menuTimeout, menuTitle])
 
   // Load saved menu structure on mount
   useEffect(() => {
@@ -36,70 +48,25 @@ function App() {
         const data = await response.json()
 
         if (data.success && data.menu) {
-          // Load saved menu
-          setEntries(data.menu.entries || [])
-          setMenuTitle(data.menu.title || 'PXE Boot Menu')
-          setMenuTimeout(data.menu.timeout || 30000)
+          applyMenuFromResponse(data.menu)
         } else {
-          // No saved menu, use default starter structure
-          setEntries([
-            {
-              name: 'linux',
-              title: 'Linux',
-              entry_type: 'submenu',
-              enabled: true,
-              order: 1,
-              parent: null,
-            },
-            {
-              name: 'windows',
-              title: 'Windows',
-              entry_type: 'submenu',
-              enabled: true,
-              order: 2,
-              parent: null,
-            },
-            {
-              name: 'tools',
-              title: 'Rescue & Tools',
-              entry_type: 'submenu',
-              enabled: true,
-              order: 3,
-              parent: null,
-            },
-          ])
+          const fallback = await fetch('/api/ipxe/menu/default')
+          const fallbackData = await fallback.json()
+          if (fallbackData.success && fallbackData.menu) {
+            applyMenuFromResponse(fallbackData.menu)
+          }
         }
-        setMenuLoaded(true)
       } catch (error) {
         console.error('Failed to load menu:', error)
-        // Fallback to default starter structure
-        setEntries([
-          {
-            name: 'linux',
-            title: 'Linux',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 1,
-            parent: null,
-          },
-          {
-            name: 'windows',
-            title: 'Windows',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 2,
-            parent: null,
-          },
-          {
-            name: 'tools',
-            title: 'Rescue & Tools',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 3,
-            parent: null,
-          },
-        ])
-        setMenuLoaded(true)
+        try {
+          const fallback = await fetch('/api/ipxe/menu/default')
+          const fallbackData = await fallback.json()
+          if (fallbackData.success && fallbackData.menu) {
+            applyMenuFromResponse(fallbackData.menu)
+          }
+        } catch (fallbackError) {
+          console.error('Failed to load default menu:', fallbackError)
+        }
       }
     }
 
@@ -123,46 +90,16 @@ function App() {
     }
   }
 
-  const generateScript = async () => {
+  const generateScript = useCallback(async () => {
     setGeneratingScript(true)
 
     try {
-      // Load settings to get correct server_ip and http_port
-      const settingsResponse = await fetch('/api/settings')
-      const settings = await settingsResponse.json()
-
-      const menuData = {
-        title: menuTitle,
-        timeout: menuTimeout,
-        default_entry: null,
-        entries: entries.map(entry => ({
-          name: entry.name,
-          title: entry.title,
-          kernel: entry.kernel || null,
-          initrd: entry.initrd || null,
-          cmdline: entry.cmdline || '',
-          description: entry.description || '',
-          enabled: entry.enabled !== false,
-          order: entry.order || 0,
-          entry_type: entry.entry_type || 'boot',
-          url: entry.url || null,
-          boot_mode: entry.boot_mode || 'netboot',
-          requires_iso: entry.requires_iso || false,
-          requires_internet: entry.requires_internet || false,
-          parent: entry.parent || null,
-        })),
-        header_text: '',
-        footer_text: '',
-        server_ip: settings.server_ip || 'localhost',
-        http_port: settings.http_port || 8000,
-      }
-
       const response = await fetch('/api/ipxe/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(menuData),
+        body: JSON.stringify(buildMenuPayload()),
       })
 
       const result = await response.json()
@@ -180,50 +117,19 @@ function App() {
     } finally {
       setGeneratingScript(false)
     }
-  }
+  }, [buildMenuPayload])
 
   const saveMenu = async () => {
     setSaving(true)
     setSaveMessage(null)
 
     try {
-      // Load settings to get correct server_ip and http_port
-      const settingsResponse = await fetch('/api/settings')
-      const settings = await settingsResponse.json()
-
-      // Convert entries to backend format
-      const menuData = {
-        title: menuTitle,
-        timeout: menuTimeout,
-        default_entry: null,
-        entries: entries.map(entry => ({
-          name: entry.name,
-          title: entry.title,
-          kernel: entry.kernel || null,
-          initrd: entry.initrd || null,
-          cmdline: entry.cmdline || '',
-          description: entry.description || '',
-          enabled: entry.enabled !== false,
-          order: entry.order || 0,
-          entry_type: entry.entry_type || 'boot',
-          url: entry.url || null,
-          boot_mode: entry.boot_mode || 'netboot',
-          requires_iso: entry.requires_iso || false,
-          requires_internet: entry.requires_internet || false,
-          parent: entry.parent || null,
-        })),
-        header_text: '',
-        footer_text: '',
-        server_ip: settings.server_ip || 'localhost',
-        http_port: settings.http_port || 8000,
-      }
-
       const response = await fetch('/api/ipxe/menu/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(menuData),
+        body: JSON.stringify(buildMenuPayload()),
       })
 
       const result = await response.json()
@@ -260,35 +166,11 @@ function App() {
 
       if (result.success) {
         setSaveMessage({ type: 'success', text: `✅ ${result.message}` })
-        // Reset to default starter structure
-        setEntries([
-          {
-            name: 'linux',
-            title: 'Linux',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 1,
-            parent: null,
-          },
-          {
-            name: 'windows',
-            title: 'Windows',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 2,
-            parent: null,
-          },
-          {
-            name: 'tools',
-            title: 'Rescue & Tools',
-            entry_type: 'submenu',
-            enabled: true,
-            order: 3,
-            parent: null,
-          },
-        ])
-        setMenuTitle('PXE Boot Menu')
-        setMenuTimeout(30000)
+        const fallback = await fetch('/api/ipxe/menu/default')
+        const fallbackData = await fallback.json()
+        if (fallbackData.success && fallbackData.menu) {
+          applyMenuFromResponse(fallbackData.menu)
+        }
         setSelectedEntryId(null)
       } else {
         setSaveMessage({ type: 'error', text: `❌ ${result.message}` })
@@ -306,7 +188,7 @@ function App() {
     if (activeTab === 'preview') {
       generateScript()
     }
-  }, [activeTab, entries, menuTitle, menuTimeout])
+  }, [activeTab, generateScript])
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
@@ -365,9 +247,6 @@ function App() {
               entries={entries}
               selectedEntryId={selectedEntryId}
               onSelectEntry={setSelectedEntryId}
-              onAddEntry={addEntry}
-              onUpdateEntry={updateEntry}
-              onDeleteEntry={deleteEntry}
               onOpenWizard={openWizard}
             />
           </div>
@@ -541,6 +420,15 @@ function App() {
       <footer className="app-footer">
         <div className="footer-left">
           <span>iPXE Station - Network Boot Made Easy</span>
+          <span>•</span>
+          <a
+            className="footer-link"
+            href={githubProfileUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
         </div>
         <div className="footer-right">
           <span>Entries: {entries.length}</span>

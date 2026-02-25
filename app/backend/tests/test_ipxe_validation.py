@@ -1,6 +1,6 @@
 import pytest
 
-from app.backend.ipxe_manager import iPXEMenu, iPXEEntry, iPXEValidator
+from app.backend.ipxe_manager import iPXEEntry, iPXEMenu, iPXEValidator
 
 
 def test_validate_menu_missing_initrd():

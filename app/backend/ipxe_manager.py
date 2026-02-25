@@ -6,27 +6,30 @@ REFACTORED: Using common utilities to eliminate repetition
 """
 
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+
 from pydantic import ValidationError
+
+from .config import settings
+from .ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
 
 # Import common utilities to eliminate repetition
 from .utils import (
-    validate_string_field,
-    validate_file_path,
-    safe_write_file,
+    export_status_as_json,
     safe_operation,
-    export_status_as_json
+    safe_write_file,
+    validate_file_path,
+    validate_string_field,
 )
-from .config import settings
-from .ipxe_schema import menu_to_model, model_to_menu, IpxeMenuModel
 
 
 @dataclass
 class iPXEEntry:
     """Single iPXE menu entry with enhanced options"""
+
     name: str
     title: str
     kernel: Optional[str] = None
@@ -49,12 +52,13 @@ class iPXEEntry:
         if not self.title:
             self.title = self.name
         # Sanitize name for iPXE compatibility
-        self.name = re.sub(r'[^a-zA-Z0-9_-]', '_', self.name)
+        self.name = re.sub(r"[^a-zA-Z0-9_-]", "_", self.name)
 
 
 @dataclass
 class iPXEMenu:
     """Complete iPXE menu configuration"""
+
     title: str = "PXE Boot Station"
     timeout: int = settings.menu_timeout  # milliseconds
     default_entry: Optional[str] = None
@@ -89,18 +93,19 @@ class iPXEValidator:
             field_name="Entry name",
             min_length=1,
             max_length=32,
-            allowed_chars=r'^[a-zA-Z0-9_-]+$'
+            allowed_chars=r"^[a-zA-Z0-9_-]+$",
         )
 
     @staticmethod
-    def validate_kernel_path(kernel: str, server_ip: str = settings.pxe_server_ip,
-                             port: int = settings.http_port) -> Tuple[bool, str]:
+    def validate_kernel_path(
+        kernel: str, server_ip: str = settings.pxe_server_ip, port: int = settings.http_port
+    ) -> Tuple[bool, str]:
         """Validate kernel path (file or URL)"""
         if not kernel:
             return False, "Kernel path cannot be empty"
 
         # Check if it's a URL
-        if kernel.startswith(('http://', 'https://', 'tftp://')):
+        if kernel.startswith(("http://", "https://", "tftp://")):
             try:
                 parsed = urlparse(kernel)
                 if not parsed.netloc:
@@ -110,7 +115,7 @@ class iPXEValidator:
                 return False, f"Invalid URL: {str(e)}"
 
         # Check if it's a local file path using common utility
-        if kernel.startswith('/'):
+        if kernel.startswith("/"):
             # Absolute path
             return validate_file_path(kernel, must_exist=True)
         else:
@@ -132,12 +137,7 @@ class iPXEValidator:
     @staticmethod
     def validate_menu_title(title: str) -> Tuple[bool, str]:
         """Validate menu title using common utility"""
-        return validate_string_field(
-            title,
-            field_name="Menu title",
-            min_length=1,
-            max_length=80
-        )
+        return validate_string_field(title, field_name="Menu title", min_length=1, max_length=80)
 
     @classmethod
     @safe_operation("iPXE menu validation", return_tuple=True)
@@ -177,10 +177,14 @@ class iPXEValidator:
 
             # Entry type sanity
             if entry.entry_type not in cls.ALLOWED_ENTRY_TYPES:
-                errors.append(f"Entry {i + 1} ({entry.name}): Invalid entry_type '{entry.entry_type}'")
+                errors.append(
+                    f"Entry {i + 1} ({entry.name}): Invalid entry_type '{entry.entry_type}'"
+                )
 
             if entry.boot_mode not in cls.ALLOWED_BOOT_MODES:
-                errors.append(f"Entry {i + 1} ({entry.name}): Invalid boot_mode '{entry.boot_mode}'")
+                errors.append(
+                    f"Entry {i + 1} ({entry.name}): Invalid boot_mode '{entry.boot_mode}'"
+                )
 
             # Validate entry name
             is_valid, msg = cls.validate_entry_name(entry.name)
@@ -189,10 +193,7 @@ class iPXEValidator:
 
             # Validate entry title using common utility
             is_valid, msg = validate_string_field(
-                entry.title,
-                field_name="Entry title",
-                min_length=1,
-                max_length=60
+                entry.title, field_name="Entry title", min_length=1, max_length=60
             )
             if not is_valid:
                 errors.append(f"Entry {i + 1} ({entry.name}) title: {msg}")
@@ -205,16 +206,22 @@ class iPXEValidator:
                 if not is_valid:
                     errors.append(f"Entry {i + 1} ({entry.name}) kernel: {msg}")
                 if not entry.initrd:
-                    errors.append(f"Entry {i + 1} ({entry.name}): Boot entries should define initrd")
+                    errors.append(
+                        f"Entry {i + 1} ({entry.name}): Boot entries should define initrd"
+                    )
             elif entry.entry_type == "boot" and not entry.kernel:
                 errors.append(f"Entry {i + 1} ({entry.name}): Boot entries must have a kernel path")
             elif entry.entry_type == "chain":
                 if not entry.url:
-                    errors.append(f"Entry {i + 1} ({entry.name}): Chain entries require a URL/target")
+                    errors.append(
+                        f"Entry {i + 1} ({entry.name}): Chain entries require a URL/target"
+                    )
                 else:
                     parsed = urlparse(entry.url)
                     if not parsed.scheme:
-                        errors.append(f"Entry {i + 1} ({entry.name}): Chain URL should include scheme (http/https/tftp)")
+                        errors.append(
+                            f"Entry {i + 1} ({entry.name}): Chain URL should include scheme (http/https/tftp)"
+                        )
             elif entry.entry_type == "submenu":
                 if not entry.title:
                     errors.append(f"Entry {i + 1} ({entry.name}): Submenu must have a title")
@@ -222,11 +229,15 @@ class iPXEValidator:
             # Parent validity (allow nested submenus and regular entries pointing to submenus)
             if entry.parent:
                 if entry.parent not in entry_by_name:
-                    errors.append(f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' not found")
+                    errors.append(
+                        f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' not found"
+                    )
                 else:
                     parent_entry = entry_by_name[entry.parent]
                     if parent_entry.entry_type not in {"submenu", "menu"}:
-                        errors.append(f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' is not a submenu/menu")
+                        errors.append(
+                            f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' is not a submenu/menu"
+                        )
 
         # Cycle detection for parent relationships
         parents = {e.name: e.parent for e in menu.entries if e.enabled and e.parent}
@@ -284,11 +295,17 @@ class iPXEValidator:
 
             if entry.entry_type == "boot":
                 if entry.boot_mode == "live" and not entry.requires_iso:
-                    warnings.append(f"{entry.name}: live boot usually requires ISO (set requires_iso=True)")
+                    warnings.append(
+                        f"{entry.name}: live boot usually requires ISO (set requires_iso=True)"
+                    )
                 if entry.boot_mode == "preseed" and not entry.requires_internet:
-                    warnings.append(f"{entry.name}: preseed typically needs internet access (set requires_internet=True)")
+                    warnings.append(
+                        f"{entry.name}: preseed typically needs internet access (set requires_internet=True)"
+                    )
                 if entry.requires_iso and entry.boot_mode not in {"live", "tool"}:
-                    warnings.append(f"{entry.name}: requires_iso=True but boot_mode is '{entry.boot_mode}'")
+                    warnings.append(
+                        f"{entry.name}: requires_iso=True but boot_mode is '{entry.boot_mode}'"
+                    )
                 # File presence checks (best-effort, local paths only)
                 warnings.extend(cls._lint_local_files(entry, base_path))
 
@@ -297,8 +314,8 @@ class iPXEValidator:
     @staticmethod
     def _lint_local_files(entry: iPXEEntry, base_path: str) -> List[str]:
         """Check local file existence for kernel/initrd/ISO when applicable."""
-        from pathlib import Path
         import re
+        from pathlib import Path
 
         warnings: List[str] = []
 
@@ -330,11 +347,17 @@ class iPXEValidator:
                 if m:
                     version = m.group(1)
             if version:
-                iso_candidate = Path(base_path) / f"ubuntu-{version}" / f"ubuntu-{version}-live-server-amd64.iso"
+                iso_candidate = (
+                    Path(base_path)
+                    / f"ubuntu-{version}"
+                    / f"ubuntu-{version}-live-server-amd64.iso"
+                )
                 if not iso_candidate.exists():
                     warnings.append(f"{entry.name}: ISO missing at {iso_candidate}")
             else:
-                warnings.append(f"{entry.name}: requires ISO but version could not be detected from paths")
+                warnings.append(
+                    f"{entry.name}: requires ISO but version could not be detected from paths"
+                )
 
         return warnings
 
@@ -352,20 +375,20 @@ class UbuntuBootModes:
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
                 "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ auto=true",
-                "description": "Network installation from Ubuntu repositories"
+                "description": "Network installation from Ubuntu repositories",
             },
             "22.04": {
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
                 "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ auto=true",
-                "description": "Network installation from Ubuntu repositories"
+                "description": "Network installation from Ubuntu repositories",
             },
             "20.04": {
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
                 "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ auto=true",
-                "description": "Network installation from Ubuntu repositories"
-            }
+                "description": "Network installation from Ubuntu repositories",
+            },
         }
 
         return configs.get(version, configs["22.04"])  # Default to 22.04
@@ -379,7 +402,7 @@ class UbuntuBootModes:
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
             "cmdline": f"ip=dhcp boot=casper netboot=url url={base_url}/ubuntu-{version}-live-server-amd64.iso quiet splash",
-            "description": "Live boot from local ISO file"
+            "description": "Live boot from local ISO file",
         }
 
     @staticmethod
@@ -391,7 +414,7 @@ class UbuntuBootModes:
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
             "cmdline": f"ip=dhcp rescue/enable=true single",
-            "description": "Rescue and recovery mode"
+            "description": "Rescue and recovery mode",
         }
 
     @staticmethod
@@ -403,7 +426,7 @@ class UbuntuBootModes:
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
             "cmdline": f"ip=dhcp auto=true url={base_url}/preseed.cfg locale=en_US console-setup/ask_detect=false keyboard-configuration/xkb-keymap=us",
-            "description": "Automated installation with preseed configuration"
+            "description": "Automated installation with preseed configuration",
         }
 
 
@@ -421,17 +444,17 @@ class UbuntuVersionDetector:
 
         # Look for ubuntu-* directories
         for ubuntu_dir in base_dir.iterdir():
-            if not ubuntu_dir.is_dir() or not ubuntu_dir.name.startswith('ubuntu-'):
+            if not ubuntu_dir.is_dir() or not ubuntu_dir.name.startswith("ubuntu-"):
                 continue
 
-            version = ubuntu_dir.name.replace('ubuntu-', '')
+            version = ubuntu_dir.name.replace("ubuntu-", "")
 
             # Check for required and optional files
             capabilities = {
                 "kernel": (ubuntu_dir / "vmlinuz").exists(),
                 "initrd": (ubuntu_dir / "initrd").exists(),
                 "iso": (ubuntu_dir / f"ubuntu-{version}-live-server-amd64.iso").exists(),
-                "preseed": (ubuntu_dir / "preseed.cfg").exists()
+                "preseed": (ubuntu_dir / "preseed.cfg").exists(),
             }
 
             # Only include if basic files exist
@@ -497,11 +520,13 @@ class iPXEGenerator:
         """Render a menu (root or submenu) with its children."""
         lines: List[str] = []
         label = cls._menu_label(current)
-        lines.extend([
-            f":{label}",
-            f"menu {title}",
-            f"item --gap -- -------------------------------",
-        ])
+        lines.extend(
+            [
+                f":{label}",
+                f"menu {title}",
+                f"item --gap -- -------------------------------",
+            ]
+        )
 
         if current is not None:
             # Add back navigation
@@ -520,7 +545,7 @@ class iPXEGenerator:
                     "live": "[LIVE]",
                     "rescue": "[RESCUE]",
                     "preseed": "[AUTO]",
-                    "tool": "[TOOL]"
+                    "tool": "[TOOL]",
                 }.get(entry.boot_mode, "[BOOT]")
                 lines.append(f"item {entry.name} {mode_indicator} {entry.title}")
             elif entry.entry_type in {"menu", "submenu"}:
@@ -531,28 +556,40 @@ class iPXEGenerator:
                 lines.append(f"item {entry.name} [CHAIN] {entry.title}")
 
         if current is None:
-            lines.extend([
-                "item --gap --",
-                "item shell [SHELL]  Drop to iPXE shell",
-                "item reboot [REBOOT] Reboot computer",
-                "item exit [EXIT] Exit to BIOS",
-            ])
+            lines.extend(
+                [
+                    "item --gap --",
+                    "item shell [SHELL]  Drop to iPXE shell",
+                    "item reboot [REBOOT] Reboot computer",
+                    "item exit [EXIT] Exit to BIOS",
+                ]
+            )
 
-        default_for_menu = menu.default_entry if current is None and any(
-            e.name == menu.default_entry for e in children
-        ) else None
+        default_for_menu = (
+            menu.default_entry
+            if current is None and any(e.name == menu.default_entry for e in children)
+            else None
+        )
 
         if default_for_menu:
-            lines.append(f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}")
+            lines.append(
+                f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}"
+            )
         else:
-            lines.append(f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}")
+            lines.append(
+                f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}"
+            )
 
         lines.append("")
 
         # Render nested submenus recursively
         for entry in children:
             if entry.entry_type in {"submenu", "menu"}:
-                lines.extend(cls._render_menu_block(entry.name, entry.title, menu, children_map, parent_map, back_labels))
+                lines.extend(
+                    cls._render_menu_block(
+                        entry.name, entry.title, menu, children_map, parent_map, back_labels
+                    )
+                )
 
         return lines
 
@@ -569,11 +606,9 @@ class iPXEGenerator:
 
         # Add header text if provided
         if menu.header_text:
-            script_lines.extend([
-                f"echo {iPXEGenerator._escape_echo_text(menu.header_text)}",
-                "sleep 2",
-                ""
-            ])
+            script_lines.extend(
+                [f"echo {iPXEGenerator._escape_echo_text(menu.header_text)}", "sleep 2", ""]
+            )
 
         children_map = iPXEGenerator._build_children_map(menu.entries)
         parent_map = {entry.name: entry.parent for entry in menu.entries if entry.enabled}
@@ -590,14 +625,18 @@ class iPXEGenerator:
                 continue
 
             if entry.entry_type == "boot" and entry.kernel:
-                script_lines.extend([
-                    f":{entry.name}",
-                    f"echo Booting {iPXEGenerator._escape_echo_text(entry.title)}...",
-                ])
+                script_lines.extend(
+                    [
+                        f":{entry.name}",
+                        f"echo Booting {iPXEGenerator._escape_echo_text(entry.title)}...",
+                    ]
+                )
 
                 # Add description and requirements info
                 if entry.description:
-                    script_lines.append(f"echo {iPXEGenerator._escape_echo_text(entry.description)}")
+                    script_lines.append(
+                        f"echo {iPXEGenerator._escape_echo_text(entry.description)}"
+                    )
 
                 if entry.requires_internet:
                     script_lines.append("echo Note: Internet connection required")
@@ -607,76 +646,76 @@ class iPXEGenerator:
 
                 # Determine kernel URL
                 if entry.kernel:
-                    kernel_url = iPXEGenerator._resolve_kernel_url(entry.kernel, menu.server_ip, menu.http_port)
+                    kernel_url = iPXEGenerator._resolve_kernel_url(
+                        entry.kernel, menu.server_ip, menu.http_port
+                    )
                     # Substitute variables in cmdline (${server_ip}, ${port})
                     cmdline = entry.cmdline if entry.cmdline else ""
-                    cmdline = cmdline.replace('${server_ip}', menu.server_ip).replace('${port}', str(menu.http_port))
+                    cmdline = cmdline.replace("${server_ip}", menu.server_ip).replace(
+                        "${port}", str(menu.http_port)
+                    )
                     script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
                 # Add initrd if provided
                 if entry.initrd:
-                    initrd_url = iPXEGenerator._resolve_kernel_url(entry.initrd, menu.server_ip, menu.http_port)
+                    initrd_url = iPXEGenerator._resolve_kernel_url(
+                        entry.initrd, menu.server_ip, menu.http_port
+                    )
                     script_lines.append(f"initrd {initrd_url}")
 
-                script_lines.extend([
-                    "boot",
-                    "goto start",
-                    ""
-                ])
+                script_lines.extend(["boot", "goto start", ""])
 
             elif entry.entry_type == "chain" and entry.url:
-                script_lines.extend([
-                    f":{entry.name}",
-                    f"echo Chaining to {iPXEGenerator._escape_echo_text(entry.title)}...",
-                ])
-                chain_target = iPXEGenerator._resolve_kernel_url(entry.url, menu.server_ip, menu.http_port)
-                script_lines.extend([
-                    f"chain {chain_target}",
-                    "goto start",
-                    ""
-                ])
+                script_lines.extend(
+                    [
+                        f":{entry.name}",
+                        f"echo Chaining to {iPXEGenerator._escape_echo_text(entry.title)}...",
+                    ]
+                )
+                chain_target = iPXEGenerator._resolve_kernel_url(
+                    entry.url, menu.server_ip, menu.http_port
+                )
+                script_lines.extend([f"chain {chain_target}", "goto start", ""])
             elif entry.entry_type in {"submenu", "menu"}:
-                script_lines.extend([
-                    f":{entry.name}",
-                    f"goto {iPXEGenerator._menu_label(entry.name)}",
-                    ""
-                ])
+                script_lines.extend(
+                    [f":{entry.name}", f"goto {iPXEGenerator._menu_label(entry.name)}", ""]
+                )
 
         # Back navigation labels for submenus
         for back_item, target_label in back_labels:
-            script_lines.extend([
-                f":{back_item}",
-                f"goto {target_label}",
-                ""
-            ])
+            script_lines.extend([f":{back_item}", f"goto {target_label}", ""])
 
         # Standard menu actions
-        script_lines.extend([
-            ":shell",
-            "echo Dropping to iPXE shell...",
-            "shell",
-            "",
-            ":reboot",
-            "echo Rebooting in 3 seconds...",
-            "sleep 3",
-            "reboot",
-            "",
-            ":exit",
-            "echo Exiting to BIOS...",
-            "exit",
-            "",
-            ":error",
-            "echo Boot failed, returning to menu...",
-            "sleep 3",
-            "goto start"
-        ])
+        script_lines.extend(
+            [
+                ":shell",
+                "echo Dropping to iPXE shell...",
+                "shell",
+                "",
+                ":reboot",
+                "echo Rebooting in 3 seconds...",
+                "sleep 3",
+                "reboot",
+                "",
+                ":exit",
+                "echo Exiting to BIOS...",
+                "exit",
+                "",
+                ":error",
+                "echo Boot failed, returning to menu...",
+                "sleep 3",
+                "goto start",
+            ]
+        )
 
         # Add footer text if provided
         if menu.footer_text:
-            script_lines.extend([
-                "",
-                f"echo {iPXEGenerator._escape_echo_text(menu.footer_text)}",
-            ])
+            script_lines.extend(
+                [
+                    "",
+                    f"echo {iPXEGenerator._escape_echo_text(menu.footer_text)}",
+                ]
+            )
 
         return "\n".join(script_lines)
 
@@ -685,9 +724,9 @@ class iPXEGenerator:
         """Resolve kernel path to full URL"""
         if not path:
             return ""
-        if path.startswith(('http://', 'https://', 'tftp://')):
+        if path.startswith(("http://", "https://", "tftp://")):
             return path
-        elif path.startswith('/'):
+        elif path.startswith("/"):
             # Absolute path - convert to HTTP URL
             return f"http://{server_ip}:{port}{path}"
         else:
@@ -707,18 +746,19 @@ class iPXEGenerator:
             return ""
 
         # Replace newlines and other control chars with space
-        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        text = text.replace("\n", " ").replace("\r", " ").replace("\t", " ")
 
         # Escape ${} variable expansion by replacing $ with $$
         # (iPXE uses $$ to represent literal $)
-        text = text.replace('${', '$${')
+        text = text.replace("${", "$${")
 
         # Remove other control characters
-        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+        text = "".join(char if char.isprintable() or char == " " else " " for char in text)
 
         # Collapse multiple spaces
         import re
-        text = re.sub(r'\s+', ' ', text).strip()
+
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
@@ -739,11 +779,12 @@ class iPXEGenerator:
         text = text.replace("'", "'\\''")
 
         # Remove control characters (newlines, tabs, etc.)
-        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+        text = "".join(char if char.isprintable() or char == " " else " " for char in text)
 
         # Collapse multiple spaces
         import re
-        text = re.sub(r'\s+', ' ', text).strip()
+
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
@@ -759,19 +800,20 @@ class iPXEGenerator:
             return ""
 
         # Remove newlines and control characters (replace with space)
-        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-        text = ''.join(char if char.isprintable() or char == ' ' else ' ' for char in text)
+        text = text.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+        text = "".join(char if char.isprintable() or char == " " else " " for char in text)
 
         # Escape shell special characters with backslash
         # Characters that need escaping in GRUB: $, `, \, ", ;, &, |, <, >, (, ), {, }
         # Note: Space is NOT escaped as it's the natural separator for kernel arguments
-        special_chars = ['$', '`', '\\', '"', ';', '&', '|', '<', '>', '(', ')', '{', '}']
+        special_chars = ["$", "`", "\\", '"', ";", "&", "|", "<", ">", "(", ")", "{", "}"]
         for char in special_chars:
-            text = text.replace(char, '\\' + char)
+            text = text.replace(char, "\\" + char)
 
         # Collapse multiple spaces
         import re
-        text = re.sub(r'\s+', ' ', text).strip()
+
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
@@ -784,33 +826,38 @@ class iPXEGenerator:
             "",
             f"set timeout={menu.timeout // 1000}",
             f"set default=0",
-            ""
+            "",
         ]
 
-        boot_entries = [entry for entry in menu.entries if entry.enabled and entry.entry_type == "boot"]
+        boot_entries = [
+            entry for entry in menu.entries if entry.enabled and entry.entry_type == "boot"
+        ]
 
         for i, entry in enumerate(boot_entries):
             # Escape title for single-quoted strings
             escaped_title = iPXEGenerator._escape_grub_single_quoted(entry.title)
 
             # Escape kernel path and cmdline for command arguments
-            escaped_kernel = iPXEGenerator._escape_grub_argument(entry.kernel) if entry.kernel else ""
-            escaped_cmdline = iPXEGenerator._escape_grub_argument(entry.cmdline) if entry.cmdline else ""
+            escaped_kernel = (
+                iPXEGenerator._escape_grub_argument(entry.kernel) if entry.kernel else ""
+            )
+            escaped_cmdline = (
+                iPXEGenerator._escape_grub_argument(entry.cmdline) if entry.cmdline else ""
+            )
 
-            grub_lines.extend([
-                f"menuentry '{escaped_title}' {{",
-                f"    echo 'Loading {escaped_title}...'",
-                f"    linux {escaped_kernel} {escaped_cmdline}".strip(),
-            ])
+            grub_lines.extend(
+                [
+                    f"menuentry '{escaped_title}' {{",
+                    f"    echo 'Loading {escaped_title}...'",
+                    f"    linux {escaped_kernel} {escaped_cmdline}".strip(),
+                ]
+            )
 
             if entry.initrd:
                 escaped_initrd = iPXEGenerator._escape_grub_argument(entry.initrd)
                 grub_lines.append(f"    initrd {escaped_initrd}")
 
-            grub_lines.extend([
-                "}",
-                ""
-            ])
+            grub_lines.extend(["}", ""])
 
         return "\n".join(grub_lines)
 
@@ -819,7 +866,9 @@ class iPXETemplateManager:
     """Pre-defined iPXE menu templates with enhanced multi-mode support"""
 
     @staticmethod
-    def get_ubuntu_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
+    def get_ubuntu_template(
+        server_ip: str = settings.pxe_server_ip, port: int = settings.http_port
+    ) -> iPXEMenu:
         """Original Ubuntu installation template"""
         entries = [
             iPXEEntry(
@@ -829,7 +878,7 @@ class iPXETemplateManager:
                 initrd="ubuntu/initrd",
                 cmdline="ip=dhcp url=http://{server_ip}:{port}/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/cloud-init/",
                 description="Automated Ubuntu Server installation",
-                order=1
+                order=1,
             ),
             iPXEEntry(
                 name="ubuntu_live",
@@ -838,7 +887,7 @@ class iPXETemplateManager:
                 initrd="ubuntu/initrd",
                 cmdline="ip=dhcp boot=casper netboot=nfs nfsroot={server_ip}:/srv/nfs/ubuntu",
                 description="Live Ubuntu session without installation",
-                order=2
+                order=2,
             ),
             iPXEEntry(
                 name="ubuntu_rescue",
@@ -847,8 +896,8 @@ class iPXETemplateManager:
                 initrd="ubuntu/initrd",
                 cmdline="ip=dhcp rescue/enable=true",
                 description="Ubuntu rescue and recovery mode",
-                order=3
-            )
+                order=3,
+            ),
         ]
 
         # Format cmdline with actual server IP and port
@@ -863,12 +912,15 @@ class iPXETemplateManager:
             server_ip=server_ip,
             http_port=port,
             header_text="Welcome to Ubuntu PXE Boot Station",
-            footer_text="Use arrow keys to navigate, Enter to select"
+            footer_text="Use arrow keys to navigate, Enter to select",
         )
 
     @staticmethod
-    def get_ubuntu_multi_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port,
-                                  available_versions: List[str] = None) -> iPXEMenu:
+    def get_ubuntu_multi_template(
+        server_ip: str = settings.pxe_server_ip,
+        port: int = settings.http_port,
+        available_versions: List[str] = None,
+    ) -> iPXEMenu:
         """Enhanced Ubuntu template with multiple boot options per version"""
 
         if available_versions is None:
@@ -882,12 +934,14 @@ class iPXETemplateManager:
         order = 1
 
         # Header separator
-        entries.append(iPXEEntry(
-            name="ubuntu_header",
-            title="Ubuntu Installation Options",
-            entry_type="separator",
-            order=order
-        ))
+        entries.append(
+            iPXEEntry(
+                name="ubuntu_header",
+                title="Ubuntu Installation Options",
+                entry_type="separator",
+                order=order,
+            )
+        )
         order += 1
 
         # Generate entries for each available Ubuntu version
@@ -907,99 +961,110 @@ class iPXETemplateManager:
                 continue  # Skip if basic files don't exist
 
             # Ubuntu version separator
-            entries.append(iPXEEntry(
-                name=f"separator_ubuntu_{version.replace('.', '_')}",
-                title=f"── Ubuntu {version} LTS ──",
-                entry_type="separator",
-                order=order
-            ))
+            entries.append(
+                iPXEEntry(
+                    name=f"separator_ubuntu_{version.replace('.', '_')}",
+                    title=f"── Ubuntu {version} LTS ──",
+                    entry_type="separator",
+                    order=order,
+                )
+            )
             order += 1
 
             # 1. Netboot installation (always available if kernel+initrd exist)
             netboot_config = UbuntuBootModes.get_netboot_config(version, server_ip, port)
-            entries.append(iPXEEntry(
-                name=f"ubuntu_{version.replace('.', '_')}_netboot",
-                title=f"Ubuntu {version} - Network Install",
-                kernel=netboot_config["kernel"],
-                initrd=netboot_config["initrd"],
-                cmdline=netboot_config["cmdline"],
-                description=netboot_config["description"],
-                order=order,
-                boot_mode="netboot",
-                requires_iso=False,
-                requires_internet=True
-            ))
+            entries.append(
+                iPXEEntry(
+                    name=f"ubuntu_{version.replace('.', '_')}_netboot",
+                    title=f"Ubuntu {version} - Network Install",
+                    kernel=netboot_config["kernel"],
+                    initrd=netboot_config["initrd"],
+                    cmdline=netboot_config["cmdline"],
+                    description=netboot_config["description"],
+                    order=order,
+                    boot_mode="netboot",
+                    requires_iso=False,
+                    requires_internet=True,
+                )
+            )
             order += 1
 
             # 2. Live boot (only if ISO exists)
             if iso_exists:
                 live_config = UbuntuBootModes.get_live_config(version, server_ip, port)
-                entries.append(iPXEEntry(
-                    name=f"ubuntu_{version.replace('.', '_')}_live",
-                    title=f"Ubuntu {version} - Live Boot",
-                    kernel=live_config["kernel"],
-                    initrd=live_config["initrd"],
-                    cmdline=live_config["cmdline"],
-                    description=live_config["description"],
-                    order=order,
-                    boot_mode="live",
-                    requires_iso=True,
-                    requires_internet=False
-                ))
+                entries.append(
+                    iPXEEntry(
+                        name=f"ubuntu_{version.replace('.', '_')}_live",
+                        title=f"Ubuntu {version} - Live Boot",
+                        kernel=live_config["kernel"],
+                        initrd=live_config["initrd"],
+                        cmdline=live_config["cmdline"],
+                        description=live_config["description"],
+                        order=order,
+                        boot_mode="live",
+                        requires_iso=True,
+                        requires_internet=False,
+                    )
+                )
                 order += 1
 
             # 3. Preseed installation (only if preseed.cfg exists)
             if preseed_exists:
                 preseed_config = UbuntuBootModes.get_preseed_config(version, server_ip, port)
-                entries.append(iPXEEntry(
-                    name=f"ubuntu_{version.replace('.', '_')}_preseed",
-                    title=f"Ubuntu {version} - Auto Install",
-                    kernel=preseed_config["kernel"],
-                    initrd=preseed_config["initrd"],
-                    cmdline=preseed_config["cmdline"],
-                    description=preseed_config["description"],
-                    order=order,
-                    boot_mode="preseed",
-                    requires_iso=False,
-                    requires_internet=True
-                ))
+                entries.append(
+                    iPXEEntry(
+                        name=f"ubuntu_{version.replace('.', '_')}_preseed",
+                        title=f"Ubuntu {version} - Auto Install",
+                        kernel=preseed_config["kernel"],
+                        initrd=preseed_config["initrd"],
+                        cmdline=preseed_config["cmdline"],
+                        description=preseed_config["description"],
+                        order=order,
+                        boot_mode="preseed",
+                        requires_iso=False,
+                        requires_internet=True,
+                    )
+                )
                 order += 1
 
             # 4. Rescue mode (always available)
             rescue_config = UbuntuBootModes.get_rescue_config(version, server_ip, port)
-            entries.append(iPXEEntry(
-                name=f"ubuntu_{version.replace('.', '_')}_rescue",
-                title=f"Ubuntu {version} - Rescue Mode",
-                kernel=rescue_config["kernel"],
-                initrd=rescue_config["initrd"],
-                cmdline=rescue_config["cmdline"],
-                description=rescue_config["description"],
-                order=order,
-                boot_mode="rescue",
-                requires_iso=False,
-                requires_internet=False
-            ))
+            entries.append(
+                iPXEEntry(
+                    name=f"ubuntu_{version.replace('.', '_')}_rescue",
+                    title=f"Ubuntu {version} - Rescue Mode",
+                    kernel=rescue_config["kernel"],
+                    initrd=rescue_config["initrd"],
+                    cmdline=rescue_config["cmdline"],
+                    description=rescue_config["description"],
+                    order=order,
+                    boot_mode="rescue",
+                    requires_iso=False,
+                    requires_internet=False,
+                )
+            )
             order += 1
 
         # Tools separator
-        entries.append(iPXEEntry(
-            name="tools_header",
-            title="System Tools",
-            entry_type="separator",
-            order=order
-        ))
+        entries.append(
+            iPXEEntry(
+                name="tools_header", title="System Tools", entry_type="separator", order=order
+            )
+        )
         order += 1
 
         # Memory test
-        entries.append(iPXEEntry(
-            name="memtest",
-            title="Memory Test (Memtest86+)",
-            kernel="tools/memtest86+.bin",
-            description="Test system memory for errors",
-            order=order,
-            boot_mode="tool",
-            entry_type="boot"
-        ))
+        entries.append(
+            iPXEEntry(
+                name="memtest",
+                title="Memory Test (Memtest86+)",
+                kernel="tools/memtest86+.bin",
+                description="Test system memory for errors",
+                order=order,
+                boot_mode="tool",
+                entry_type="boot",
+            )
+        )
 
         # Set default to first netboot option
         default_entry = None
@@ -1016,11 +1081,13 @@ class iPXETemplateManager:
             server_ip=server_ip,
             http_port=port,
             header_text="Multiple Ubuntu Installation Options Available",
-            footer_text="Use arrow keys to navigate, Enter to select"
+            footer_text="Use arrow keys to navigate, Enter to select",
         )
 
     @staticmethod
-    def get_quick_ubuntu_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
+    def get_quick_ubuntu_template(
+        server_ip: str = settings.pxe_server_ip, port: int = settings.http_port
+    ) -> iPXEMenu:
         """Quick Ubuntu template with just netboot options"""
 
         available_versions = []
@@ -1036,16 +1103,18 @@ class iPXETemplateManager:
 
         for version in available_versions:
             netboot_config = UbuntuBootModes.get_netboot_config(version, server_ip, port)
-            entries.append(iPXEEntry(
-                name=f"ubuntu_{version.replace('.', '_')}",
-                title=f"Ubuntu {version} LTS",
-                kernel=netboot_config["kernel"],
-                initrd=netboot_config["initrd"],
-                cmdline=netboot_config["cmdline"],
-                description=f"Install Ubuntu {version} from network",
-                order=order,
-                boot_mode="netboot"
-            ))
+            entries.append(
+                iPXEEntry(
+                    name=f"ubuntu_{version.replace('.', '_')}",
+                    title=f"Ubuntu {version} LTS",
+                    kernel=netboot_config["kernel"],
+                    initrd=netboot_config["initrd"],
+                    cmdline=netboot_config["cmdline"],
+                    description=f"Install Ubuntu {version} from network",
+                    order=order,
+                    boot_mode="netboot",
+                )
+            )
             order += 1
 
         return iPXEMenu(
@@ -1056,11 +1125,13 @@ class iPXETemplateManager:
             server_ip=server_ip,
             http_port=port,
             header_text="Quick Ubuntu Network Installation",
-            footer_text="Select Ubuntu version to install"
+            footer_text="Select Ubuntu version to install",
         )
 
     @staticmethod
-    def get_diagnostic_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
+    def get_diagnostic_template(
+        server_ip: str = settings.pxe_server_ip, port: int = settings.http_port
+    ) -> iPXEMenu:
         """System diagnostic tools template"""
         entries = [
             iPXEEntry(
@@ -1068,22 +1139,22 @@ class iPXETemplateManager:
                 title="Memory Test (Memtest86+)",
                 kernel="tools/memtest86+.bin",
                 description="Test system memory for errors",
-                order=1
+                order=1,
             ),
             iPXEEntry(
                 name="hdparm",
                 title="Hard Drive Diagnostics",
                 kernel="tools/hdparm.img",
                 description="Hard drive testing and diagnostics",
-                order=2
+                order=2,
             ),
             iPXEEntry(
                 name="dban",
                 title="DBAN - Disk Wipe Utility",
                 kernel="tools/dban.img",
                 description="Secure disk wiping utility",
-                order=3
-            )
+                order=3,
+            ),
         ]
 
         return iPXEMenu(
@@ -1093,18 +1164,17 @@ class iPXETemplateManager:
             server_ip=server_ip,
             http_port=port,
             header_text="System Diagnostic and Repair Tools",
-            footer_text="WARNING: Some tools may modify or erase data!"
+            footer_text="WARNING: Some tools may modify or erase data!",
         )
 
     @staticmethod
-    def get_multi_os_template(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port) -> iPXEMenu:
+    def get_multi_os_template(
+        server_ip: str = settings.pxe_server_ip, port: int = settings.http_port
+    ) -> iPXEMenu:
         """Multi-OS boot template"""
         entries = [
             iPXEEntry(
-                name="separator1",
-                title="Linux Distributions",
-                entry_type="separator",
-                order=1
+                name="separator1", title="Linux Distributions", entry_type="separator", order=1
             ),
             iPXEEntry(
                 name="ubuntu",
@@ -1112,7 +1182,7 @@ class iPXETemplateManager:
                 kernel="ubuntu/vmlinuz",
                 initrd="ubuntu/initrd",
                 cmdline="ip=dhcp",
-                order=2
+                order=2,
             ),
             iPXEEntry(
                 name="centos",
@@ -1120,21 +1190,16 @@ class iPXETemplateManager:
                 kernel="centos/vmlinuz",
                 initrd="centos/initrd.img",
                 cmdline="ip=dhcp inst.repo=http://{server_ip}:{port}/centos/",
-                order=3
+                order=3,
             ),
-            iPXEEntry(
-                name="separator2",
-                title="Utilities",
-                entry_type="separator",
-                order=4
-            ),
+            iPXEEntry(name="separator2", title="Utilities", entry_type="separator", order=4),
             iPXEEntry(
                 name="clonezilla",
                 title="Clonezilla Live",
                 kernel="clonezilla/vmlinuz",
                 initrd="clonezilla/initrd.img",
-                cmdline="boot=live config noswap nolocales edd=on ocs_live_run=\"ocs-live-general\"",
-                order=5
+                cmdline='boot=live config noswap nolocales edd=on ocs_live_run="ocs-live-general"',
+                order=5,
             ),
             iPXEEntry(
                 name="gparted",
@@ -1142,8 +1207,8 @@ class iPXETemplateManager:
                 kernel="gparted/vmlinuz",
                 initrd="gparted/initrd.img",
                 cmdline="boot=live config union=overlay username=user noswap noeject ip= vga=788",
-                order=6
-            )
+                order=6,
+            ),
         ]
 
         # Format cmdline with actual server IP and port
@@ -1159,7 +1224,7 @@ class iPXETemplateManager:
             server_ip=server_ip,
             http_port=port,
             header_text="Multiple Operating Systems and Tools",
-            footer_text="Select an option or wait for default selection"
+            footer_text="Select an option or wait for default selection",
         )
 
 
@@ -1174,14 +1239,14 @@ class iPXEManager:
         self.detector = UbuntuVersionDetector()
 
     @safe_operation("iPXE menu creation")
-    def create_menu(self, title: str = "PXE Boot Menu", server_ip: str = settings.pxe_server_ip,
-                    port: int = settings.http_port) -> iPXEMenu:
+    def create_menu(
+        self,
+        title: str = "PXE Boot Menu",
+        server_ip: str = settings.pxe_server_ip,
+        port: int = settings.http_port,
+    ) -> iPXEMenu:
         """Create new empty iPXE menu"""
-        return iPXEMenu(
-            title=title,
-            server_ip=server_ip,
-            http_port=port
-        )
+        return iPXEMenu(title=title, server_ip=server_ip, http_port=port)
 
     @safe_operation("iPXE entry addition", return_tuple=True)
     def add_entry(self, menu: iPXEMenu, entry: iPXEEntry) -> Tuple[bool, str]:
@@ -1249,7 +1314,7 @@ class iPXEManager:
         if not self.config_path.exists():
             return False, f"Menu file not found: {self.config_path}", None
 
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path, "r") as f:
             content = f.read()
 
         return True, f"Menu loaded from {self.config_path}", content
@@ -1280,15 +1345,19 @@ class iPXEManager:
 
         return True, message, script_content, warnings
 
-    def get_template(self, template_name: str, server_ip: str = settings.pxe_server_ip,
-                     port: int = settings.http_port) -> Optional[iPXEMenu]:
+    def get_template(
+        self,
+        template_name: str,
+        server_ip: str = settings.pxe_server_ip,
+        port: int = settings.http_port,
+    ) -> Optional[iPXEMenu]:
         """Get pre-defined template"""
         templates = {
             "ubuntu": self.templates.get_ubuntu_template,
             "ubuntu_multi": self.templates.get_ubuntu_multi_template,
             "ubuntu_quick": self.templates.get_quick_ubuntu_template,
             "diagnostic": self.templates.get_diagnostic_template,
-            "multi_os": self.templates.get_multi_os_template
+            "multi_os": self.templates.get_multi_os_template,
         }
 
         if template_name in templates:
@@ -1296,8 +1365,12 @@ class iPXEManager:
 
         return None
 
-    def create_adaptive_ubuntu_menu(self, server_ip: str = settings.pxe_server_ip,
-                                    port: int = settings.http_port, template_type: str = "multi") -> iPXEMenu:
+    def create_adaptive_ubuntu_menu(
+        self,
+        server_ip: str = settings.pxe_server_ip,
+        port: int = settings.http_port,
+        template_type: str = "multi",
+    ) -> iPXEMenu:
         """Create Ubuntu menu based on available files"""
 
         # Detect available Ubuntu versions
@@ -1313,10 +1386,7 @@ class iPXEManager:
         """Get status of all Ubuntu versions and their capabilities"""
         versions = self.detector.scan_available_versions()
 
-        status = {
-            "versions_found": len(versions),
-            "versions": {}
-        }
+        status = {"versions_found": len(versions), "versions": {}}
 
         for version, capabilities in versions.items():
             boot_options = self.detector.get_boot_options_for_version(version, capabilities)
@@ -1324,7 +1394,11 @@ class iPXEManager:
             status["versions"][version] = {
                 "capabilities": capabilities,
                 "boot_options": boot_options,
-                "recommended": "netboot" if "netboot" in boot_options else boot_options[0] if boot_options else None
+                "recommended": (
+                    "netboot"
+                    if "netboot" in boot_options
+                    else boot_options[0] if boot_options else None
+                ),
             }
 
         return status
@@ -1337,8 +1411,11 @@ class iPXEManager:
 
 # Convenience functions for backward compatibility and enhanced features
 @safe_operation("Smart Ubuntu menu creation")
-def create_smart_ubuntu_menu(server_ip: str = settings.pxe_server_ip, port: int = settings.http_port,
-                             template_type: str = "multi") -> str:
+def create_smart_ubuntu_menu(
+    server_ip: str = settings.pxe_server_ip,
+    port: int = settings.http_port,
+    template_type: str = "multi",
+) -> str:
     """Create smart Ubuntu menu based on available files"""
     manager = iPXEManager()
     menu = manager.create_adaptive_ubuntu_menu(server_ip, port, template_type)

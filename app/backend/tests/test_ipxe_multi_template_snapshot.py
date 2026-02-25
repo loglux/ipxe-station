@@ -14,8 +14,9 @@ def test_multi_template_snapshot(tmp_path, monkeypatch):
             (base / "preseed.cfg").write_text("preseed")
 
     # Patch detector and Path so template sees our temp files
-    from app.backend import ipxe_manager as mgr
     from pathlib import Path as RealPath
+
+    from app.backend import ipxe_manager as mgr
 
     def fake_scan(base_path="/srv/http"):
         return {
@@ -26,14 +27,20 @@ def test_multi_template_snapshot(tmp_path, monkeypatch):
     def fake_path(p):
         p_str = str(p)
         if p_str.startswith("/srv/http"):
-            p_str = str(tmp_path) + p_str[len("/srv/http"):]
+            p_str = str(tmp_path) + p_str[len("/srv/http") :]
         return RealPath(p_str)
 
-    monkeypatch.setattr(mgr.UbuntuVersionDetector, "scan_available_versions", lambda base_path="/srv/http": fake_scan(str(tmp_path)))
+    monkeypatch.setattr(
+        mgr.UbuntuVersionDetector,
+        "scan_available_versions",
+        lambda base_path="/srv/http": fake_scan(str(tmp_path)),
+    )
     monkeypatch.setattr(mgr, "Path", fake_path)
 
     manager = iPXETemplateManager()
-    menu = manager.get_ubuntu_multi_template(server_ip="10.0.0.1", port=8080, available_versions=["24.04", "22.04"])
+    menu = manager.get_ubuntu_multi_template(
+        server_ip="10.0.0.1", port=8080, available_versions=["24.04", "22.04"]
+    )
     # Ensure ordering and entries are as expected
     names = [e.name for e in menu.entries if e.entry_type == "boot"]
     assert "memtest" in names  # tool entry

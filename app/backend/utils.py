@@ -3,19 +3,20 @@ Common utilities for PXE Boot Station
 Eliminates repetition across modules: ubuntu_downloader, iso_manager, system_status, etc.
 """
 
-import os
-import json
-import requests
-import ipaddress
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, Optional, Callable, Tuple, List
 import functools
+import ipaddress
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import requests
 
 # =======================================
 # FILE UTILITIES
 # =======================================
+
 
 def format_file_size(size_bytes: int) -> str:
     """
@@ -53,7 +54,7 @@ def get_file_info(path: str) -> Dict[str, Any]:
         "size": 0,
         "size_human": "0 B",
         "modified": None,
-        "readable": False
+        "readable": False,
     }
 
     if file_path.exists():
@@ -87,7 +88,9 @@ def ensure_directory(path: str | Path) -> Path:
     return directory
 
 
-def safe_write_file(filepath: str | Path, content: str, encoding: str = 'utf-8') -> Tuple[bool, str]:
+def safe_write_file(
+    filepath: str | Path, content: str, encoding: str = "utf-8"
+) -> Tuple[bool, str]:
     """
     Safely write content to file with directory creation.
 
@@ -106,7 +109,7 @@ def safe_write_file(filepath: str | Path, content: str, encoding: str = 'utf-8')
         file_path = Path(filepath)
         ensure_directory(file_path.parent)
 
-        with open(file_path, 'w', encoding=encoding) as f:
+        with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
 
         return True, f"✅ File saved to {filepath}"
@@ -114,7 +117,9 @@ def safe_write_file(filepath: str | Path, content: str, encoding: str = 'utf-8')
         return False, f"❌ Failed to save file: {str(e)}"
 
 
-def safe_write_json(filepath: str | Path, data: Dict[str, Any], indent: int = 2) -> Tuple[bool, str]:
+def safe_write_json(
+    filepath: str | Path, data: Dict[str, Any], indent: int = 2
+) -> Tuple[bool, str]:
     """
     Safely write JSON data to file.
 
@@ -133,7 +138,7 @@ def safe_write_json(filepath: str | Path, data: Dict[str, Any], indent: int = 2)
         file_path = Path(filepath)
         ensure_directory(file_path.parent)
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump(data, f, indent=indent, default=str)
 
         return True, f"✅ JSON saved to {filepath}"
@@ -145,10 +150,15 @@ def safe_write_json(filepath: str | Path, data: Dict[str, Any], indent: int = 2)
 # DOWNLOAD UTILITIES
 # =======================================
 
-def download_with_progress(url: str, filepath: str, filename: str = None,
-                           progress_callback: Optional[Callable[[int, int, str], None]] = None,
-                           timeout: Tuple[int, int] = (30, 300),
-                           chunk_size: int = 1024 * 1024) -> Tuple[bool, str]:
+
+def download_with_progress(
+    url: str,
+    filepath: str,
+    filename: str = None,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    timeout: Tuple[int, int] = (30, 300),
+    chunk_size: int = 1024 * 1024,
+) -> Tuple[bool, str]:
     """
     Download file with progress tracking.
 
@@ -176,14 +186,14 @@ def download_with_progress(url: str, filepath: str, filename: str = None,
             return False, f"❌ Failed to download {filename}: HTTP {response.status_code}"
 
         # Get file size
-        total_size = int(response.headers.get('content-length', 0))
+        total_size = int(response.headers.get("content-length", 0))
         downloaded = 0
 
         # Ensure target directory exists
         ensure_directory(Path(filepath).parent)
 
         # Download with progress
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             for chunk in response.iter_content(chunk_size=chunk_size):
                 if chunk:
                     f.write(chunk)
@@ -207,6 +217,7 @@ def download_with_progress(url: str, filepath: str, filename: str = None,
 # VALIDATION UTILITIES
 # =======================================
 
+
 def validate_ip_address(ip: str) -> Tuple[bool, str]:
     """
     Validate IPv4 address format.
@@ -227,9 +238,13 @@ def validate_ip_address(ip: str) -> Tuple[bool, str]:
         return False, f"Invalid IP address: {ip}"
 
 
-def validate_string_field(value: str, field_name: str = "Field",
-                          min_length: int = 1, max_length: int = 255,
-                          allowed_chars: str = None) -> Tuple[bool, str]:
+def validate_string_field(
+    value: str,
+    field_name: str = "Field",
+    min_length: int = 1,
+    max_length: int = 255,
+    allowed_chars: str = None,
+) -> Tuple[bool, str]:
     """
     Validate string field with customizable rules.
 
@@ -257,14 +272,16 @@ def validate_string_field(value: str, field_name: str = "Field",
 
     if allowed_chars:
         import re
+
         if not re.match(allowed_chars, value):
             return False, f"{field_name} contains invalid characters"
 
     return True, f"Valid {field_name.lower()}"
 
 
-def validate_file_path(path: str, must_exist: bool = False,
-                       must_be_readable: bool = False) -> Tuple[bool, str]:
+def validate_file_path(
+    path: str, must_exist: bool = False, must_be_readable: bool = False
+) -> Tuple[bool, str]:
     """
     Validate file path.
 
@@ -300,6 +317,7 @@ def validate_file_path(path: str, must_exist: bool = False,
 # =======================================
 # ERROR HANDLING DECORATORS
 # =======================================
+
 
 def safe_operation(error_prefix: str = "Operation", return_tuple: bool = False):
     """
@@ -350,9 +368,14 @@ def safe_operation(error_prefix: str = "Operation", return_tuple: bool = False):
 # METADATA UTILITIES
 # =======================================
 
-def create_metadata_dict(name: str, category: str = "general",
-                         source: str = "unknown", version: str = "1.0",
-                         **additional_fields) -> Dict[str, Any]:
+
+def create_metadata_dict(
+    name: str,
+    category: str = "general",
+    source: str = "unknown",
+    version: str = "1.0",
+    **additional_fields,
+) -> Dict[str, Any]:
     """
     Create standardized metadata dictionary.
 
@@ -384,8 +407,9 @@ def create_metadata_dict(name: str, category: str = "general",
     return metadata
 
 
-def save_metadata(directory: str | Path, metadata: Dict[str, Any],
-                  filename: str = "metadata.json") -> Tuple[bool, str]:
+def save_metadata(
+    directory: str | Path, metadata: Dict[str, Any], filename: str = "metadata.json"
+) -> Tuple[bool, str]:
     """
     Save metadata to JSON file in specified directory.
 
@@ -421,7 +445,7 @@ def load_metadata(directory: str | Path, filename: str = "metadata.json") -> Dic
     try:
         metadata_path = Path(directory) / filename
         if metadata_path.exists():
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path, "r") as f:
                 return json.load(f)
     except Exception:
         pass
@@ -432,6 +456,7 @@ def load_metadata(directory: str | Path, filename: str = "metadata.json") -> Dic
 # =======================================
 # SYSTEM UTILITIES
 # =======================================
+
 
 def get_cross_platform_path(unix_path: str, windows_path: str = None) -> str:
     """
@@ -447,11 +472,11 @@ def get_cross_platform_path(unix_path: str, windows_path: str = None) -> str:
     Returns:
         str: Platform-appropriate path
     """
-    if os.name == 'nt':  # Windows
+    if os.name == "nt":  # Windows
         if windows_path:
             return windows_path
         # Convert unix path to windows (basic conversion)
-        return unix_path.replace('/srv/', 'C:/srv/').replace('/', '\\')
+        return unix_path.replace("/srv/", "C:/srv/").replace("/", "\\")
     else:  # Unix-like
         return unix_path
 
@@ -484,7 +509,10 @@ def calculate_total_size(directory: str | Path) -> int:
 # CLEANUP UTILITIES
 # =======================================
 
-def safe_delete_directory(directory: str | Path, calculate_freed_space: bool = True) -> Tuple[bool, str, int]:
+
+def safe_delete_directory(
+    directory: str | Path, calculate_freed_space: bool = True
+) -> Tuple[bool, str, int]:
     """
     Safely delete directory and calculate freed space.
 
@@ -525,6 +553,7 @@ def safe_delete_directory(directory: str | Path, calculate_freed_space: bool = T
 # EXPORT/IMPORT UTILITIES
 # =======================================
 
+
 def export_status_as_json(data: Dict[str, Any], pretty: bool = True) -> str:
     """
     Export status data as JSON string with proper serialization.
@@ -544,7 +573,7 @@ def export_status_as_json(data: Dict[str, Any], pretty: bool = True) -> str:
         """Handle datetime and other non-serializable objects"""
         if isinstance(obj, datetime):
             return obj.isoformat()
-        elif hasattr(obj, '__dict__'):
+        elif hasattr(obj, "__dict__"):
             return obj.__dict__
         return str(obj)
 

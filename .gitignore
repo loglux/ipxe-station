@@ -13,6 +13,21 @@ data/srv/**
 
 # Claude Code documentation
 CLAUDE.md
+.claude/
+AGENTS.md
+SYSTEM_PROMPT.md
+TODO.md
+notes.txt
+notes-short.txt
+
+# Secrets and local credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
 
 # Backup files
 *.old

@@ -4,25 +4,25 @@ Downloads Ubuntu netboot files and manages Ubuntu-related assets with version se
 REFACTORED: Using common utilities to eliminate repetition
 """
 
+import os
+import re
+import shutil
+import subprocess
 import tarfile
 import tempfile
-import shutil
-import os
-import subprocess
-import re
-from pathlib import Path
-from typing import Callable, Optional, Dict, Any, List
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 # Import common utilities to eliminate repetition
 from app.backend.utils import (
-    format_file_size,
-    download_with_progress,
-    safe_write_file,
-    safe_operation,
-    ensure_directory,
     calculate_total_size,
-    safe_delete_directory
+    download_with_progress,
+    ensure_directory,
+    format_file_size,
+    safe_delete_directory,
+    safe_operation,
+    safe_write_file,
 )
 
 
@@ -41,20 +41,20 @@ class UbuntuDownloader:
                 "name": "Ubuntu 24.04.2 LTS (Noble)",
                 "method": "iso_extract",
                 "iso_url": "https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso",
-                "size_mb": 2800
+                "size_mb": 2800,
             },
             "22.04": {
                 "name": "Ubuntu 22.04.5 LTS (Jammy)",
                 "method": "iso_extract",
                 "iso_url": "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-live-server-amd64.iso",
-                "size_mb": 2400
+                "size_mb": 2400,
             },
             "20.04": {
                 "name": "Ubuntu 20.04.6 LTS (Focal)",
                 "method": "netboot",
                 "netboot_url": "http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/netboot.tar.gz",
-                "size_mb": 35
-            }
+                "size_mb": 35,
+            },
         }
 
     def get_ubuntu_dir(self, version: str) -> Path:
@@ -90,8 +90,11 @@ class UbuntuDownloader:
         return installed_versions
 
     @safe_operation("Ubuntu files download")
-    def download_all_files(self, version: str = "20.04",
-                           progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+    def download_all_files(
+        self,
+        version: str = "20.04",
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> str:
         """Download Ubuntu files for specific version"""
         if version not in self.versions:
             return f"❌ Unsupported Ubuntu version: {version}"
@@ -125,8 +128,9 @@ class UbuntuDownloader:
         return status
 
     @safe_operation("ISO download and extraction")
-    def _download_and_extract_iso_docker(self, version: str,
-                                         progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+    def _download_and_extract_iso_docker(
+        self, version: str, progress_callback: Optional[Callable[[int, int, str], None]] = None
+    ) -> str:
         """Download and extract ISO - Docker optimized with system tools"""
         version_info = self.versions[version]
         iso_url = version_info["iso_url"]
@@ -140,7 +144,7 @@ class UbuntuDownloader:
             url=iso_url,
             filepath=iso_path,
             filename=f"ubuntu-{version}.iso",
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
 
         status += download_result + "\n"
@@ -167,8 +171,9 @@ class UbuntuDownloader:
         return status
 
     @safe_operation("Netboot download")
-    def _download_netboot(self, version: str,
-                          progress_callback: Optional[Callable[[int, int, str], None]] = None) -> str:
+    def _download_netboot(
+        self, version: str, progress_callback: Optional[Callable[[int, int, str], None]] = None
+    ) -> str:
         """Download traditional netboot tarball (20.04, 24.04)"""
         version_info = self.versions[version]
         netboot_url = version_info["netboot_url"]
@@ -176,14 +181,14 @@ class UbuntuDownloader:
         status = f"📥 Downloading netboot tarball ({version_info['size_mb']} MB)...\n"
 
         # Download with progress tracking using common utility
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.tar.gz') as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tar.gz") as tmp_file:
             tmp_path = tmp_file.name
 
         success, download_result = download_with_progress(
             url=netboot_url,
             filepath=tmp_path,
             filename=f"netboot-{version}.tar.gz",
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
         )
 
         status += download_result + "\n"
@@ -210,7 +215,7 @@ class UbuntuDownloader:
         initrd_found = False
         ubuntu_dir = self.get_ubuntu_dir(version)
 
-        with tarfile.open(tar_path, 'r:gz') as tar:
+        with tarfile.open(tar_path, "r:gz") as tar:
             # List all files for debugging
             all_files = [member.name for member in tar.getmembers() if member.isfile()]
             status += f"📋 Found {len(all_files)} files in archive\n"
@@ -224,31 +229,49 @@ class UbuntuDownloader:
                     continue
 
                 member_name = member.name.lower()
-                member_basename = member.name.split('/')[-1].lower()  # Only filename
+                member_basename = member.name.split("/")[-1].lower()  # Only filename
 
                 # Search for initrd files
-                if any(pattern in member_basename for pattern in ['initrd', 'initramfs']):
-                    initrd_candidates.append((member, len(member_basename)))  # Priority by name length
+                if any(pattern in member_basename for pattern in ["initrd", "initramfs"]):
+                    initrd_candidates.append(
+                        (member, len(member_basename))
+                    )  # Priority by name length
 
                 # Search for kernel files with EXACT criteria
                 elif (
-                        # Must contain linux/vmlinuz/kernel
-                        any(pattern in member_basename for pattern in ['linux', 'vmlinuz', 'kernel']) and
-                        # Must NOT contain exclusions
-                        not any(pattern in member_basename for pattern in [
-                            'initrd', 'initramfs', '.txt', '.cfg', '.md5', 'ldlinux', 'pxelinux',
-                            '.c32', '.0', 'syslinux', 'menu', 'chain', 'mboot'
-                        ]) and
-                        # Prefer files without extension or with .bin extension
-                        (('.' not in member_basename) or member_basename.endswith('.bin'))
+                    # Must contain linux/vmlinuz/kernel
+                    any(pattern in member_basename for pattern in ["linux", "vmlinuz", "kernel"])
+                    and
+                    # Must NOT contain exclusions
+                    not any(
+                        pattern in member_basename
+                        for pattern in [
+                            "initrd",
+                            "initramfs",
+                            ".txt",
+                            ".cfg",
+                            ".md5",
+                            "ldlinux",
+                            "pxelinux",
+                            ".c32",
+                            ".0",
+                            "syslinux",
+                            "menu",
+                            "chain",
+                            "mboot",
+                        ]
+                    )
+                    and
+                    # Prefer files without extension or with .bin extension
+                    (("." not in member_basename) or member_basename.endswith(".bin"))
                 ):
                     # Priority: exact name "linux" > "vmlinuz" > others
                     priority = 0
-                    if member_basename == 'linux':
+                    if member_basename == "linux":
                         priority = 100
-                    elif member_basename.startswith('vmlinuz'):
+                    elif member_basename.startswith("vmlinuz"):
                         priority = 90
-                    elif 'kernel' in member_basename:
+                    elif "kernel" in member_basename:
                         priority = 80
                     else:
                         priority = 70
@@ -308,7 +331,7 @@ class UbuntuDownloader:
         ensure_directory(extract_dir)
 
         # Extract ISO with 7-zip
-        cmd = ['7z', 'x', iso_path, f'-o{extract_dir}', '-y']
+        cmd = ["7z", "x", iso_path, f"-o{extract_dir}", "-y"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode != 0:
@@ -360,7 +383,10 @@ class UbuntuDownloader:
                 available_files = []
                 for root, dirs, files in os.walk(extract_dir):
                     for file in files:
-                        if any(pattern in file.lower() for pattern in ['vmlinuz', 'linux', 'initrd', 'kernel']):
+                        if any(
+                            pattern in file.lower()
+                            for pattern in ["vmlinuz", "linux", "initrd", "kernel"]
+                        ):
                             rel_path = os.path.relpath(os.path.join(root, file), extract_dir)
                             available_files.append(rel_path)
                 status += f"🔍 Available files: {available_files[:10]}\n"
@@ -473,7 +499,9 @@ d-i finish-install/reboot_in_progress note
         if preseed_path.exists():
             size_human = format_file_size(preseed_path.stat().st_size)
             mod_time = datetime.fromtimestamp(preseed_path.stat().st_mtime)
-            files_info.append(f"✅ preseed.cfg ({size_human}) - {mod_time.strftime('%Y-%m-%d %H:%M')}")
+            files_info.append(
+                f"✅ preseed.cfg ({size_human}) - {mod_time.strftime('%Y-%m-%d %H:%M')}"
+            )
         else:
             files_info.append("❌ preseed.cfg (missing)")
 

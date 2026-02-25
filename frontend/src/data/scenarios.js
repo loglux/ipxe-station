@@ -32,7 +32,7 @@ export const SCENARIOS = {
     },
 
     // Default template values
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `ip=dhcp url=http://\${server_ip}:\${port}/ubuntu-\${version}/`,
     }),
 
@@ -97,7 +97,7 @@ export const SCENARIOS = {
       hidden: ['url', 'parent', 'entry_type', 'boot_mode'],
     },
 
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `boot=casper iso-scan/filename=/ubuntu-\${version}.iso quiet splash`,
     }),
 
@@ -159,7 +159,7 @@ export const SCENARIOS = {
       hidden: ['url', 'parent'],
     },
 
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `auto=true priority=critical url=http://\${server_ip}:\${port}/preseed.cfg`,
     }),
 
@@ -190,7 +190,7 @@ export const SCENARIOS = {
       hidden: ['url', 'parent'],
     },
 
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `ip=dhcp`,
     }),
 
@@ -238,7 +238,7 @@ export const SCENARIOS = {
       hidden: ['url', 'parent'],
     },
 
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `archisobasedir=sysresccd checksum`,
     }),
 
@@ -290,7 +290,7 @@ export const SCENARIOS = {
       hidden: ['url', 'parent'],
     },
 
-    template: (vars = {}) => ({
+    template: () => ({
       cmdline: `dostartx netboot=http://\${server_ip}:\${port}/kaspersky/`,
     }),
 

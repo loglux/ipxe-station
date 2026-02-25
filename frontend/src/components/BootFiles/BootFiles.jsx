@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './BootFiles.css'
 
 function BootFiles() {
@@ -11,11 +11,7 @@ function BootFiles() {
   const [message, setMessage] = useState(null)
   const [settings, setSettings] = useState({ server_ip: '192.168.10.32', http_port: 9021 })
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       // Load settings
@@ -44,7 +40,11 @@ function BootFiles() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const showMessage = (type, text) => {
     setMessage({ type, text })

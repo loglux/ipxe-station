@@ -47,7 +47,9 @@ class IpxeMenuModel(BaseModel):
         if self.default_entry:
             entry_names = [entry.name for entry in self.entries if entry.enabled]
             if self.default_entry not in entry_names:
-                raise ValueError(f"Default entry '{self.default_entry}' not present in enabled entries")
+                raise ValueError(
+                    f"Default entry '{self.default_entry}' not present in enabled entries"
+                )
         return self
 
 
@@ -85,7 +87,7 @@ def menu_to_model(menu) -> IpxeMenuModel:
 
 def model_to_menu(model: IpxeMenuModel):
     """Convert Pydantic menu model to iPXEMenu dataclass."""
-    from app.backend.ipxe_manager import iPXEMenu, iPXEEntry
+    from app.backend.ipxe_manager import iPXEEntry, iPXEMenu
 
     return iPXEMenu(
         title=model.title,

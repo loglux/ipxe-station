@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './MenuBuilder.css'
 
-function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onAddEntry, onUpdateEntry, onDeleteEntry, onOpenWizard }) {
+function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
 
   const toggleNode = (nodeName) => {

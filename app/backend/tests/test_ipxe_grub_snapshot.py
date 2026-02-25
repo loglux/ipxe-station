@@ -1,4 +1,4 @@
-from app.backend.ipxe_manager import iPXEMenu, iPXEEntry, iPXEGenerator
+from app.backend.ipxe_manager import iPXEEntry, iPXEGenerator, iPXEMenu
 
 
 def test_grub_generator_snapshot():

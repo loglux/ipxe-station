@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DHCPHelper.css';
 
 const DHCPHelper = () => {
@@ -22,14 +22,7 @@ const DHCPHelper = () => {
       .catch(err => console.error('Failed to load server types:', err));
   }, []);
 
-  // Auto-generate config when settings change
-  useEffect(() => {
-    if (selectedType) {
-      generateConfig();
-    }
-  }, [selectedType, pxeServerIP, httpPort, tftpPort]);
-
-  const generateConfig = async () => {
+  const generateConfig = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/dhcp/config/generate', {
@@ -49,7 +42,14 @@ const DHCPHelper = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [httpPort, pxeServerIP, selectedType, tftpPort]);
+
+  // Auto-generate config when settings change
+  useEffect(() => {
+    if (selectedType) {
+      generateConfig();
+    }
+  }, [generateConfig, selectedType]);
 
   const copyToClipboard = () => {
     if (generatedConfig?.config) {
