@@ -3,8 +3,6 @@ DHCP Configuration Helper
 Generates recommended DHCP configurations for various DHCP servers
 """
 
-import socket
-import struct
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -246,7 +244,7 @@ class DHCPValidator:
             # Get interface MAC and IP
             try:
                 mac_addr = get_if_hwaddr(interface_name)
-                ip_addr = get_if_addr(interface_name)
+                get_if_addr(interface_name)
             except Exception as e:
                 return {
                     "status": "error",
@@ -415,7 +413,8 @@ class DHCPValidator:
         if "option_66" in detected_options:
             if detected_options["option_66"] != expected_server_ip:
                 issues.append(
-                    f"Option 66 (Next Server) is {detected_options['option_66']}, expected {expected_server_ip}"
+                    f"Option 66 (Next Server) is {detected_options['option_66']}, "
+                    f"expected {expected_server_ip}"
                 )
         else:
             issues.append("Option 66 (Next Server) not found in DHCP response")
@@ -425,7 +424,8 @@ class DHCPValidator:
             valid_bootfiles = ["undionly.kpxe", "ipxe.efi", "ipxe.pxe"]
             if detected_options["option_67"] not in valid_bootfiles:
                 warnings.append(
-                    f"Option 67 (Boot Filename) is {detected_options['option_67']}, expected one of {valid_bootfiles}"
+                    f"Option 67 (Boot Filename) is {detected_options['option_67']}, "
+                    f"expected one of {valid_bootfiles}"
                 )
         else:
             issues.append("Option 67 (Boot Filename) not found in DHCP response")

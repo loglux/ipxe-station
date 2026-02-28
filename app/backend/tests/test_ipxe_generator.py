@@ -1,5 +1,3 @@
-import pytest
-
 from app.backend.ipxe_manager import iPXEEntry, iPXEGenerator, iPXEMenu
 
 

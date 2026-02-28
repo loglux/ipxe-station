@@ -228,7 +228,6 @@ class UbuntuDownloader:
                 if not member.isfile():
                     continue
 
-                member_name = member.name.lower()
                 member_basename = member.name.split("/")[-1].lower()  # Only filename
 
                 # Search for initrd files
@@ -390,7 +389,7 @@ class UbuntuDownloader:
                             rel_path = os.path.relpath(os.path.join(root, file), extract_dir)
                             available_files.append(rel_path)
                 status += f"🔍 Available files: {available_files[:10]}\n"
-            except:
+            except Exception:
                 pass
 
         return status
@@ -510,7 +509,7 @@ d-i finish-install/reboot_in_progress note
             total_files = len(list(ubuntu_dir.iterdir()))
             files_info.append(f"📊 Total files: {total_files}")
         else:
-            files_info.append(f"❌ Directory does not exist")
+            files_info.append("❌ Directory does not exist")
 
         return "\n".join(files_info)
 
@@ -519,7 +518,10 @@ d-i finish-install/reboot_in_progress note
         installed_versions = self.get_installed_versions()
 
         if not installed_versions:
-            return f"📁 No Ubuntu versions installed in {self.base_path}\n\n🔍 Available versions to download: {', '.join(self.versions.keys())}"
+            return (
+                f"📁 No Ubuntu versions installed in {self.base_path}\n\n"
+                f"🔍 Available versions to download: {', '.join(self.versions.keys())}"
+            )
 
         results = []
         results.append(f"📁 Ubuntu installations in {self.base_path}")
@@ -578,7 +580,10 @@ d-i finish-install/reboot_in_progress note
                     total_freed += freed_bytes
 
         total_freed_human = format_file_size(total_freed)
-        return f"✅ Deleted {len(deleted_versions)} Ubuntu versions: {', '.join(deleted_versions)}\n💾 Total freed: {total_freed_human}"
+        return (
+            f"✅ Deleted {len(deleted_versions)} Ubuntu versions: {', '.join(deleted_versions)}\n"
+            f"💾 Total freed: {total_freed_human}"
+        )
 
     def get_supported_versions(self) -> Dict[str, Any]:
         """Get list of supported Ubuntu versions"""

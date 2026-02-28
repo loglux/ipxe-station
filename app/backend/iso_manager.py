@@ -128,7 +128,7 @@ class ISOManager:
             filename = url.split("/")[-1]
             if not filename.endswith(".iso"):
                 filename = f"{folder_name}.iso"
-        except:
+        except Exception:
             filename = f"{folder_name}.iso"
 
         iso_path = iso_dir / filename
@@ -159,7 +159,7 @@ class ISOManager:
         total_size = calculate_total_size(iso_dir)
         final_size_human = format_file_size(total_size)
         status += f"💾 Total folder size: {final_size_human}\n"
-        status += f"✅ ISO processing completed successfully!"
+        status += "✅ ISO processing completed successfully!"
 
         return status
 
@@ -429,7 +429,7 @@ class ISOManager:
         )
 
         success, message = save_metadata(iso_dir, metadata)
-        return f"📋 Metadata created" if success else message
+        return "📋 Metadata created" if success else message
 
     @safe_operation("Boot files extraction")
     def _extract_boot_files(self, iso_path: Path, iso_dir: Path, iso_retention: str) -> str:
@@ -530,7 +530,7 @@ class ISOManager:
                 matches = glob.glob(os.path.join(extract_dir, pattern))
                 if matches:
                     source_file = matches[0]
-                    target_file = target_dir / f"config.cfg"
+                    target_file = target_dir / "config.cfg"
                     shutil.copy2(source_file, target_file)
                     status += f"✅ Extracted config: {os.path.basename(source_file)}\n"
                     files_found += 1
@@ -538,7 +538,7 @@ class ISOManager:
             else:
                 source_file = os.path.join(extract_dir, pattern)
                 if os.path.exists(source_file):
-                    target_file = target_dir / f"config.cfg"
+                    target_file = target_dir / "config.cfg"
                     shutil.copy2(source_file, target_file)
                     status += f"✅ Extracted config: {pattern}\n"
                     files_found += 1
@@ -562,7 +562,7 @@ class ISOManager:
                         rel_path = os.path.relpath(os.path.join(root, file), extract_dir)
                         all_files.append(rel_path)
                 status += f"🔍 Sample files in ISO: {', '.join(all_files[:10])}\n"
-            except:
+            except Exception:
                 pass
         else:
             status += f"📊 Total boot files extracted: {files_found}"
@@ -574,7 +574,7 @@ class ISOManager:
         """Handle ISO file based on retention policy"""
         if iso_retention == "delete":
             iso_path.unlink()
-            return f"🗑️ Original ISO deleted to save space"
+            return "🗑️ Original ISO deleted to save space"
 
         elif iso_retention == "subfolder":
             iso_subdir = iso_dir / "iso"
@@ -613,7 +613,7 @@ class ISOManager:
 
             # Show extraction info
             if metadata.get("extract_files"):
-                status_lines.append(f"📦 **Extraction:** Enabled")
+                status_lines.append("📦 **Extraction:** Enabled")
                 status_lines.append(
                     f"💾 **ISO Retention:** {metadata.get('iso_retention', 'unknown')}"
                 )
@@ -625,13 +625,14 @@ class ISOManager:
             iso_files.extend(list(iso_subdir.glob("*.iso")))
 
         if iso_files:
-            status_lines.append(f"\n💿 **ISO Files:**")
+            status_lines.append("\n💿 **ISO Files:**")
             for iso_file in iso_files:
                 size_human = format_file_size(iso_file.stat().st_size)
                 mod_time = datetime.fromtimestamp(iso_file.stat().st_mtime)
                 relative_path = iso_file.relative_to(iso_dir)
                 status_lines.append(
-                    f"  • **{relative_path}** ({size_human}) - {mod_time.strftime('%Y-%m-%d %H:%M')}"
+                    f"  • **{relative_path}** ({size_human}) "
+                    f"- {mod_time.strftime('%Y-%m-%d %H:%M')}"
                 )
 
         # Check for extracted boot files
@@ -645,7 +646,7 @@ class ISOManager:
                 extracted_files.append(f"{boot_file} ({size_human})")
 
         if extracted_files:
-            status_lines.append(f"\n📦 **Extracted Boot Files:**")
+            status_lines.append("\n📦 **Extracted Boot Files:**")
             for file_info in extracted_files:
                 status_lines.append(f"  • {file_info}")
 
@@ -653,21 +654,21 @@ class ISOManager:
         for dirname in ("live", "casper", "boot"):
             extracted_subdir = iso_dir / dirname
             if extracted_subdir.exists():
-                status_lines.append(f"\n📂 **Extracted Directories:**")
+                status_lines.append("\n📂 **Extracted Directories:**")
                 status_lines.append(f"  • {dirname}/")
                 break
 
         # Show boot options available
-        status_lines.append(f"\n🚀 **Boot Options Available:**")
+        status_lines.append("\n🚀 **Boot Options Available:**")
 
         if any(f.exists() for f in [iso_dir / "vmlinuz", iso_dir / "initrd"]):
-            status_lines.append(f"  • ⚡ Fast boot (extracted files)")
+            status_lines.append("  • ⚡ Fast boot (extracted files)")
 
         if iso_files:
-            status_lines.append(f"  • 💿 Full ISO boot (sanboot/imgfetch)")
+            status_lines.append("  • 💿 Full ISO boot (sanboot/imgfetch)")
 
         if not iso_files and not extracted_files:
-            status_lines.append(f"  • ❌ No boot options available")
+            status_lines.append("  • ❌ No boot options available")
 
         return "\n".join(status_lines)
 
@@ -676,7 +677,10 @@ class ISOManager:
         isos = self.list_existing_isos()
 
         if not isos:
-            return f"📁 No ISOs found in {self.base_path}\n\n🔍 Use the upload/download forms above to add ISOs"
+            return (
+                f"📁 No ISOs found in {self.base_path}\n\n"
+                "🔍 Use the upload/download forms above to add ISOs"
+            )
 
         status_lines = []
         status_lines.append(f"📁 ISO Images in {self.base_path}")
@@ -704,7 +708,7 @@ class ISOManager:
                 status_lines.append(f"     📅 Created: {iso['created'].strftime('%Y-%m-%d %H:%M')}")
 
         # Summary
-        status_lines.append(f"\n📊 **SUMMARY**")
+        status_lines.append("\n📊 **SUMMARY**")
         status_lines.append(f"📁 Total ISOs: {len(isos)}")
         status_lines.append(f"💾 Total size: {total_size:.2f} GB")
         status_lines.append(f"🏷️ Categories: {', '.join(by_category.keys())}")

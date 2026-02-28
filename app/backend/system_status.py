@@ -214,7 +214,7 @@ class SystemMonitor:
             import platform as plt
 
             architecture = plt.machine()
-        except:
+        except Exception:
             architecture = "unknown"
 
         # CPU and memory
@@ -294,7 +294,7 @@ class SystemMonitor:
             io_counters = {}
             try:
                 io_counters = psutil.net_io_counters(pernic=True)
-            except:
+            except Exception:
                 pass
 
             for interface_name, addr_list in addresses.items():
@@ -406,39 +406,39 @@ class PXEServiceMonitor:
 
         return service
 
-    @safe_operation("Gradio service check")
-    def check_gradio_service(self, port: int = 8000) -> ServiceInfo:
-        """Check Gradio UI service status (part of FastAPI)"""
+    @safe_operation("Web UI service check")
+    def check_http_ui_service(self, port: int = 8000) -> ServiceInfo:
+        """Check React web UI service status (served by FastAPI)"""
         service = ServiceInfo(
-            name="Gradio UI",
+            name="Web UI",
             status=ServiceStatus.UNKNOWN,
             port=port,
             protocol="tcp",
-            description="Gradio web interface",
+            description="React web interface",
         )
 
         # Check if HTTP service is running first
         http_listening = self.service_checker.check_port_listening(port, "tcp")
 
         if http_listening:
-            # Try to test Gradio endpoint specifically
+            # Try to test the UI endpoint specifically
             try:
                 import requests
 
-                response = requests.get(f"http://localhost:{port}/pxe-station", timeout=2)
-                if response.status_code in [200, 302]:  # 302 for redirects
+                response = requests.get(f"http://localhost:{port}/ui", timeout=2)
+                if response.status_code in [200, 302]:
                     service.status = ServiceStatus.RUNNING
-                    service.error_message = "Gradio UI accessible"
+                    service.error_message = "Web UI accessible"
                 else:
                     service.status = ServiceStatus.ERROR
-                    service.error_message = f"Gradio endpoint returned HTTP {response.status_code}"
+                    service.error_message = f"Web UI endpoint returned HTTP {response.status_code}"
             except ImportError:
                 # Fallback if requests not available
                 service.status = ServiceStatus.RUNNING
-                service.error_message = "HTTP service running (Gradio likely available)"
+                service.error_message = "HTTP service running (Web UI likely available)"
             except Exception as e:
                 service.status = ServiceStatus.ERROR
-                service.error_message = f"Gradio endpoint test failed: {str(e)}"
+                service.error_message = f"Web UI endpoint test failed: {str(e)}"
         else:
             service.status = ServiceStatus.STOPPED
             service.error_message = f"HTTP service not running on port {port}"
@@ -618,7 +618,7 @@ class SystemStatusManager:
         services = {
             "tftp": self.pxe_monitor.check_tftp_service(),
             "http": self.pxe_monitor.check_http_service(8000),  # Fixed: internal container port
-            "gradio": self.pxe_monitor.check_gradio_service(8000),  # Fixed: same as HTTP
+            "http_ui": self.pxe_monitor.check_http_ui_service(8000),
             "dhcp": self.pxe_monitor.check_dhcp_service(),
         }
 
@@ -756,8 +756,8 @@ class SystemStatusManager:
         if services["http"].status != ServiceStatus.RUNNING:
             recommendations.append("🔧 Start HTTP server for serving boot files")
 
-        if services["gradio"].status != ServiceStatus.RUNNING:
-            recommendations.append("🔧 Check Gradio web interface accessibility")
+        if services["http_ui"].status != ServiceStatus.RUNNING:
+            recommendations.append("🔧 Check Web UI accessibility")
 
         if services["dhcp"].status != ServiceStatus.RUNNING:
             recommendations.append("⚠️ Configure DHCP server with PXE options")
@@ -867,7 +867,7 @@ def check_services() -> Dict[str, ServiceInfo]:
     return {
         "tftp": monitor.check_tftp_service(),
         "http": monitor.check_http_service(8000),  # Fixed port
-        "gradio": monitor.check_gradio_service(8000),  # Fixed port
+        "http_ui": monitor.check_http_ui_service(8000),
         "dhcp": monitor.check_dhcp_service(),
     }
 

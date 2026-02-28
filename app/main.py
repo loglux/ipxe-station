@@ -1,9 +1,10 @@
+import logging
 import os
-import shutil
 import threading
 import time
+from collections import deque
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 from urllib.parse import urlparse
 
 import requests
@@ -15,6 +16,8 @@ from pydantic import BaseModel
 from app.backend.dhcp_helper import DHCPConfig, DHCPConfigGenerator, DHCPValidator
 from app.backend.ipxe_manager import iPXEManager
 from app.backend.ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="iPXE Station", description="Network Boot Server")
 
@@ -35,6 +38,8 @@ async def log_requests(request: Request, call_next):
 
         response = await call_next(request)
 
+        _record_http_boot_flow(request, request.url.path, response.status_code)
+
         # Log significant requests (not static assets)
         if not request.url.path.startswith(("/ui/", "/status")):
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -45,7 +50,10 @@ async def log_requests(request: Request, call_next):
                 level = "warning" if response.status_code < 500 else "error"
 
             # Log the request
-            message = f"{request.method} {request.url.path} - {response.status_code} ({duration_ms:.0f}ms)"
+            message = (
+                f"{request.method} {request.url.path}"
+                f" - {response.status_code} ({duration_ms:.0f}ms)"
+            )
             if request.client:
                 message = f"{request.client.host} - {message}"
 
@@ -59,9 +67,13 @@ async def log_requests(request: Request, call_next):
 # In-memory log storage for monitoring
 SYSTEM_LOGS = []
 MAX_LOGS = 1000
+PXE_CLIENTS: Dict[str, dict] = {}
+PXE_LOOP_WINDOW_SECONDS = 30
+PXE_LOOP_THRESHOLD = 3
+PXE_STALL_THRESHOLD_SECONDS = 15
 
 
-def add_log(log_type: str, level: str, message: str):
+def add_log(log_type: str, level: str, message: str, **context):
     """Add a log entry to the system logs."""
     global SYSTEM_LOGS
     from datetime import datetime
@@ -72,6 +84,7 @@ def add_log(log_type: str, level: str, message: str):
         "level": level,
         "message": message,
     }
+    log_entry.update({k: v for k, v in context.items() if v is not None})
 
     SYSTEM_LOGS.append(log_entry)
 
@@ -79,7 +92,201 @@ def add_log(log_type: str, level: str, message: str):
     if len(SYSTEM_LOGS) > MAX_LOGS:
         SYSTEM_LOGS = SYSTEM_LOGS[-MAX_LOGS:]
 
-    print(f"[{log_type}] [{level}] {message}")
+    logger.debug("[%s] [%s] %s", log_type, level, message)
+
+
+def _get_pxe_client_state(client_ip: str) -> dict:
+    state = PXE_CLIENTS.setdefault(
+        client_ip,
+        {
+            "recent_ipxe_efi_requests": deque(),
+            "last_boot_script_at": 0.0,
+            "loop_warning_at": 0.0,
+            "last_stage": None,
+            "first_seen_at": 0.0,
+            "last_seen_at": 0.0,
+            "last_event_at": 0.0,
+            "stalled_warning_at": 0.0,
+            "boot_script_fetches": 0,
+            "kernel_fetches": 0,
+            "initrd_fetches": 0,
+            "beacon_hits": 0,
+            "event_count": 0,
+        },
+    )
+    return state
+
+
+def _record_boot_event(
+    client_ip: str,
+    stage: str,
+    message: str,
+    *,
+    level: str = "info",
+    protocol: str | None = None,
+    filename: str | None = None,
+):
+    """Record a structured PXE/iPXE boot flow event."""
+    now = time.time()
+    state = _get_pxe_client_state(client_ip)
+    if not state["first_seen_at"]:
+        state["first_seen_at"] = now
+    state["last_seen_at"] = now
+    state["last_event_at"] = now
+    state["last_stage"] = stage
+    state["event_count"] += 1
+    if stage == "boot_script":
+        state["boot_script_fetches"] += 1
+    elif stage == "kernel":
+        state["kernel_fetches"] += 1
+    elif stage == "initrd":
+        state["initrd_fetches"] += 1
+    elif stage == "beacon":
+        state["beacon_hits"] += 1
+    add_log(
+        "boot",
+        level,
+        message,
+        client_ip=client_ip,
+        stage=stage,
+        protocol=protocol,
+        filename=filename,
+    )
+
+
+def _track_ipxe_loop(client_ip: str, filename: str):
+    """Detect repeated iPXE binary requests without a boot script fetch."""
+    if filename != "ipxe.efi":
+        return
+
+    now = time.time()
+    state = _get_pxe_client_state(client_ip)
+    requests = state["recent_ipxe_efi_requests"]
+
+    requests.append(now)
+    while requests and now - requests[0] > PXE_LOOP_WINDOW_SECONDS:
+        requests.popleft()
+
+    if state["last_boot_script_at"] >= requests[0]:
+        return
+
+    if (
+        len(requests) >= PXE_LOOP_THRESHOLD
+        and now - state["loop_warning_at"] > PXE_LOOP_WINDOW_SECONDS
+    ):
+        state["loop_warning_at"] = now
+        _record_boot_event(
+            client_ip,
+            "suspected_loop",
+            (
+                f"Suspected iPXE chainload loop: {len(requests)} requests for {filename} "
+                f"in {PXE_LOOP_WINDOW_SECONDS}s without boot.ipxe fetch"
+            ),
+            level="warning",
+            protocol="tftp",
+            filename=filename,
+        )
+
+
+def _session_status(state: dict, now: float | None = None) -> str:
+    """Summarize current client boot state into a compact status."""
+    now = now or time.time()
+    if state["kernel_fetches"] or state["initrd_fetches"]:
+        return "boot_assets_requested"
+    if state["boot_script_fetches"]:
+        return "boot_script_fetched"
+    if (
+        state["last_stage"] == "ipxe_binary"
+        and state["last_seen_at"]
+        and now - state["last_seen_at"] > PXE_STALL_THRESHOLD_SECONDS
+    ):
+        return "stalled_after_ipxe"
+    if state["last_stage"] == "suspected_loop":
+        return "suspected_loop"
+    if state["last_stage"] == "ipxe_binary":
+        return "waiting_for_boot_script"
+    return state["last_stage"] or "unknown"
+
+
+def _build_boot_session(client_ip: str, state: dict, now: float | None = None) -> dict:
+    """Return a serializable boot session summary for monitoring UI."""
+    now = now or time.time()
+    return {
+        "client_ip": client_ip,
+        "first_seen_at": state["first_seen_at"],
+        "last_seen_at": state["last_seen_at"],
+        "last_stage": state["last_stage"],
+        "status": _session_status(state, now),
+        "event_count": state["event_count"],
+        "boot_script_fetches": state["boot_script_fetches"],
+        "kernel_fetches": state["kernel_fetches"],
+        "initrd_fetches": state["initrd_fetches"],
+        "beacon_hits": state["beacon_hits"],
+        "recent_ipxe_requests": len(state["recent_ipxe_efi_requests"]),
+        "seconds_since_seen": (
+            round(max(0.0, now - state["last_seen_at"]), 1) if state["last_seen_at"] else None
+        ),
+    }
+
+
+def _refresh_boot_sessions(now: float | None = None) -> List[dict]:
+    """Update stalled warnings and return current boot sessions."""
+    now = now or time.time()
+    sessions = []
+    for client_ip, state in PXE_CLIENTS.items():
+        if (
+            state["last_stage"] == "ipxe_binary"
+            and not state["boot_script_fetches"]
+            and state["last_seen_at"]
+            and now - state["last_seen_at"] > PXE_STALL_THRESHOLD_SECONDS
+            and now - state["stalled_warning_at"] > PXE_STALL_THRESHOLD_SECONDS
+        ):
+            state["stalled_warning_at"] = now
+            _record_boot_event(
+                client_ip,
+                "stalled_after_ipxe",
+                (
+                    f"Client stalled after iPXE binary: no boot.ipxe fetch within "
+                    f"{PXE_STALL_THRESHOLD_SECONDS}s"
+                ),
+                level="warning",
+                protocol="boot",
+                filename="ipxe.efi",
+            )
+        sessions.append(_build_boot_session(client_ip, state, now))
+
+    sessions.sort(key=lambda session: session["last_seen_at"] or 0.0, reverse=True)
+    return sessions
+
+
+def _record_http_boot_flow(request: Request, path: str, status_code: int):
+    """Capture meaningful boot asset HTTP requests as structured events."""
+    client_ip = request.client.host if request.client else "unknown"
+    normalized = path.lstrip("/")
+    stage = None
+
+    if normalized == "ipxe/boot.ipxe":
+        state = _get_pxe_client_state(client_ip)
+        state["last_boot_script_at"] = time.time()
+        state["recent_ipxe_efi_requests"].clear()
+        stage = "boot_script"
+    elif normalized.endswith(("/vmlinuz", "/linux")):
+        stage = "kernel"
+    elif "initrd" in normalized:
+        stage = "initrd"
+
+    if not stage:
+        return
+
+    level = "info" if status_code < 400 else "warning"
+    _record_boot_event(
+        client_ip,
+        stage,
+        f"HTTP boot asset request: {normalized} -> {status_code}",
+        level=level,
+        protocol="http",
+        filename=normalized.rsplit("/", 1)[-1],
+    )
 
 
 # Base data root (fallback to /tmp/ipxe if /srv not writable)
@@ -213,6 +420,20 @@ async def status():
         "http_files": len(list(HTTP_ROOT.rglob("*"))),
         "ipxe_files": len(list(IPXE_ROOT.glob("*"))),
     }
+
+
+@app.get("/api/boot/ping")
+async def boot_ping(request: Request, stage: str = "beacon"):
+    """Lightweight endpoint for iPXE scripts to confirm execution reached HTTP."""
+    client_ip = request.client.host if request.client else "unknown"
+    _record_boot_event(
+        client_ip,
+        "beacon",
+        f"Boot beacon received at stage '{stage}'",
+        protocol="http",
+        filename="boot-ping",
+    )
+    return {"success": True, "client_ip": client_ip, "stage": stage}
 
 
 def _list_relative_files(base: Path, max_depth: int = 2) -> List[str]:
@@ -409,7 +630,6 @@ def _parse_boot_ipxe(script_content: str) -> dict:
     # Extract menu items from :start section
     in_start_menu = False
     in_submenu = None
-    current_submenu_items = []
 
     # First pass: extract menu items
     for line in lines:
@@ -420,7 +640,6 @@ def _parse_boot_ipxe(script_content: str) -> dict:
             continue
         elif line.startswith(":submenu_"):
             in_submenu = line[1:]  # Remove ':' prefix
-            current_submenu_items = []
             continue
         elif line.startswith(":") and in_start_menu:
             in_start_menu = False
@@ -747,6 +966,23 @@ def save_autoexec(payload: "AutoexecSaveRequest"):
         raise HTTPException(status_code=500, detail=f"Failed to save autoexec.ipxe: {str(e)}")
 
 
+@boot_router.delete("/autoexec")
+def delete_autoexec():
+    """Delete autoexec.ipxe so boot flow can bypass the optional bootstrap script."""
+    autoexec_path = TFTP_ROOT / "autoexec.ipxe"
+
+    if not autoexec_path.exists():
+        return {"success": True, "message": "autoexec.ipxe already disabled"}
+
+    try:
+        autoexec_path.unlink()
+        add_log("system", "info", "autoexec.ipxe deleted (optional bootstrap disabled)")
+        return {"success": True, "message": "autoexec.ipxe deleted"}
+    except Exception as e:
+        add_log("system", "error", f"Failed to delete autoexec.ipxe: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete autoexec.ipxe: {str(e)}")
+
+
 class AutoexecTemplateRequest(BaseModel):
     template: str
     next_server: str = os.getenv("PXE_SERVER_IP", "192.168.1.1")  # Default to common router IP
@@ -952,7 +1188,7 @@ def download_asset(request: DownloadRequest):
                     add_log(
                         "download",
                         "info",
-                        f"Extracted {extraction_result.get('file_count', 0)} files from {progress_key}",
+                        f"Extracted {extraction_result.get('file_count', 0)} files from {progress_key}",  # noqa: E501
                     )
                 else:
                     with download_progress_lock:
@@ -963,7 +1199,8 @@ def download_asset(request: DownloadRequest):
                     add_log(
                         "download",
                         "error",
-                        f"ISO extraction failed for {progress_key}: {extraction_result.get('error', 'Unknown error')}",
+                        f"ISO extraction failed for {progress_key}: "
+                        f"{extraction_result.get('error', 'Unknown error')}",
                     )
 
     except Exception as exc:
@@ -1032,7 +1269,7 @@ def _extract_full_iso(iso_path: Path, dest_dir: Path) -> dict:
     try:
         # Full extraction with directory structure preserved
         extract_cmd = ["7z", "x", str(iso_path), f"-o{dest_dir}", "-y"]
-        result = subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
+        subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
 
         # Count extracted files
         file_count = sum(1 for _ in dest_dir.rglob("*") if _.is_file())
@@ -1360,6 +1597,7 @@ app.include_router(dhcp_router)
 async def get_logs(type: str = None, level: str = None, limit: int = 100):
     """Get system logs with optional filtering."""
     try:
+        _refresh_boot_sessions()
         filtered_logs = SYSTEM_LOGS.copy()
 
         # Filter by type
@@ -1381,9 +1619,20 @@ async def get_logs(type: str = None, level: str = None, limit: int = 100):
 @app.post("/api/monitoring/logs/clear")
 async def clear_logs():
     """Clear all system logs."""
-    global SYSTEM_LOGS
+    global SYSTEM_LOGS, PXE_CLIENTS
     SYSTEM_LOGS = []
+    PXE_CLIENTS = {}
     return {"success": True, "message": "Logs cleared"}
+
+
+@app.get("/api/monitoring/boot-sessions")
+async def get_boot_sessions():
+    """Return summarized PXE/iPXE client sessions."""
+    try:
+        sessions = _refresh_boot_sessions()
+        return {"success": True, "sessions": sessions}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 @app.get("/api/monitoring/services")
@@ -1399,7 +1648,7 @@ async def get_service_status():
                 ["service", "tftpd-hpa", "status"], capture_output=True, text=True, timeout=5
             )
             tftp_status = "running" if result.returncode == 0 else "stopped"
-        except:
+        except Exception:
             tftp_status = "unknown"
 
         # Check rsyslog service
@@ -1409,7 +1658,7 @@ async def get_service_status():
                 ["service", "rsyslog", "status"], capture_output=True, text=True, timeout=5
             )
             rsyslog_status = "running" if result.returncode == 0 else "stopped"
-        except:
+        except Exception:
             rsyslog_status = "unknown"
 
         # HTTP server is always running if this endpoint responds
@@ -1475,6 +1724,7 @@ syslog_monitor_running = False
 def parse_syslog_tftp():
     """Parse syslog for TFTP entries and add to monitoring."""
     global syslog_position
+    import re
 
     syslog_path = Path("/var/log/syslog")
     if not syslog_path.exists():
@@ -1488,36 +1738,63 @@ def parse_syslog_tftp():
             for line in f:
                 # Parse TFTP log lines
                 if "in.tftpd" in line:
-                    # Extract timestamp, IP, and message
-                    parts = line.strip().split()
-                    if len(parts) >= 6:
-                        timestamp = " ".join(parts[0:2])
-                        message = " ".join(parts[5:])
+                    message = line.split("in.tftpd", 1)[-1]
+                    message = message.split("]: ", 1)[-1].strip()
 
-                        # Extract client IP if present
-                        client_ip = "unknown"
-                        if "RRQ from" in message:
-                            try:
-                                client_ip = message.split("RRQ from ")[1].split()[0]
-                                filename = (
-                                    message.split("filename ")[1]
-                                    if "filename" in message
-                                    else "unknown"
-                                )
-                                add_log(
-                                    "tftp", "info", f"Download request from {client_ip}: {filename}"
-                                )
-                            except:
-                                add_log("tftp", "info", message)
-                        elif "tftp:" in message:
-                            add_log("tftp", "warning", message)
-                        else:
-                            add_log("tftp", "debug", message)
+                    rrq_match = re.search(r"RRQ from (\S+) filename (\S+)", message)
+                    if rrq_match:
+                        client_ip = rrq_match.group(1)
+                        filename = rrq_match.group(2)
+                        add_log(
+                            "tftp",
+                            "info",
+                            f"Download request from {client_ip}: {filename}",
+                            client_ip=client_ip,
+                            filename=filename,
+                            protocol="tftp",
+                        )
+
+                        if filename == "ipxe.efi":
+                            _record_boot_event(
+                                client_ip,
+                                "ipxe_binary",
+                                f"Served iPXE UEFI binary via TFTP: {filename}",
+                                protocol="tftp",
+                                filename=filename,
+                            )
+                            _track_ipxe_loop(client_ip, filename)
+                        elif filename == "undionly.kpxe":
+                            _record_boot_event(
+                                client_ip,
+                                "ipxe_binary",
+                                f"Served iPXE BIOS binary via TFTP: {filename}",
+                                protocol="tftp",
+                                filename=filename,
+                            )
+                        elif filename.endswith(".ipxe"):
+                            _record_boot_event(
+                                client_ip,
+                                "boot_script_tftp",
+                                f"Served boot script via TFTP: {filename}",
+                                protocol="tftp",
+                                filename=filename,
+                            )
+                        continue
+
+                    option_match = re.search(r"tftp: (.+)", message)
+                    if option_match:
+                        detail = option_match.group(1)
+                        level = "debug"
+                        if "does not accept options" in detail:
+                            level = "info"
+                        add_log("tftp", level, detail, protocol="tftp")
+                    else:
+                        add_log("tftp", "debug", message, protocol="tftp")
 
             # Update position
             syslog_position = f.tell()
     except Exception as e:
-        print(f"Error parsing syslog: {e}")
+        logger.error("Error parsing syslog: %s", e)
 
 
 def syslog_monitor_thread():
@@ -1544,12 +1821,12 @@ FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
     app.mount("/ui", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="ui")
 else:
-    print("Warning: Frontend dist directory not found. Build the frontend first.")
+    logger.warning("Frontend dist directory not found. Build the frontend first.")
 
 if __name__ == "__main__":
     import uvicorn
 
-    print("Starting server...")
+    logger.info("Starting server...")
     port = int(os.getenv("UVICORN_PORT", "9021"))
     host = os.getenv("UVICORN_HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port)

@@ -6,11 +6,6 @@ Separated from UI components for better architecture
 
 # Import all backend modules for easy access
 try:
-    from .utils import *
-except ImportError:
-    pass
-
-try:
     from .ubuntu_downloader import UbuntuDownloader
 except ImportError:
     UbuntuDownloader = None
@@ -24,10 +19,10 @@ except ImportError:
     iPXETemplateManager = None
 
 try:
-    from .dhcp_config import DHCPConfig, DHCPConfigManager, create_simple_config
+    from .dhcp_config import DHCPServerConfig, DHCPServerConfigManager, create_simple_config
 except ImportError:
-    DHCPConfigManager = None
-    DHCPConfig = None
+    DHCPServerConfig = None
+    DHCPServerConfigManager = None
     create_simple_config = None
 
 try:
@@ -41,16 +36,6 @@ except ImportError:
     SystemStatusManager = None
     get_system_status = None
 
-try:
-    from .tests import SystemTester
-except ImportError:
-    SystemTester = None
-
-try:
-    from .file_utils import FileManager
-except ImportError:
-    FileManager = None
-
 # Export main classes for easy import
 __all__ = [
     # Main service classes
@@ -59,12 +44,10 @@ __all__ = [
     "iPXEMenu",
     "iPXEEntry",
     "iPXETemplateManager",
-    "DHCPConfigManager",
-    "DHCPConfig",
+    "DHCPServerConfigManager",
+    "DHCPServerConfig",
     "ISOManager",
     "SystemStatusManager",
-    "SystemTester",
-    "FileManager",
     # Helper functions
     "create_simple_config",
     "get_system_status",
@@ -81,11 +64,9 @@ def get_available_services():
     return {
         "ubuntu_downloader": UbuntuDownloader is not None,
         "ipxe_manager": iPXEManager is not None,
-        "dhcp_manager": DHCPConfigManager is not None,
+        "dhcp_manager": DHCPServerConfigManager is not None,
         "iso_manager": ISOManager is not None,
         "system_status": SystemStatusManager is not None,
-        "system_tester": SystemTester is not None,
-        "file_manager": FileManager is not None,
     }
 
 

@@ -18,7 +18,6 @@ from .ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
 
 # Import common utilities to eliminate repetition
 from .utils import (
-    export_status_as_json,
     safe_operation,
     safe_write_file,
     validate_file_path,
@@ -220,7 +219,8 @@ class iPXEValidator:
                     parsed = urlparse(entry.url)
                     if not parsed.scheme:
                         errors.append(
-                            f"Entry {i + 1} ({entry.name}): Chain URL should include scheme (http/https/tftp)"
+                            f"Entry {i + 1} ({entry.name}): "
+                            "Chain URL should include scheme (http/https/tftp)"
                         )
             elif entry.entry_type == "submenu":
                 if not entry.title:
@@ -236,7 +236,8 @@ class iPXEValidator:
                     parent_entry = entry_by_name[entry.parent]
                     if parent_entry.entry_type not in {"submenu", "menu"}:
                         errors.append(
-                            f"Entry {i + 1} ({entry.name}): Parent '{entry.parent}' is not a submenu/menu"
+                            f"Entry {i + 1} ({entry.name}): "
+                            f"Parent '{entry.parent}' is not a submenu/menu"
                         )
 
         # Cycle detection for parent relationships
@@ -300,7 +301,8 @@ class iPXEValidator:
                     )
                 if entry.boot_mode == "preseed" and not entry.requires_internet:
                     warnings.append(
-                        f"{entry.name}: preseed typically needs internet access (set requires_internet=True)"
+                        f"{entry.name}: preseed typically needs internet access "
+                        "(set requires_internet=True)"
                     )
                 if entry.requires_iso and entry.boot_mode not in {"live", "tool"}:
                     warnings.append(
@@ -374,19 +376,19 @@ class UbuntuBootModes:
             "24.04": {
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
-                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "cmdline": "ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/legacy-images/netboot/ auto=true",  # noqa: E501
                 "description": "Network installation from Ubuntu repositories",
             },
             "22.04": {
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
-                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "cmdline": "ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/jammy/main/installer-amd64/current/legacy-images/netboot/ auto=true",  # noqa: E501
                 "description": "Network installation from Ubuntu repositories",
             },
             "20.04": {
                 "kernel": f"{base_url}/vmlinuz",
                 "initrd": f"{base_url}/initrd",
-                "cmdline": f"ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ auto=true",
+                "cmdline": "ip=dhcp url=http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ auto=true",  # noqa: E501
                 "description": "Network installation from Ubuntu repositories",
             },
         }
@@ -401,7 +403,7 @@ class UbuntuBootModes:
         return {
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
-            "cmdline": f"ip=dhcp boot=casper netboot=url url={base_url}/ubuntu-{version}-live-server-amd64.iso quiet splash",
+            "cmdline": f"ip=dhcp boot=casper netboot=url url={base_url}/ubuntu-{version}-live-server-amd64.iso quiet splash",  # noqa: E501
             "description": "Live boot from local ISO file",
         }
 
@@ -413,7 +415,7 @@ class UbuntuBootModes:
         return {
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
-            "cmdline": f"ip=dhcp rescue/enable=true single",
+            "cmdline": "ip=dhcp rescue/enable=true single",
             "description": "Rescue and recovery mode",
         }
 
@@ -425,7 +427,7 @@ class UbuntuBootModes:
         return {
             "kernel": f"{base_url}/vmlinuz",
             "initrd": f"{base_url}/initrd",
-            "cmdline": f"ip=dhcp auto=true url={base_url}/preseed.cfg locale=en_US console-setup/ask_detect=false keyboard-configuration/xkb-keymap=us",
+            "cmdline": f"ip=dhcp auto=true url={base_url}/preseed.cfg locale=en_US console-setup/ask_detect=false keyboard-configuration/xkb-keymap=us",  # noqa: E501
             "description": "Automated installation with preseed configuration",
         }
 
@@ -524,7 +526,7 @@ class iPXEGenerator:
             [
                 f":{label}",
                 f"menu {title}",
-                f"item --gap -- -------------------------------",
+                "item --gap -- -------------------------------",
             ]
         )
 
@@ -573,11 +575,11 @@ class iPXEGenerator:
 
         if default_for_menu:
             lines.append(
-                f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}"
+                f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}"  # noqa: E501
             )
         else:
             lines.append(
-                f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}"
+                f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}"  # noqa: E501
             )
 
         lines.append("")
@@ -825,7 +827,7 @@ class iPXEGenerator:
             "# Generated by PXE Boot Station",
             "",
             f"set timeout={menu.timeout // 1000}",
-            f"set default=0",
+            "set default=0",
             "",
         ]
 
@@ -876,7 +878,7 @@ class iPXETemplateManager:
                 title="Install Ubuntu 22.04 LTS",
                 kernel="ubuntu/vmlinuz",
                 initrd="ubuntu/initrd",
-                cmdline="ip=dhcp url=http://{server_ip}:{port}/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/cloud-init/",
+                cmdline="ip=dhcp url=http://{server_ip}:{port}/ubuntu/ubuntu-22.04-live-server-amd64.iso autoinstall ds=nocloud-net;s=http://{server_ip}:{port}/cloud-init/",  # noqa: E501
                 description="Automated Ubuntu Server installation",
                 order=1,
             ),
