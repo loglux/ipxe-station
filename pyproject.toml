@@ -2,10 +2,23 @@
 line-length = 100
 target-version = ["py312"]
 
-[tool.isort]
-profile = "black"
-line_length = 100
-skip_gitignore = true
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+  ".git",
+  ".venv",
+  "frontend/node_modules",
+  "frontend/dist",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E203"]
+
+[tool.ruff.lint.per-file-ignores]
+# dhcp_config.py contains RouterOS template strings that cannot be split
+"app/backend/dhcp_config.py" = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

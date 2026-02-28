@@ -102,6 +102,32 @@ function BootFiles() {
     }
   }
 
+  const disableAutoexec = async () => {
+    if (!confirm('Disable autoexec.ipxe bootstrap script? iPXE clients will need to boot directly to boot.ipxe via DHCP/chainloading.')) {
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await fetch('/api/boot/autoexec', {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setAutoexec('')
+        showMessage('success', `✅ ${result.message}`)
+      } else {
+        showMessage('error', '❌ Failed to disable autoexec.ipxe')
+      }
+    } catch (error) {
+      showMessage('error', `❌ Error: ${error.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -130,7 +156,7 @@ function BootFiles() {
           <div className="section">
             <h2>autoexec.ipxe Editor</h2>
             <p className="section-description">
-              This script runs automatically when iPXE boots. Use templates or write custom code.
+              Optional bootstrap script for advanced or legacy flows. Recommended setups can boot iPXE clients directly to boot.ipxe without this file.
             </p>
 
             {/* Template Selector */}
@@ -188,6 +214,13 @@ function BootFiles() {
                 onClick={loadData}
               >
                 🔄 Reload
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={disableAutoexec}
+                disabled={saving}
+              >
+                📴 Disable autoexec.ipxe
               </button>
             </div>
           </div>

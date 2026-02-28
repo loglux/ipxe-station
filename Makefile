@@ -2,12 +2,11 @@
 
 format:
 	./.venv/bin/python -m black app
-	./.venv/bin/python -m isort app
+	./.venv/bin/python -m ruff check --fix app
 
 backend-lint:
 	./.venv/bin/python -m black --check app
-	./.venv/bin/python -m isort --check-only app
-	./.venv/bin/python -m flake8 --jobs=1 app
+	./.venv/bin/python -m ruff check app
 
 backend-test:
 	PYTHONPATH=. ./.venv/bin/pytest -q

@@ -10,6 +10,12 @@ if [ ! -f "/srv/tftp/undionly.kpxe" ]; then
     echo "✅ iPXE binaries copied to /srv/tftp/"
 fi
 
+# Keep alternative bootloaders in sync for existing volumes.
+if [ ! -f "/srv/tftp/snponly.efi" ] && [ -f "/app/initial-files/tftp/snponly.efi" ]; then
+    cp /app/initial-files/tftp/snponly.efi /srv/tftp/snponly.efi
+    echo "✅ snponly.efi copied to /srv/tftp/"
+fi
+
 # Create initial directory structure
 mkdir -p /srv/http/ubuntu-samples
 mkdir -p /srv/ipxe
@@ -67,6 +73,7 @@ This directory contains files served via TFTP for PXE boot.
 ## Key Files:
 - undionly.kpxe  - iPXE bootloader for most network cards
 - ipxe.efi       - iPXE bootloader for UEFI systems
+- snponly.efi    - UEFI iPXE using firmware SNP networking
 - ipxe.pxe       - Legacy PXE bootloader
 
 ## Volume Mount Information:

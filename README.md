@@ -38,6 +38,31 @@
 - **Network**: Internet access for downloading distros
 - **Ports**: 9021 (HTTP), 69 (TFTP)
 
+## 🧪 Development Checks
+
+Install backend dev tools:
+
+```bash
+python -m venv .venv
+./.venv/bin/pip install -r requirements-dev.txt
+```
+
+Run quality checks:
+
+```bash
+make format
+make backend-lint
+make backend-test
+make frontend-check
+make quality
+```
+
+Install pre-commit hooks:
+
+```bash
+./.venv/bin/pre-commit install
+```
+
 ## 🚀 Quick Start
 
 ### 1. Clone and Deploy
@@ -119,7 +144,8 @@ iPXE Station uses a **scenario-first approach** - instead of technical iPXE deta
 ./data/srv/
 ├── tftp/              # TFTP boot files
 │   ├── undionly.kpxe  # BIOS iPXE loader
-│   └── ipxe.efi       # UEFI iPXE loader
+│   ├── ipxe.efi       # Generic UEFI iPXE loader
+│   └── snponly.efi    # UEFI iPXE via firmware SNP stack
 ├── http/              # HTTP boot files
 │   ├── ubuntu-22.04/  # Ubuntu 22.04 files
 │   │   ├── vmlinuz    # Kernel

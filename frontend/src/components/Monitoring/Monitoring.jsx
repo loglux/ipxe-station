@@ -18,6 +18,7 @@ export default function Monitoring() {
     active_connections: 0,
     total_requests: 0
   })
+  const [bootSessions, setBootSessions] = useState([])
   const logsEndRef = useRef(null)
 
   const loadLogs = useCallback(async () => {
@@ -64,6 +65,19 @@ export default function Monitoring() {
     }
   }, [])
 
+  const loadBootSessions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/monitoring/boot-sessions')
+      const data = await response.json()
+
+      if (data.success) {
+        setBootSessions(data.sessions || [])
+      }
+    } catch (error) {
+      console.error('Failed to load boot sessions:', error)
+    }
+  }, [])
+
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (autoScroll && logsEndRef.current) {
@@ -77,6 +91,7 @@ export default function Monitoring() {
       loadLogs()
       loadServiceStatus()
       loadMetrics()
+      loadBootSessions()
     }
 
     const initialTimer = setTimeout(runLoad, 0)
@@ -91,7 +106,22 @@ export default function Monitoring() {
       clearTimeout(initialTimer)
       clearInterval(interval)
     }
-  }, [isPaused, loadLogs, loadMetrics, loadServiceStatus])
+  }, [isPaused, loadBootSessions, loadLogs, loadMetrics, loadServiceStatus])
+
+  const formatAge = (seconds) => {
+    if (seconds == null) return 'n/a'
+    if (seconds < 1) return '<1s'
+    if (seconds < 60) return `${Math.round(seconds)}s`
+    return `${Math.round(seconds / 60)}m`
+  }
+
+  const getBootStatusClass = (status) => {
+    if (status === 'stalled_after_ipxe' || status === 'suspected_loop') return 'boot-status-warning'
+    if (status === 'boot_assets_requested' || status === 'boot_script_fetched' || status === 'beacon') {
+      return 'boot-status-success'
+    }
+    return 'boot-status-neutral'
+  }
 
   const clearLogs = async () => {
     if (confirm('Clear all logs? This cannot be undone.')) {
@@ -293,12 +323,34 @@ export default function Monitoring() {
           </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="status-section">
-          <h3>🔄 Recent Activity</h3>
-          <div className="activity-list">
-            <small className="text-muted">Coming soon...</small>
-          </div>
+          <h3>🧭 Boot Sessions</h3>
+          {bootSessions.length === 0 ? (
+            <small className="text-muted">No PXE/iPXE client sessions yet</small>
+          ) : (
+            <div className="boot-sessions-list">
+              {bootSessions.map((session) => (
+                <div key={session.client_ip} className="boot-session-card">
+                  <div className="boot-session-header">
+                    <strong>{session.client_ip}</strong>
+                    <span className={`boot-status-pill ${getBootStatusClass(session.status)}`}>
+                      {session.status}
+                    </span>
+                  </div>
+                  <div className="boot-session-meta">
+                    <span>stage: {session.last_stage || 'unknown'}</span>
+                    <span>seen: {formatAge(session.seconds_since_seen)} ago</span>
+                  </div>
+                  <div className="boot-session-counts">
+                    <span>events {session.event_count || 0}</span>
+                    <span>boot {session.boot_script_fetches || 0}</span>
+                    <span>kernel {session.kernel_fetches || 0}</span>
+                    <span>initrd {session.initrd_fetches || 0}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
