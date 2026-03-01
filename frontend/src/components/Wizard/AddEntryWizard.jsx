@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import './AddEntryWizard.css'
 import { CATEGORIES, getScenariosByCategory, getScenario, createEntryFromScenario } from '../../data/scenarios'
 
+// Maps scenario ID → catalog key returned by /api/assets/catalog
+const SCENARIO_CATALOG_KEY = {
+  ubuntu_netboot: 'ubuntu',
+  ubuntu_live:    'ubuntu',
+  ubuntu_preseed: 'ubuntu',
+  debian_netboot: 'debian',
+  systemrescue:   'rescue',
+  kaspersky:      'kaspersky',
+}
+
 function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCategory = null }) {
   const [step, setStep] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -47,18 +57,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         return
       }
 
-      // Determine which catalog to check based on scenario
-      let versions = []
-      if (selectedScenario.includes('ubuntu')) {
-        versions = catalog.ubuntu || []
-      } else if (selectedScenario.includes('debian')) {
-        versions = catalog.debian || []
-      } else if (selectedScenario.includes('systemrescue')) {
-        versions = catalog.rescue || []
-      } else if (selectedScenario.includes('kaspersky')) {
-        // Kaspersky has its own catalog entry
-        versions = catalog.kaspersky || []
-      }
+      const catalogKey = SCENARIO_CATALOG_KEY[selectedScenario]
+      let versions = catalogKey ? (catalog[catalogKey] || []) : []
 
       // Filter to only versions that have required files
       const validVersions = versions.filter(v => v.kernel && v.initrd)

@@ -40,6 +40,16 @@ function App() {
     entries,
   }), [entries, menuTimeout, menuTitle])
 
+  // Apply saved theme on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => {
+        document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : ''
+      })
+      .catch(() => {})
+  }, [])
+
   // Load saved menu structure on mount
   useEffect(() => {
     const loadMenu = async () => {
@@ -236,21 +246,23 @@ function App() {
       </header>
 
       {/* Main Layout */}
-      <div className="main-layout">
-        {/* Left Sidebar - Menu Tree */}
-        <aside className="sidebar-left">
-          <div className="sidebar-header">
-            <h2>Menu Structure</h2>
-          </div>
-          <div className="sidebar-content">
-            <MenuBuilder
-              entries={entries}
-              selectedEntryId={selectedEntryId}
-              onSelectEntry={setSelectedEntryId}
-              onOpenWizard={openWizard}
-            />
-          </div>
-        </aside>
+      <div className={`main-layout${activeTab !== 'builder' ? ' full-width' : ''}`}>
+        {/* Left Sidebar - Menu Tree (builder only) */}
+        {activeTab === 'builder' && (
+          <aside className="sidebar-left">
+            <div className="sidebar-header">
+              <h2>Menu Structure</h2>
+            </div>
+            <div className="sidebar-content">
+              <MenuBuilder
+                entries={entries}
+                selectedEntryId={selectedEntryId}
+                onSelectEntry={setSelectedEntryId}
+                onOpenWizard={openWizard}
+              />
+            </div>
+          </aside>
+        )}
 
         {/* Center - Main Content Area */}
         <main className="main-content">
@@ -387,9 +399,57 @@ function App() {
                 <h2>Export Menu</h2>
                 <p>Export your menu configuration in various formats</p>
                 <div className="export-options">
-                  <button className="btn btn-primary">Download as JSON</button>
-                  <button className="btn btn-primary">Download iPXE Script</button>
-                  <button className="btn btn-secondary">Copy to Clipboard</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const payload = buildMenuPayload()
+                      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = 'menu.json'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                  >
+                    Download as JSON
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      const result = await fetch('/api/ipxe/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(buildMenuPayload()),
+                      }).then(r => r.json()).catch(() => null)
+                      if (result?.script) {
+                        const blob = new Blob([result.script], { type: 'text/plain' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = 'boot.ipxe'
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }
+                    }}
+                  >
+                    Download iPXE Script
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={async () => {
+                      const result = await fetch('/api/ipxe/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(buildMenuPayload()),
+                      }).then(r => r.json()).catch(() => null)
+                      if (result?.script) {
+                        await navigator.clipboard.writeText(result.script)
+                      }
+                    }}
+                  >
+                    Copy to Clipboard
+                  </button>
                 </div>
               </div>
             )}
@@ -400,20 +460,22 @@ function App() {
           </div>
         </main>
 
-        {/* Right Sidebar - Properties */}
-        <aside className="sidebar-right">
-          <div className="sidebar-header">
-            <h2>Properties</h2>
-          </div>
-          <div className="sidebar-content">
-            <PropertyPanel
-              entry={selectedEntry}
-              onUpdateEntry={updateEntry}
-              onDeleteEntry={deleteEntry}
-              entries={entries}
-            />
-          </div>
-        </aside>
+        {/* Right Sidebar - Properties (builder only) */}
+        {activeTab === 'builder' && (
+          <aside className="sidebar-right">
+            <div className="sidebar-header">
+              <h2>Properties</h2>
+            </div>
+            <div className="sidebar-content">
+              <PropertyPanel
+                entry={selectedEntry}
+                onUpdateEntry={updateEntry}
+                onDeleteEntry={deleteEntry}
+                entries={entries}
+              />
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* Footer */}

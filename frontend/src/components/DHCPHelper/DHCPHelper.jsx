@@ -12,14 +12,20 @@ const DHCPHelper = () => {
   const [validationResult, setValidationResult] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Load server types on mount
+  // Load server types and default IP from settings on mount
   useEffect(() => {
     fetch('/api/dhcp/server-types')
       .then(res => res.json())
-      .then(data => {
-        setServerTypes(data.server_types);
-      })
+      .then(data => setServerTypes(data.server_types))
       .catch(err => console.error('Failed to load server types:', err));
+
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.server_ip) setPxeServerIP(data.server_ip);
+        if (data.http_port) setHttpPort(data.http_port);
+      })
+      .catch(() => {});
   }, []);
 
   const generateConfig = useCallback(async () => {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#1a1b1e"/>
+  <!-- Network/boot arrow -->
+  <path d="M16 6 L26 14 L21 14 L21 22 L11 22 L11 14 L6 14 Z" fill="#3b82f6"/>
+  <!-- Server dots -->
+  <rect x="10" y="24" width="4" height="2" rx="1" fill="#10b981"/>
+  <rect x="15" y="24" width="4" height="2" rx="1" fill="#10b981"/>
+  <rect x="20" y="24" width="2" height="2" rx="1" fill="#6b7280"/>
+</svg>

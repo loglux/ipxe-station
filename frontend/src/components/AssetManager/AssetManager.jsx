@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './AssetManager.css'
 
 // Downloadable distros with URLs and menu configurations
@@ -132,73 +132,54 @@ function AssetManager() {
   const [kasperskyVersions, setKasperskyVersions] = useState([])
   const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
 
+  const pollProgress = useCallback(async () => {
+    try {
+      const response = await fetch('/api/assets/download/progress')
+      const data = await response.json()
+      if (data.downloads) {
+        setDownloadProgress(data.downloads)
+
+        const activeDownloads = {}
+        const completedDownloads = {}
+        Object.keys(data.downloads).forEach(key => {
+          const status = data.downloads[key].status
+          if (status === 'downloading' || status === 'extracting') {
+            DOWNLOADABLE_DISTROS.forEach(distro => {
+              if (key.includes(distro.dest_folder)) {
+                activeDownloads[distro.id] = true
+              }
+            })
+          } else if (status === 'extracted' || status === 'complete') {
+            DOWNLOADABLE_DISTROS.forEach(distro => {
+              if (key.includes(distro.dest_folder)) {
+                completedDownloads[distro.id] = false
+              }
+            })
+          }
+        })
+
+        if (Object.keys(activeDownloads).length > 0) {
+          setDownloading(prev => ({ ...prev, ...activeDownloads }))
+        }
+        if (Object.keys(completedDownloads).length > 0) {
+          setDownloading(prev => ({ ...prev, ...completedDownloads }))
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch progress:', error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchAssets()
     fetchCatalog()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
-  }, [])
-
-  // Poll for download progress
-  useEffect(() => {
-    const pollProgress = async () => {
-      try {
-        const response = await fetch('/api/assets/download/progress')
-        const data = await response.json()
-        if (data.downloads) {
-          setDownloadProgress(data.downloads)
-
-          // Auto-detect active downloads and update downloading state
-          const activeDownloads = {}
-          const completedDownloads = {}
-          Object.keys(data.downloads).forEach(key => {
-            const status = data.downloads[key].status
-            if (status === 'downloading' || status === 'extracting') {
-              // Try to match to a distro ID
-              DOWNLOADABLE_DISTROS.forEach(distro => {
-                if (key.includes(distro.dest_folder)) {
-                  activeDownloads[distro.id] = true
-                }
-              })
-            } else if (status === 'extracted' || status === 'complete') {
-              // Mark as completed to clear downloading state
-              DOWNLOADABLE_DISTROS.forEach(distro => {
-                if (key.includes(distro.dest_folder)) {
-                  completedDownloads[distro.id] = false
-                }
-              })
-            }
-          })
-
-          // Update downloading state if we found active downloads
-          if (Object.keys(activeDownloads).length > 0) {
-            setDownloading(prev => ({ ...prev, ...activeDownloads }))
-          }
-          // Clear downloading state for completed downloads
-          if (Object.keys(completedDownloads).length > 0) {
-            setDownloading(prev => ({ ...prev, ...completedDownloads }))
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch progress:', error)
-      }
-    }
-
-    // Check immediately on mount
     pollProgress()
 
-    // Poll every 2 seconds if there are active downloads OR we just mounted
-    const hasActiveDownloads = Object.keys(downloading).some(key => downloading[key]) ||
-                               Object.keys(downloadProgress).some(key => {
-                                 const status = downloadProgress[key]?.status
-                                 return status === 'downloading' || status === 'extracting'
-                               })
-
-    if (hasActiveDownloads) {
-      const interval = setInterval(pollProgress, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [downloading, downloadProgress])
+    const interval = setInterval(pollProgress, 2000)
+    return () => clearInterval(interval)
+  }, [pollProgress])
 
   const fetchAssets = async () => {
     try {
@@ -747,17 +728,12 @@ function AssetManager() {
             <div className="file-tree-header">/srv/http/</div>
             {assets.http && assets.http.length > 0 ? (
               <ul className="file-list">
-                {assets.http.slice(0, 20).map((file, idx) => (
+                {assets.http.map((file, idx) => (
                   <li key={idx} className="file-item">
                     <span className="file-icon">📄</span>
                     <span className="file-name">{file}</span>
                   </li>
                 ))}
-                {assets.http.length > 20 && (
-                  <li className="file-item text-muted">
-                    ... and {assets.http.length - 20} more files
-                  </li>
-                )}
               </ul>
             ) : (
               <div className="empty-state">

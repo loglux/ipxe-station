@@ -26,11 +26,16 @@ export default function Settings({ isOpen, onClose }) {
     }
   }, [isOpen])
 
+  const applyTheme = (theme) => {
+    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : ''
+  }
+
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/settings')
       const data = await response.json()
       setSettings(data)
+      applyTheme(data.theme)
     } catch (error) {
       console.error('Failed to load settings:', error)
     }
@@ -82,6 +87,7 @@ export default function Settings({ isOpen, onClose }) {
 
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }))
+    if (field === 'theme') applyTheme(value)
   }
 
   if (!isOpen) return null
