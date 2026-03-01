@@ -9,10 +9,30 @@
 :root {
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
+  --color-primary-subtle: #eff6ff;
   --color-secondary: #6b7280;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+
+  /* Semantic feedback backgrounds (light mode) */
+  --color-success-bg: #d1fae5;
+  --color-success-text: #065f46;
+  --color-success-border: #6ee7b7;
+  --color-danger-bg: #fee2e2;
+  --color-danger-text: #991b1b;
+  --color-danger-border: #fca5a5;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-warning-border: #f59e0b;
+  --color-info-bg: #dbeafe;
+  --color-info-text: #1e40af;
+  --color-info-border: #3b82f6;
+
+  /* Code / terminal blocks */
+  --color-code-bg: #1e293b;
+  --color-code-text: #e2e8f0;
 
   --color-bg: #ffffff;
   --color-bg-secondary: #f9fafb;
@@ -44,6 +64,25 @@
 /* ========== DARK MODE ========== */
 
 [data-theme="dark"] {
+  --color-primary-subtle: #1e3a8a;
+
+  /* Semantic feedback backgrounds (dark mode) */
+  --color-success-bg: #064e3b;
+  --color-success-text: #6ee7b7;
+  --color-success-border: #10b981;
+  --color-danger-bg: #7f1d1d;
+  --color-danger-text: #fca5a5;
+  --color-danger-border: #ef4444;
+  --color-warning-bg: #78350f;
+  --color-warning-text: #fde68a;
+  --color-warning-border: #f59e0b;
+  --color-info-bg: #0c4a6e;
+  --color-info-text: #7dd3fc;
+  --color-info-border: #3b82f6;
+
+  --color-code-bg: #0d1117;
+  --color-code-text: #e2e8f0;
+
   --color-bg: #1a1b1e;
   --color-bg-secondary: #141517;
   --color-bg-tertiary: #25262b;
@@ -127,17 +166,6 @@ code, pre {
   animation: slideIn 0.3s ease;
 }
 
-.save-message.success {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #86efac;
-}
-
-.save-message.error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
-}
 
 @keyframes slideIn {
   from {
@@ -333,8 +361,8 @@ code, pre {
 /* ========== CODE PREVIEW ========== */
 
 .code-preview {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
   padding: var(--spacing-lg);
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -406,9 +434,60 @@ code, pre {
   color: white;
 }
 
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ========== FEEDBACK MESSAGES (shared across components) ========== */
+
+.message {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.message.success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.message.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-border);
+}
+
+.message.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border-color: var(--color-warning-border);
+}
+
+/* save-message in header already uses its own classes, keep those below */
+.save-message.success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
+}
+
+.save-message.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
 }
 
 /* ========== FOOTER ========== */
@@ -455,8 +534,8 @@ code, pre {
 }
 
 .warnings-panel {
-  background: #fffbeb;
-  border: 1px solid #fbbf24;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
@@ -465,14 +544,14 @@ code, pre {
 .warnings-panel h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #92400e;
+  color: var(--color-warning-text);
   margin: 0 0 var(--spacing-sm) 0;
 }
 
 .warnings-panel ul {
   margin: 0;
   padding-left: var(--spacing-lg);
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .warnings-panel li {
