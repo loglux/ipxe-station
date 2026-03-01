@@ -17,10 +17,17 @@ def get_proxy_dhcp_status():
 
 @proxy_dhcp_router.post("/start")
 def start_proxy_dhcp(settings: ProxyDHCPSettings):
-    """Save settings and start the Proxy DHCP server."""
+    """Save settings and start the Proxy DHCP server.
+
+    Settings from the request body are merged over the saved/default settings,
+    so the real server IP is always populated even if the body omits it.
+    """
     try:
-        _manager.save_settings(settings)
-        result = _manager.start(settings)
+        effective = _manager.load_settings().model_copy(
+            update=settings.model_dump(exclude_unset=True)
+        )
+        _manager.save_settings(effective)
+        result = _manager.start(effective)
         if result["success"]:
             add_log("dhcp", "info", f"Proxy DHCP started (pid {result.get('pid')})")
         else:

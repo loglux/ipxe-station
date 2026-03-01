@@ -5,6 +5,8 @@ import time
 
 from fastapi import APIRouter
 
+from app.backend.proxy_dhcp import ProxyDHCPManager
+
 from .state import (
     BASE_ROOT,
     SYSTEM_LOGS,
@@ -24,7 +26,7 @@ syslog_monitor_running = False
 
 
 def parse_syslog_tftp():
-    """Parse syslog for TFTP entries and add to monitoring."""
+    """Parse syslog for TFTP and dnsmasq-dhcp entries and add to monitoring."""
     global syslog_position
     import re
     from pathlib import Path
@@ -38,6 +40,17 @@ def parse_syslog_tftp():
             f.seek(syslog_position)
 
             for line in f:
+                if "dnsmasq-dhcp" in line:
+                    # e.g. "dnsmasq-dhcp[123]: DHCPDISCOVER(eth0) 192.168.10.37 00:50:56:xx"
+                    message = re.sub(r"^.*dnsmasq-dhcp\[\d+\]:\s*", "", line).strip()
+                    level = "info"
+                    if "DHCPOFFER" in message or "PXEBOOT" in message:
+                        level = "info"
+                    elif "error" in message.lower() or "failed" in message.lower():
+                        level = "error"
+                    add_log("dhcp", level, message)
+                    continue
+
                 if "in.tftpd" in line:
                     message = line.split("in.tftpd", 1)[-1]
                     message = message.split("]: ", 1)[-1].strip()
@@ -174,12 +187,16 @@ async def get_service_status():
         http_status = "running"
         http_port = int(os.getenv("UVICORN_PORT", "9021"))
 
+        proxy_dhcp_manager = ProxyDHCPManager()
+        proxy_dhcp_status = "running" if proxy_dhcp_manager.is_running() else "stopped"
+
         return {
             "success": True,
             "services": {
                 "tftp": {"status": tftp_status, "uptime": 0},
                 "http": {"status": http_status, "port": http_port},
                 "rsyslog": {"status": rsyslog_status},
+                "proxy_dhcp": {"status": proxy_dhcp_status},
             },
         }
     except Exception as e:

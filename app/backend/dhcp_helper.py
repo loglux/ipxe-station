@@ -319,8 +319,49 @@ class DHCPValidator:
         pkt += b"\xff"  # END
         return pkt
 
+    @staticmethod
+    def _parse_pxe_opt43(data: bytes) -> Dict[str, Any]:
+        """Extract PXE boot server IP and boot filename from option 43 sub-options.
+
+        PXE vendor-specific option 43 sub-option layout:
+          Sub-opt 9  (Boot Server List): type(2) count(1) ip(4)*count
+          Sub-opt 11 (Boot Menu Item):   type(2) desc_len(1) desc(n)
+        The server IP lives in sub-opt 9; filename is conveyed via siaddr/file
+        (set by dnsmasq alongside option 43 unless dhcp-no-override is active).
+        """
+        import socket as _socket
+
+        result: Dict[str, Any] = {"server": None}
+        i = 0
+        while i < len(data):
+            code = data[i]
+            if code == 0xFF:
+                break
+            if code == 0x00:
+                i += 1
+                continue
+            if i + 1 >= len(data):
+                break
+            length = data[i + 1]
+            if i + 2 + length > len(data):
+                break
+            value = data[i + 2 : i + 2 + length]
+            if code == 9 and length >= 7:
+                # Sub-opt 9: Boot Server List — type(2) count(1) ip(4)...
+                count = value[2] if len(value) > 2 else 0
+                if count >= 1 and len(value) >= 7:
+                    result["server"] = _socket.inet_ntoa(value[3:7])
+            i += 2 + length
+        return result
+
     def _parse_offer(self, data: bytes, addr: tuple) -> Dict[str, Any]:
-        """Extract TFTP server and boot filename from a raw DHCP OFFER."""
+        """Extract TFTP server and boot filename from a raw DHCP OFFER.
+
+        Checks (in priority order):
+          1. DHCP option 66 / siaddr  — classic TFTP server
+          2. DHCP option 67 / BOOTP file field — classic boot filename
+          3. Option 43 sub-opt 9 (PXE Boot Server List) — proxy DHCP via pxe-service
+        """
         import socket as _socket
 
         yiaddr = _socket.inet_ntoa(data[16:20])
@@ -352,6 +393,14 @@ class DHCPValidator:
         elif bootp_file:
             result["bootfile"] = bootp_file
             result["bootfile_source"] = "BOOTP file field"
+
+        # Option 43 (PXE vendor-specific): fallback for pxe-service proxy responses
+        opt43 = options.get(43)
+        if opt43 and not result["tftp_server"]:
+            pxe = self._parse_pxe_opt43(opt43)
+            if pxe.get("server"):
+                result["tftp_server"] = pxe["server"]
+                result["tftp_server_source"] = "option 43 (PXE boot server)"
 
         return result
 

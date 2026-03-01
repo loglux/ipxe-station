@@ -10,7 +10,8 @@ export default function Monitoring() {
   const [services, setServices] = useState({
     tftp: { status: 'unknown', uptime: 0 },
     http: { status: 'unknown', port: 9021 },
-    rsyslog: { status: 'unknown' }
+    rsyslog: { status: 'unknown' },
+    proxy_dhcp: { status: 'unknown' }
   })
   const [metrics, setMetrics] = useState({
     disk_used: 0,
@@ -176,6 +177,7 @@ export default function Monitoring() {
               <option value="all">All Types</option>
               <option value="tftp">TFTP</option>
               <option value="http">HTTP</option>
+              <option value="dhcp">DHCP</option>
               <option value="system">System</option>
               <option value="download">Downloads</option>
             </select>
@@ -277,6 +279,13 @@ export default function Monitoring() {
               <div className="service-info">
                 <strong>Rsyslog</strong>
                 <small>{services.rsyslog?.status || 'unknown'}</small>
+              </div>
+            </div>
+            <div className="service-item">
+              <span className="service-icon">{getServiceStatusIcon(services.proxy_dhcp?.status)}</span>
+              <div className="service-info">
+                <strong>Proxy DHCP</strong>
+                <small>{services.proxy_dhcp?.status || 'unknown'}</small>
               </div>
             </div>
           </div>
