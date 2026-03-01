@@ -208,232 +208,405 @@ Set-DhcpServerv4OptionValue -OptionId 67 -Value "undionly.kpxe"
 
 
 class DHCPValidator:
-    """Validate DHCP configuration on the network"""
+    """Validate DHCP configuration on the network."""
 
     def __init__(self):
         self.timeout = 5  # seconds
 
+    def _get_default_iface(self) -> str:
+        """Return the interface used for the default route."""
+        try:
+            with open("/proc/net/route") as f:
+                for line in f.readlines()[1:]:
+                    fields = line.strip().split()
+                    if len(fields) >= 2 and fields[1] == "00000000":
+                        return fields[0]
+        except OSError:
+            pass
+        return "eth0"
+
+    def _parse_options(self, data: bytes) -> Dict[int, bytes]:
+        """Parse DHCP options from raw packet bytes (starting after BOOTP header)."""
+        options: Dict[int, bytes] = {}
+        if len(data) < 240 or data[236:240] != b"\x63\x82\x53\x63":
+            return options
+        i = 240
+        while i < len(data):
+            opt = data[i]
+            if opt == 255:  # END
+                break
+            if opt == 0:  # PAD
+                i += 1
+                continue
+            if i + 1 >= len(data):
+                break
+            length = data[i + 1]
+            options[opt] = data[i + 2 : i + 2 + length]
+            i += 2 + length
+        return options
+
+    # Vendor class strings per architecture (sent in option 60)
+    _VENDOR_CLASS: Dict[int, bytes] = {
+        0: b"PXEClient:Arch:00000:UNDI:002001",  # BIOS x86
+        6: b"PXEClient:Arch:00006:UNDI:002001",  # UEFI x86-32
+        7: b"PXEClient:Arch:00007:UNDI:003016",  # UEFI x64
+        9: b"PXEClient:Arch:00009:UNDI:003016",  # UEFI x64 (alt)
+    }
+
+    @staticmethod
+    def _ip_checksum(data: bytes) -> int:
+        """RFC 1071 one's-complement checksum."""
+        import struct
+
+        if len(data) % 2:
+            data += b"\x00"
+        s = sum(struct.unpack_from("!%dH" % (len(data) // 2), data))
+        while s >> 16:
+            s = (s & 0xFFFF) + (s >> 16)
+        return ~s & 0xFFFF
+
+    def _wrap_ip_udp(self, dhcp_payload: bytes) -> bytes:
+        """Wrap a DHCP payload in a IP+UDP datagram with source IP 0.0.0.0.
+
+        Using source 0.0.0.0 makes the router treat our probe as a fresh
+        PXE client (no existing DHCP lease) and avoids per-source rate-limiting.
+        """
+        import random
+        import struct
+
+        udp_len = 8 + len(dhcp_payload)
+        udp_header = struct.pack("!HHHH", 68, 67, udp_len, 0)  # checksum=0 (optional in IPv4)
+
+        ip_payload = udp_header + dhcp_payload
+        ip_id = random.randint(1, 0xFFFF)
+        ip_hdr = struct.pack(
+            "!BBHHHBBH4s4s",
+            0x45,
+            0x00,  # Version+IHL, DSCP
+            20 + len(ip_payload),  # Total length
+            ip_id,  # Identification
+            0x4000,  # DF flag, no fragment offset
+            64,  # TTL
+            17,  # Protocol: UDP
+            0,  # Checksum placeholder
+            b"\x00\x00\x00\x00",  # Source: 0.0.0.0
+            b"\xff\xff\xff\xff",  # Destination: 255.255.255.255
+        )
+        ck = self._ip_checksum(ip_hdr)
+        ip_hdr = ip_hdr[:10] + struct.pack("!H", ck) + ip_hdr[12:]
+        return ip_hdr + ip_payload
+
+    def _build_discover(self, probe_mac: bytes, xid: int, arch: int, is_ipxe: bool) -> bytes:
+        """Build a DHCP DISCOVER packet for a specific client type."""
+        import struct
+
+        vendor_class = self._VENDOR_CLASS.get(arch, b"PXEClient:Arch:00000:UNDI:002001")
+        pkt = struct.pack("!BBBBIHH", 1, 1, 6, 0, xid, 0, 0x8000)
+        pkt += b"\x00" * 4  # ciaddr
+        pkt += b"\x00" * 4  # yiaddr
+        pkt += b"\x00" * 4  # siaddr
+        pkt += b"\x00" * 4  # giaddr
+        pkt += probe_mac + b"\x00" * 10  # chaddr (16 bytes)
+        pkt += b"\x00" * 64  # sname
+        pkt += b"\x00" * 128  # file
+        pkt += b"\x63\x82\x53\x63"  # DHCP magic cookie
+        pkt += b"\x35\x01\x01"  # option 53: DHCP DISCOVER
+        pkt += b"\x3c" + bytes([len(vendor_class)]) + vendor_class  # option 60: vendor class
+        pkt += bytes([0x5D, 0x02, (arch >> 8) & 0xFF, arch & 0xFF])  # option 93: client arch
+        if is_ipxe:
+            pkt += b"\xaf\x01\x00"  # option 175: iPXE extensions tag
+        pkt += b"\x37\x07\x01\x03\x06\x0f\x42\x43\x2b"  # param request list
+        pkt += b"\xff"  # END
+        return pkt
+
+    def _parse_offer(self, data: bytes, addr: tuple) -> Dict[str, Any]:
+        """Extract TFTP server and boot filename from a raw DHCP OFFER."""
+        import socket as _socket
+
+        yiaddr = _socket.inet_ntoa(data[16:20])
+        siaddr = _socket.inet_ntoa(data[20:24])
+        bootp_file = data[108:236].rstrip(b"\x00").decode("utf-8", errors="replace")
+        options = self._parse_options(data)
+
+        result: Dict[str, Any] = {
+            "dhcp_server": addr[0],
+            "offered_ip": yiaddr,
+            "tftp_server": None,
+            "tftp_server_source": None,
+            "bootfile": None,
+            "bootfile_source": None,
+        }
+
+        opt66 = options.get(66)
+        if opt66:
+            result["tftp_server"] = opt66.rstrip(b"\x00").decode("utf-8", errors="replace")
+            result["tftp_server_source"] = "option 66"
+        elif siaddr != "0.0.0.0":
+            result["tftp_server"] = siaddr
+            result["tftp_server_source"] = "siaddr"
+
+        opt67 = options.get(67)
+        if opt67:
+            result["bootfile"] = opt67.rstrip(b"\x00").decode("utf-8", errors="replace")
+            result["bootfile_source"] = "option 67"
+        elif bootp_file:
+            result["bootfile"] = bootp_file
+            result["bootfile_source"] = "BOOTP file field"
+
+        return result
+
     def check_network(
         self, interface: Optional[str] = None, expected_server_ip: str = "192.168.10.32"
     ) -> Dict[str, Any]:
-        """
-        Check DHCP configuration on the network using DHCP DISCOVER/OFFER
-        """
+        """Probe DHCP for three client types (BIOS, UEFI, iPXE) simultaneously."""
+        import random
+        import socket as _socket
+        import struct
+        import time
+
+        iface = interface or self._get_default_iface()
+
+        # Three probe types matching typical router dnsmasq PXE config.
+        # Boot file names are informational only — users can use any valid bootloader.
+        # We only check that the TFTP server (or HTTP URL) points to expected_server_ip.
+        probe_defs = [
+            {
+                "name": "bios",
+                "label": "BIOS (arch 0)",
+                "arch": 0x0000,
+                "is_ipxe": False,
+            },
+            {
+                "name": "uefi",
+                "label": "UEFI64 (arch 7)",
+                "arch": 0x0007,
+                "is_ipxe": False,
+            },
+            {
+                "name": "ipxe",
+                "label": "iPXE (option 175)",
+                "arch": 0x0000,
+                "is_ipxe": True,
+            },
+        ]
+
+        for p in probe_defs:
+            p["xid"] = random.randint(1, 0x7FFFFFFF)
+            p["mac"] = bytes(
+                [
+                    0x00,
+                    0x50,
+                    0x56,
+                    random.randint(0, 255),
+                    random.randint(0, 255),
+                    random.randint(0, 255),
+                ]
+            )
+            p["offer"] = None
+
+        # Receive socket: regular UDP on port 68 to capture broadcast DHCP OFFERs
+        recv_sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM, _socket.IPPROTO_UDP)
+        recv_sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_BROADCAST, 1)
+        recv_sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
         try:
-            import random
+            recv_sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass
 
-            from scapy.all import (
-                BOOTP,
-                DHCP,
-                IP,
-                UDP,
-                Ether,
-                conf,
-                get_if_addr,
-                get_if_hwaddr,
-                srp1,
-            )
-
-            # Use default interface if not specified
-            if interface is None:
-                interface = conf.iface
-
-            # Convert interface to string if it's a scapy NetworkInterface object
-            interface_name = str(interface) if interface else "unknown"
-
-            # Get interface MAC and IP
-            try:
-                mac_addr = get_if_hwaddr(interface_name)
-                get_if_addr(interface_name)
-            except Exception as e:
-                return {
-                    "status": "error",
-                    "message": f"Failed to get interface info: {e}",
-                    "interface": interface_name,
-                    "suggestions": [
-                        "Check if the interface exists",
-                        "Ensure the container has NET_ADMIN capability",
-                        "Try specifying a different interface",
-                    ],
-                }
-
-            # Generate random transaction ID
-            xid = random.randint(1, 900000000)
-
-            # Create DHCP DISCOVER packet
-            discover = (
-                Ether(dst="ff:ff:ff:ff:ff:ff", src=mac_addr)
-                / IP(src="0.0.0.0", dst="255.255.255.255")
-                / UDP(sport=68, dport=67)
-                / BOOTP(
-                    op=1, chaddr=mac_addr, xid=xid, flags=0x8000  # BOOTREQUEST  # Broadcast flag
-                )
-                / DHCP(
-                    options=[
-                        ("message-type", "discover"),
-                        ("client_id", b"\x01" + bytes.fromhex(mac_addr.replace(":", ""))),
-                        (
-                            "param_req_list",
-                            [1, 3, 6, 15, 66, 67, 175],
-                        ),  # Request options including PXE options
-                        "end",
-                    ]
-                )
-            )
-
-            # Send DISCOVER and wait for OFFER
-            offer = srp1(discover, iface=interface_name, timeout=self.timeout, verbose=False)
-
-            if offer is None:
-                return {
-                    "status": "no_response",
-                    "message": "No DHCP OFFER received from network",
-                    "interface": interface_name,
-                    "suggestions": [
-                        "Check if DHCP server is running on the network",
-                        "Verify network connectivity",
-                        "Try increasing timeout or using different interface",
-                    ],
-                }
-
-            # Parse DHCP options from OFFER
-            dhcp_options = {}
-            if offer.haslayer(DHCP):
-                for option in offer[DHCP].options:
-                    if isinstance(option, tuple) and len(option) >= 2:
-                        opt_name, opt_value = option[0], option[1]
-                        dhcp_options[opt_name] = opt_value
-
-            # Extract PXE-related options
-            detected = {
-                "dhcp_server": offer[IP].src if offer.haslayer(IP) else "Unknown",
-                "offered_ip": offer[BOOTP].yiaddr if offer.haslayer(BOOTP) else "Unknown",
-            }
-
-            # Option 66: TFTP server name/IP
-            if 66 in dhcp_options or "tftp_server" in dhcp_options:
-                tftp_server = dhcp_options.get(66) or dhcp_options.get("tftp_server")
-                if isinstance(tftp_server, bytes):
-                    tftp_server = tftp_server.decode("utf-8", errors="ignore")
-                detected["option_66_tftp_server"] = tftp_server
-
-            # Option 67: Bootfile name
-            if 67 in dhcp_options or "bootfile" in dhcp_options:
-                bootfile = dhcp_options.get(67) or dhcp_options.get("bootfile")
-                if isinstance(bootfile, bytes):
-                    bootfile = bootfile.decode("utf-8", errors="ignore")
-                detected["option_67_bootfile"] = bootfile
-
-            # Check if PXE options are configured
-            issues = []
-            warnings = []
-
-            if "option_66_tftp_server" not in detected:
-                issues.append("Option 66 (TFTP Server) not configured in DHCP")
-            elif detected["option_66_tftp_server"] != expected_server_ip:
-                warnings.append(
-                    f"Option 66 points to {detected['option_66_tftp_server']}, "
-                    f"expected {expected_server_ip}"
-                )
-
-            if "option_67_bootfile" not in detected:
-                issues.append("Option 67 (Boot Filename) not configured in DHCP")
-            else:
-                valid_bootfiles = ["undionly.kpxe", "ipxe.efi", "ipxe.pxe"]
-                if detected["option_67_bootfile"] not in valid_bootfiles:
-                    warnings.append(
-                        f"Option 67 is '{detected['option_67_bootfile']}', "
-                        f"expected one of {valid_bootfiles}"
-                    )
-
-            # Determine overall status
-            if len(issues) == 0 and len(warnings) == 0:
-                status = "valid"
-                message = "DHCP server is correctly configured for PXE boot"
-            elif len(issues) > 0:
-                status = "invalid"
-                message = "DHCP server is missing required PXE boot options"
-            else:
-                status = "warning"
-                message = "DHCP server has PXE boot options but with potential issues"
-
-            return {
-                "status": status,
-                "message": message,
-                "interface": interface_name,
-                "detected": detected,
-                "issues": issues,
-                "warnings": warnings,
-                "all_options": {
-                    str(k): str(v) if not isinstance(v, (list, tuple)) else [str(x) for x in v]
-                    for k, v in dhcp_options.items()
-                    if k != "end"
-                },
-            }
-
-        except ImportError:
+        try:
+            recv_sock.bind(("", 68))
+        except PermissionError:
+            recv_sock.close()
             return {
                 "status": "error",
-                "message": "Scapy library not installed",
+                "message": "Cannot bind to port 68 — requires NET_ADMIN capability",
+                "interface": iface,
                 "suggestions": [
-                    "Install scapy: pip install scapy",
-                    "Rebuild the container with updated requirements.txt",
+                    "Ensure the container has cap_add: [NET_ADMIN] in docker-compose.yml"
                 ],
             }
+        except OSError as exc:
+            recv_sock.close()
+            return {
+                "status": "error",
+                "message": f"Cannot bind to port 68: {exc}",
+                "interface": iface,
+                "suggestions": ["Port 68 may already be in use by another DHCP client"],
+            }
+
+        # Send socket: raw IP socket so we can use source IP 0.0.0.0.
+        # This prevents router rate-limiting (router sees each probe as a fresh client).
+        # Falls back to regular UDP if raw sockets are unavailable.
+        try:
+            send_sock = _socket.socket(_socket.AF_INET, _socket.SOCK_RAW, _socket.IPPROTO_RAW)
+            send_sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_HDRINCL, 1)
+            send_sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_BROADCAST, 1)
+            use_raw = True
+        except (PermissionError, OSError):
+            send_sock = recv_sock  # reuse recv socket, fallback to regular UDP
+            use_raw = False
+
+        # Inter-probe delays (seconds). ASUS/dnsmasq rate-limits DHCP responses per
+        # source IP — each probe must wait for the router to reset before the next.
+        # Other DHCP servers (ISC, Windows, pfSense, Mikrotik) don't have this limit
+        # and will respond instantly; the delays just add a small overhead for them.
+        probe_delays = [5.0, 10.0, 0.0]  # after BIOS, after UEFI, after iPXE
+
+        try:
+            for p, delay_after in zip(probe_defs, probe_delays):
+                # Send one DISCOVER
+                dhcp_pkt = self._build_discover(p["mac"], p["xid"], p["arch"], p["is_ipxe"])
+                if use_raw:
+                    send_sock.sendto(self._wrap_ip_udp(dhcp_pkt), ("255.255.255.255", 0))
+                else:
+                    recv_sock.sendto(dhcp_pkt, ("255.255.255.255", 67))
+
+                # Wait for this probe's OFFER
+                deadline = time.monotonic() + self.timeout
+                while time.monotonic() < deadline:
+                    recv_sock.settimeout(max(0.1, deadline - time.monotonic()))
+                    try:
+                        data, addr = recv_sock.recvfrom(4096)
+                    except _socket.timeout:
+                        break
+                    if len(data) < 240 or data[0] != 2:
+                        continue
+                    resp_xid = struct.unpack("!I", data[4:8])[0]
+                    if resp_xid != p["xid"]:
+                        continue
+                    p["offer"] = self._parse_offer(data, addr)
+                    break
+
+                # Wait between probes so the router's rate-limit can reset
+                if delay_after > 0:
+                    time.sleep(delay_after)
+
         except PermissionError:
             return {
                 "status": "error",
-                "message": "Insufficient privileges to send/receive network packets",
-                "suggestions": [
-                    "Run container with NET_ADMIN capability",
-                    "Add 'cap_add: [NET_ADMIN]' to docker-compose.yml",
-                    "Or run with --privileged flag (not recommended)",
-                ],
+                "message": "Insufficient privileges to send DHCP broadcast",
+                "interface": iface,
+                "suggestions": ["Ensure the container has NET_ADMIN and NET_RAW capabilities"],
             }
-        except Exception as e:
+        except Exception as exc:
             return {
                 "status": "error",
-                "message": f"DHCP validation failed: {str(e)}",
-                "error_type": type(e).__name__,
-                "suggestions": [
-                    "Check network connectivity",
-                    "Verify interface name",
-                    "Ensure DHCP server is reachable",
-                ],
+                "message": f"DHCP validation failed: {exc}",
+                "error_type": type(exc).__name__,
+                "interface": iface,
+                "suggestions": ["Check network connectivity and interface name"],
             }
+        finally:
+            recv_sock.close()
+            if use_raw and send_sock is not recv_sock:
+                send_sock.close()
 
-    def validate_config(
-        self, detected_options: Dict[str, str], expected_server_ip: str
-    ) -> Dict[str, Any]:
-        """Validate detected DHCP options against expected values"""
-        issues = []
-        warnings = []
+        # --- Evaluate each probe ---
+        probes_out: Dict[str, Any] = {}
+        for p in probe_defs:
+            offer = p["offer"]
+            if offer is None:
+                probes_out[p["name"]] = {"label": p["label"], "status": "no_response"}
+                continue
 
-        # Check option 66 (Next Server)
-        if "option_66" in detected_options:
-            if detected_options["option_66"] != expected_server_ip:
-                issues.append(
-                    f"Option 66 (Next Server) is {detected_options['option_66']}, "
-                    f"expected {expected_server_ip}"
-                )
+            issues: List[str] = []
+            warnings_list: List[str] = []
+            tftp_server = offer["tftp_server"]
+            bootfile = offer["bootfile"]
+
+            if p["is_ipxe"]:
+                # iPXE clients get a boot URL (HTTP) — check it points to our server
+                if not bootfile:
+                    issues.append("No boot URL returned (expected HTTP URL for iPXE clients)")
+                elif not bootfile.startswith(("http://", "https://")):
+                    warnings_list.append(
+                        f"Boot response is {bootfile!r} — expected an HTTP/HTTPS URL for iPXE"
+                    )
+                elif expected_server_ip not in bootfile:
+                    warnings_list.append(
+                        f"Boot URL {bootfile!r} does not reference expected server"
+                        f" {expected_server_ip!r}"
+                    )
+            else:
+                # BIOS / UEFI: validate TFTP server points to our station.
+                # Boot file name is informational — user may use any valid bootloader.
+                if not tftp_server:
+                    issues.append("No TFTP server in response (option 66 / siaddr both absent)")
+                elif tftp_server != expected_server_ip:
+                    warnings_list.append(
+                        f"TFTP server is {tftp_server!r} ({offer.get('tftp_server_source', '')}), "
+                        f"expected {expected_server_ip!r}"
+                    )
+                if not bootfile:
+                    issues.append(
+                        "No boot filename in response (option 67 / BOOTP file both absent)"
+                    )
+
+            if not issues and not warnings_list:
+                probe_status, probe_msg = "success", "Correctly configured"
+            elif issues:
+                probe_status, probe_msg = "not_configured", "; ".join(issues)
+            else:
+                probe_status, probe_msg = "warning", "; ".join(warnings_list)
+
+            probe_result: Dict[str, Any] = {
+                "label": p["label"],
+                "status": probe_status,
+                "message": probe_msg,
+                "dhcp_server": offer["dhcp_server"],
+                "offered_ip": offer["offered_ip"],
+            }
+            if p["is_ipxe"] and bootfile:
+                probe_result["boot_url"] = bootfile
+            if not p["is_ipxe"]:
+                if tftp_server:
+                    probe_result["tftp_server"] = tftp_server
+                if bootfile:
+                    probe_result["bootfile"] = bootfile
+            if issues:
+                probe_result["issues"] = issues
+            if warnings_list:
+                probe_result["warnings"] = warnings_list
+            probes_out[p["name"]] = probe_result
+
+        # --- Overall status ---
+        statuses = {v.get("status") for v in probes_out.values()}
+        if statuses == {"no_response"}:
+            overall_status = "no_response"
+            overall_message = "No DHCP OFFER received from network"
+        elif (
+            "success" in statuses and "not_configured" not in statuses and "warning" not in statuses
+        ):
+            overall_status = "success"
+            overall_message = "DHCP server is correctly configured for PXE boot"
+        elif "success" in statuses or "warning" in statuses:
+            overall_status = "warning"
+            overall_message = "DHCP server has PXE configuration but with potential issues"
         else:
-            issues.append("Option 66 (Next Server) not found in DHCP response")
-
-        # Check option 67 (Boot Filename)
-        if "option_67" in detected_options:
-            valid_bootfiles = ["undionly.kpxe", "ipxe.efi", "ipxe.pxe"]
-            if detected_options["option_67"] not in valid_bootfiles:
-                warnings.append(
-                    f"Option 67 (Boot Filename) is {detected_options['option_67']}, "
-                    f"expected one of {valid_bootfiles}"
-                )
-        else:
-            issues.append("Option 67 (Boot Filename) not found in DHCP response")
-
-        # Check option 175 (iPXE detection)
-        if "option_175" not in detected_options:
-            warnings.append(
-                "Option 175 (iPXE detection) not configured - advanced iPXE features may not work"
+            overall_status = "not_configured"
+            overall_message = (
+                "DHCP server is present but not configured for PXE boot. "
+                "This is expected when using Proxy DHCP."
             )
 
-        return {"valid": len(issues) == 0, "issues": issues, "warnings": warnings}
+        # Backward-compatible top-level `detected` from BIOS probe
+        bios = probes_out.get("bios", {})
+        detected: Dict[str, Any] = {}
+        if bios.get("dhcp_server"):
+            detected["dhcp_server"] = bios["dhcp_server"]
+        if bios.get("offered_ip"):
+            detected["offered_ip"] = bios["offered_ip"]
+        if bios.get("tftp_server"):
+            detected["option_66_tftp_server"] = bios["tftp_server"]
+        if bios.get("bootfile"):
+            detected["option_67_bootfile"] = bios["bootfile"]
+
+        return {
+            "status": overall_status,
+            "message": overall_message,
+            "interface": iface,
+            "detected": detected,
+            "probes": probes_out,
+            "issues": [m for p in probes_out.values() for m in p.get("issues", [])],
+            "warnings": [m for p in probes_out.values() for m in p.get("warnings", [])],
+        }

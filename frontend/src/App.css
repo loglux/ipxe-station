@@ -7,6 +7,8 @@
 }
 
 :root {
+  color-scheme: light;
+
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
   --color-primary-subtle: #eff6ff;
@@ -64,6 +66,8 @@
 /* ========== DARK MODE ========== */
 
 [data-theme="dark"] {
+  color-scheme: dark;
+
   --color-primary-subtle: #1e3a8a;
 
   /* Semantic feedback backgrounds (dark mode) */
@@ -107,6 +111,16 @@ body {
 
 code, pre {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+}
+
+/* Force form elements to respect theme variables.
+   Browsers do not always inherit color from body for native controls. */
+input,
+select,
+textarea,
+button {
+  color: inherit;
+  font-family: inherit;
 }
 
 /* ========== MAIN APP LAYOUT ========== */

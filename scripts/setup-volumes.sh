@@ -6,13 +6,13 @@ echo "🔧 Setting up volume directories..."
 # Setup TFTP directory with iPXE binaries
 if [ ! -f "/srv/tftp/undionly.kpxe" ]; then
     echo "📁 Setting up TFTP directory..."
-    cp -r /app/initial-files/tftp/* /srv/tftp/ 2>/dev/null || true
+    cp -r /opt/ipxe-initial-files/tftp/* /srv/tftp/ 2>/dev/null || true
     echo "✅ iPXE binaries copied to /srv/tftp/"
 fi
 
 # Keep alternative bootloaders in sync for existing volumes.
-if [ ! -f "/srv/tftp/snponly.efi" ] && [ -f "/app/initial-files/tftp/snponly.efi" ]; then
-    cp /app/initial-files/tftp/snponly.efi /srv/tftp/snponly.efi
+if [ ! -f "/srv/tftp/snponly.efi" ] && [ -f "/opt/ipxe-initial-files/tftp/snponly.efi" ]; then
+    cp /opt/ipxe-initial-files/tftp/snponly.efi /srv/tftp/snponly.efi
     echo "✅ snponly.efi copied to /srv/tftp/"
 fi
 

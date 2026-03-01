@@ -31,3 +31,6 @@ secrets/
 
 # Backup files
 *.old
+
+# Frontend build output (generated, not committed)
+app/frontend/dist/

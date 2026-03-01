@@ -21,12 +21,17 @@ services:
       - ./data/srv/http:/srv/http:rw    # HTTP boot files (Ubuntu versions)
       - ./data/srv/ipxe:/srv/ipxe:rw    # iPXE scripts
       - ./data/srv/dhcp:/srv/dhcp:rw    # DHCP configurations
+      # Dev mount — covers both backend and frontend (vite builds into app/frontend/dist/)
+      # After changing Python code: uvicorn --reload picks it up automatically.
+      # After changing frontend: run `npm run build` in frontend/, then refresh browser.
+      - ./app:/app:ro
 
     environment:
       # Application settings
       - PYTHONUNBUFFERED=1
       - UVICORN_HOST=0.0.0.0
       - UVICORN_PORT=9021
+      - UVICORN_RELOAD=1    # hot-reload on code changes (remove in prod)
 
       # PXE settings
       - PXE_SERVER_IP=192.168.10.32

@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './DHCPHelper.css';
 
 const DHCPHelper = () => {
+  // ── Proxy DHCP state ─────────────────────────────────────────────────────
+  const [proxyStatus, setProxyStatus] = useState({ running: false, pid: null });
+  const [proxySettings, setProxySettings] = useState({
+    server_ip: '',
+    http_port: 9021,
+    support_bios: true,
+    support_uefi: true,
+  });
+  const [proxyLoading, setProxyLoading] = useState(false);
+  const [proxyMessage, setProxyMessage] = useState(null);
+  const proxyPollRef = useRef(null);
+
+  // ── Config generator state ───────────────────────────────────────────────
   const [serverTypes, setServerTypes] = useState([]);
   const [selectedType, setSelectedType] = useState('dnsmasq');
   const [pxeServerIP, setPxeServerIP] = useState('192.168.10.32');
@@ -12,8 +25,101 @@ const DHCPHelper = () => {
   const [validationResult, setValidationResult] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Load server types and default IP from settings on mount
+  // ── Proxy DHCP helpers ───────────────────────────────────────────────────
+
+  const fetchProxyStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/proxy-dhcp/status');
+      if (res.ok) {
+        const data = await res.json();
+        setProxyStatus({ running: data.running, pid: data.pid });
+      }
+    } catch {
+      // silently ignore polling errors
+    }
+  }, []);
+
+  const startProxyPolling = useCallback(() => {
+    if (proxyPollRef.current) return;
+    proxyPollRef.current = setInterval(fetchProxyStatus, 3000);
+  }, [fetchProxyStatus]);
+
+  const stopProxyPolling = useCallback(() => {
+    if (proxyPollRef.current) {
+      clearInterval(proxyPollRef.current);
+      proxyPollRef.current = null;
+    }
+  }, []);
+
+  const handleProxyStart = async () => {
+    setProxyLoading(true);
+    setProxyMessage(null);
+    try {
+      const res = await fetch('/api/proxy-dhcp/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proxySettings),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProxyStatus({ running: true, pid: data.pid });
+        setProxyMessage({ type: 'success', text: `Started (pid ${data.pid})` });
+      } else {
+        setProxyMessage({ type: 'error', text: data.detail || data.error || 'Start failed' });
+      }
+    } catch (err) {
+      setProxyMessage({ type: 'error', text: String(err) });
+    } finally {
+      setProxyLoading(false);
+    }
+  };
+
+  const handleProxyStop = async () => {
+    setProxyLoading(true);
+    setProxyMessage(null);
+    try {
+      const res = await fetch('/api/proxy-dhcp/stop', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProxyStatus({ running: false, pid: null });
+        setProxyMessage({ type: 'success', text: 'Stopped' });
+      } else {
+        setProxyMessage({ type: 'error', text: data.detail || data.error || 'Stop failed' });
+      }
+    } catch (err) {
+      setProxyMessage({ type: 'error', text: String(err) });
+    } finally {
+      setProxyLoading(false);
+    }
+  };
+
+  const handleProxySave = async () => {
+    setProxyLoading(true);
+    setProxyMessage(null);
+    try {
+      const res = await fetch('/api/proxy-dhcp/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proxySettings),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProxyStatus({ running: true, pid: data.pid });
+        setProxyMessage({ type: 'success', text: `Applied — pid ${data.pid}` });
+      } else {
+        setProxyMessage({ type: 'error', text: data.detail || data.error || 'Apply failed' });
+      }
+    } catch (err) {
+      setProxyMessage({ type: 'error', text: String(err) });
+    } finally {
+      setProxyLoading(false);
+    }
+  };
+
+  // ── Mount: load everything ───────────────────────────────────────────────
+
   useEffect(() => {
+    // Config generator setup
     fetch('/api/dhcp/server-types')
       .then(res => res.json())
       .then(data => setServerTypes(data.server_types))
@@ -22,11 +128,33 @@ const DHCPHelper = () => {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        if (data.server_ip) setPxeServerIP(data.server_ip);
-        if (data.http_port) setHttpPort(data.http_port);
+        if (data.server_ip) {
+          setPxeServerIP(data.server_ip);
+          setProxySettings(prev => ({ ...prev, server_ip: data.server_ip }));
+        }
+        if (data.http_port) {
+          setHttpPort(data.http_port);
+          setProxySettings(prev => ({ ...prev, http_port: data.http_port }));
+        }
       })
       .catch(() => {});
-  }, []);
+
+    // Proxy DHCP: load persisted config + initial status
+    fetch('/api/proxy-dhcp/status')
+      .then(res => res.json())
+      .then(data => {
+        setProxyStatus({ running: data.running, pid: data.pid });
+        if (data.settings) {
+          setProxySettings(prev => ({ ...prev, ...data.settings }));
+        }
+      })
+      .catch(() => {});
+
+    startProxyPolling();
+    return () => stopProxyPolling();
+  }, [startProxyPolling, stopProxyPolling]);
+
+  // ── Config generator helpers ─────────────────────────────────────────────
 
   const generateConfig = useCallback(async () => {
     setLoading(true);
@@ -50,7 +178,6 @@ const DHCPHelper = () => {
     }
   }, [httpPort, pxeServerIP, selectedType, tftpPort]);
 
-  // Auto-generate config when settings change
   useEffect(() => {
     if (selectedType) {
       generateConfig();
@@ -97,6 +224,8 @@ const DHCPHelper = () => {
     }
   };
 
+  // ── Render ───────────────────────────────────────────────────────────────
+
   return (
     <div className="dhcp-helper">
       <div className="dhcp-header">
@@ -107,7 +236,100 @@ const DHCPHelper = () => {
       </div>
 
       <div className="dhcp-content">
-        {/* Settings Panel */}
+
+        {/* ── Proxy DHCP Server ────────────────────────────────────────── */}
+        <div className="proxy-dhcp-panel">
+          <div className="proxy-dhcp-title-row">
+            <h3>Proxy DHCP Server</h3>
+            <span className={`proxy-status-pill ${proxyStatus.running ? 'running' : 'stopped'}`}>
+              {proxyStatus.running ? `Running (pid ${proxyStatus.pid})` : 'Stopped'}
+            </span>
+          </div>
+
+          <p className="proxy-dhcp-description">
+            Runs dnsmasq alongside your existing DHCP server. Responds only to PXE boot
+            requests — no router configuration needed.
+          </p>
+
+          <div className="proxy-dhcp-fields">
+            <div className="setting-group">
+              <label htmlFor="proxy-server-ip">Server IP:</label>
+              <input
+                id="proxy-server-ip"
+                type="text"
+                value={proxySettings.server_ip}
+                onChange={e => setProxySettings(prev => ({ ...prev, server_ip: e.target.value }))}
+                placeholder="192.168.1.1"
+              />
+            </div>
+
+            <div className="setting-group">
+              <label>Support:</label>
+              <div className="proxy-checkboxes">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={proxySettings.support_bios}
+                    onChange={e =>
+                      setProxySettings(prev => ({ ...prev, support_bios: e.target.checked }))
+                    }
+                  />
+                  BIOS (undionly.kpxe)
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={proxySettings.support_uefi}
+                    onChange={e =>
+                      setProxySettings(prev => ({ ...prev, support_uefi: e.target.checked }))
+                    }
+                  />
+                  UEFI (ipxe.efi)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="proxy-dhcp-actions">
+            {proxyStatus.running ? (
+              <button
+                onClick={handleProxyStop}
+                disabled={proxyLoading}
+                className="btn-proxy-stop"
+              >
+                {proxyLoading ? 'Stopping…' : 'Stop'}
+              </button>
+            ) : (
+              <button
+                onClick={handleProxyStart}
+                disabled={proxyLoading}
+                className="btn-proxy-start"
+              >
+                {proxyLoading ? 'Starting…' : 'Start'}
+              </button>
+            )}
+            <button
+              onClick={handleProxySave}
+              disabled={proxyLoading}
+              className="btn-proxy-apply"
+            >
+              {proxyLoading ? 'Applying…' : 'Save & Apply'}
+            </button>
+          </div>
+
+          {proxyMessage && (
+            <div className={`proxy-message ${proxyMessage.type}`}>
+              {proxyMessage.text}
+            </div>
+          )}
+
+          <div className="proxy-dhcp-info">
+            No router configuration needed. Proxy DHCP only responds to PXE boot requests
+            and does not interfere with normal IP address assignment.
+          </div>
+        </div>
+
+        {/* ── Config Generator ─────────────────────────────────────────── */}
         <div className="dhcp-settings">
           <div className="setting-group">
             <label htmlFor="server-type">DHCP Server Type:</label>
@@ -198,13 +420,81 @@ const DHCPHelper = () => {
             disabled={loading}
             className="btn-validate"
           >
-            {loading ? 'Checking...' : '🔍 Check Network DHCP'}
+            {loading ? '⏳ Probing BIOS / UEFI / iPXE…' : '🔍 Check Network DHCP'}
           </button>
+          {loading && (
+            <p className="validate-hint">
+              Testing 3 client types sequentially — takes ~20–25 s on ASUS/dnsmasq routers.
+            </p>
+          )}
 
           {validationResult && (
             <div className={`validation-result ${validationResult.status}`}>
               <h4>Validation Result:</h4>
               <p>{validationResult.message}</p>
+
+              {/* DHCP server summary line */}
+              {validationResult.detected?.dhcp_server && (
+                <div className="validation-detected">
+                  <strong>DHCP server:</strong> {validationResult.detected.dhcp_server}
+                  {validationResult.interface && (
+                    <> &nbsp;·&nbsp; <strong>Interface:</strong> {validationResult.interface}</>
+                  )}
+                </div>
+              )}
+
+              {/* Per-probe breakdown table */}
+              {validationResult.probes && (
+                <table className="probe-table">
+                  <thead>
+                    <tr>
+                      <th>Client type</th>
+                      <th>Status</th>
+                      <th>TFTP / Boot URL</th>
+                      <th>Boot file</th>
+                      <th>Offered IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.values(validationResult.probes).map((probe) => (
+                      <tr key={probe.label} className={`probe-row probe-${probe.status}`}>
+                        <td>{probe.label}</td>
+                        <td>
+                          <span className={`probe-status-pill probe-status-${probe.status}`}>
+                            {probe.status === 'success' ? '✓' : probe.status === 'no_response' ? '—' : probe.status === 'warning' ? '⚠' : '✗'}
+                            {' '}{probe.status}
+                          </span>
+                        </td>
+                        <td className="probe-mono">
+                          {probe.boot_url || probe.tftp_server || <span className="text-muted">—</span>}
+                        </td>
+                        <td className="probe-mono">
+                          {probe.bootfile || <span className="text-muted">—</span>}
+                        </td>
+                        <td className="probe-mono">
+                          {probe.offered_ip || <span className="text-muted">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* Issues / warnings */}
+              {validationResult.issues?.length > 0 && (
+                <ul className="validation-issues">
+                  {validationResult.issues.map((issue, idx) => (
+                    <li key={idx}>{issue}</li>
+                  ))}
+                </ul>
+              )}
+              {validationResult.warnings?.length > 0 && (
+                <ul className="validation-warnings">
+                  {validationResult.warnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              )}
               {validationResult.suggestions && (
                 <div className="validation-suggestions">
                   <h5>Suggestions:</h5>

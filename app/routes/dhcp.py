@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.backend.dhcp_helper import DHCPConfig, DHCPConfigGenerator, DHCPValidator
+from app.routes.state import SETTINGS_FILE, SettingsModel
 
 dhcp_router = APIRouter(prefix="/api/dhcp", tags=["dhcp"])
 dhcp_generator = DHCPConfigGenerator()
@@ -37,7 +38,15 @@ def generate_dhcp_config(
 
 
 @dhcp_router.get("/validate/network")
-def validate_network_dhcp():
+def validate_network_dhcp(expected_server_ip: str = ""):
     """Check and validate DHCP configuration on the network."""
-    result = dhcp_validator.check_network()
+    if not expected_server_ip:
+        try:
+            import json
+
+            data = json.loads(SETTINGS_FILE.read_text())
+            expected_server_ip = SettingsModel(**data).server_ip
+        except Exception:
+            expected_server_ip = SettingsModel().server_ip
+    result = dhcp_validator.check_network(expected_server_ip=expected_server_ip)
     return result

@@ -17,6 +17,8 @@ RUN apt-get update && \
         file tree \
         # System tools
         sudo procps \
+        # Proxy DHCP
+        dnsmasq \
         # Debug tools (optional)
         htop nano \
         && \
@@ -31,8 +33,8 @@ ENV PYTHONPATH=/
 # Copy application files to /app (preserving the app/ structure)
 COPY app/ /app/
 COPY tftpd-hpa /etc/default/tftpd-hpa
-# Copy built frontend (if present)
-COPY frontend/dist /app/frontend/dist
+# Note: frontend dist is now built into app/frontend/dist/ (see vite.config.js outDir)
+# and is included by the COPY app/ above — no separate COPY needed.
 
 # Install Python dependencies
 COPY requirements.txt /
@@ -47,19 +49,19 @@ RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /srv/dhcp && \
 RUN mkdir -p /mnt/iso /tmp/extract && \
     chmod 755 /mnt/iso /tmp/extract
 
-# Download iPXE binaries to temporary location (will be copied to volume on first run)
-RUN mkdir -p /app/initial-files/tftp && \
-    cd /app/initial-files/tftp && \
+# Download iPXE binaries — stored outside /app so volume-mount of ./app doesn't shadow them
+RUN mkdir -p /opt/ipxe-initial-files/tftp && \
+    cd /opt/ipxe-initial-files/tftp && \
     wget -q http://boot.ipxe.org/undionly.kpxe && \
     wget -q -O ipxe.efi http://boot.ipxe.org/x86_64-efi/ipxe.efi && \
     wget -q -O snponly.efi http://boot.ipxe.org/x86_64-efi/snponly.efi && \
     wget -q http://boot.ipxe.org/ipxe.pxe && \
-    ls -la /app/initial-files/tftp/
+    ls -la /opt/ipxe-initial-files/tftp/
 
-# Copy setup and startup scripts
-COPY scripts/setup-volumes.sh /app/
-COPY scripts/start.sh /app/
-RUN chmod +x /app/setup-volumes.sh /app/start.sh
+# Copy setup and startup scripts to /usr/local/bin so ./app:/app mount doesn't shadow them
+COPY scripts/setup-volumes.sh /usr/local/bin/setup-volumes.sh
+COPY scripts/start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/setup-volumes.sh /usr/local/bin/start.sh
 
 # Configure sudo for volume operations
 RUN echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -71,7 +73,7 @@ EXPOSE 69/udp 9021 9005
 WORKDIR /app
 
 # Use the startup script as entrypoint
-CMD ["/app/start.sh"]
+CMD ["/usr/local/bin/start.sh"]
 
 # Volume declarations for documentation
 VOLUME ["/srv/tftp", "/srv/http", "/srv/ipxe", "/srv/dhcp"]

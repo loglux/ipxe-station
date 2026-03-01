@@ -4,7 +4,7 @@ set -e
 echo "🚀 Starting iPXE Station..."
 
 # Setup volumes on first run
-/app/setup-volumes.sh
+/usr/local/bin/setup-volumes.sh
 
 # Starting syslog (if not running)
 if ! pgrep rsyslogd > /dev/null; then
@@ -34,4 +34,12 @@ ls -la /srv/
 
 # Start main application
 echo "🌐 Starting iPXE Station web interface..."
-exec python main.py
+RELOAD_FLAG=""
+if [ "${UVICORN_RELOAD:-0}" = "1" ]; then
+    RELOAD_FLAG="--reload"
+    echo "🔄 Hot-reload enabled"
+fi
+exec uvicorn main:app \
+    --host "${UVICORN_HOST:-0.0.0.0}" \
+    --port "${UVICORN_PORT:-9021}" \
+    $RELOAD_FLAG

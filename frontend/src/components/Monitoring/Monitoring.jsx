@@ -30,10 +30,7 @@ export default function Monitoring() {
 
       const response = await fetch(`/api/monitoring/logs?${params}`)
       const data = await response.json()
-
-      if (data.success) {
-        setLogs(data.logs || [])
-      }
+      setLogs(data.logs || [])
     } catch (error) {
       console.error('Failed to load logs:', error)
     }
@@ -43,10 +40,7 @@ export default function Monitoring() {
     try {
       const response = await fetch('/api/monitoring/services')
       const data = await response.json()
-
-      if (data.success) {
-        setServices(data.services || {})
-      }
+      setServices(data.services || {})
     } catch (error) {
       console.error('Failed to load service status:', error)
     }
@@ -56,10 +50,7 @@ export default function Monitoring() {
     try {
       const response = await fetch('/api/monitoring/metrics')
       const data = await response.json()
-
-      if (data.success) {
-        setMetrics(data.metrics || {})
-      }
+      setMetrics(data.metrics || {})
     } catch (error) {
       console.error('Failed to load metrics:', error)
     }
@@ -69,10 +60,7 @@ export default function Monitoring() {
     try {
       const response = await fetch('/api/monitoring/boot-sessions')
       const data = await response.json()
-
-      if (data.success) {
-        setBootSessions(data.sessions || [])
-      }
+      setBootSessions(data.sessions || [])
     } catch (error) {
       console.error('Failed to load boot sessions:', error)
     }

@@ -12,6 +12,7 @@ from app.routes.boot import boot_router
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import ipxe_router
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
+from app.routes.proxy_dhcp import proxy_dhcp_router
 from app.routes.settings import settings_router
 from app.routes.state import (
     HTTP_ROOT,
@@ -131,6 +132,7 @@ app.include_router(ipxe_router)
 app.include_router(boot_router)
 app.include_router(assets_router)
 app.include_router(dhcp_router)
+app.include_router(proxy_dhcp_router)
 app.include_router(monitoring_router)
 app.include_router(settings_router)
 
