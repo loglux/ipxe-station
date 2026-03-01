@@ -323,11 +323,13 @@ class DHCPValidator:
     def _parse_pxe_opt43(data: bytes) -> Dict[str, Any]:
         """Extract PXE boot server IP and boot filename from option 43 sub-options.
 
-        PXE vendor-specific option 43 sub-option layout:
-          Sub-opt 9  (Boot Server List): type(2) count(1) ip(4)*count
-          Sub-opt 11 (Boot Menu Item):   type(2) desc_len(1) desc(n)
-        The server IP lives in sub-opt 9; filename is conveyed via siaddr/file
-        (set by dnsmasq alongside option 43 unless dhcp-no-override is active).
+        dnsmasq option 43 sub-option layout (observed in proxy mode):
+          Sub-opt  6: PXE Discovery Control (1 byte)
+          Sub-opt  8: Boot Servers — type(2) count(1) ip(4)*count  ← server IP here
+          Sub-opt  9: Boot Menu label — type(2) desc_len(1) desc(n)
+          Sub-opt 10: Menu Prompt — timeout(1) text(n)
+        The bootfile name is NOT present in DHCP when using pxe-service;
+        the client fetches it from the TFTP server via PXE boot negotiation.
         """
         import socket as _socket
 
@@ -346,8 +348,9 @@ class DHCPValidator:
             if i + 2 + length > len(data):
                 break
             value = data[i + 2 : i + 2 + length]
-            if code == 9 and length >= 7:
-                # Sub-opt 9: Boot Server List — type(2) count(1) ip(4)...
+            if code == 8 and length >= 7:
+                # Sub-opt 8: Boot Servers — type(2) count(1) ip(4)*count
+                # dnsmasq puts the server IP here; sub-opt 9 is the Boot Menu label
                 count = value[2] if len(value) > 2 else 0
                 if count >= 1 and len(value) >= 7:
                     result["server"] = _socket.inet_ntoa(value[3:7])
@@ -579,16 +582,19 @@ class DHCPValidator:
             else:
                 # BIOS / UEFI: validate TFTP server points to our station.
                 # Boot file name is informational — user may use any valid bootloader.
+                # When proxy DHCP uses pxe-service, bootfile is NOT in the DHCP packet
+                # (the client discovers it via PXE boot negotiation with the TFTP server).
                 if not tftp_server:
-                    issues.append("No TFTP server in response (option 66 / siaddr both absent)")
+                    issues.append("No TFTP server in response (option 66 / siaddr / option 43)")
                 elif tftp_server != expected_server_ip:
                     warnings_list.append(
                         f"TFTP server is {tftp_server!r} ({offer.get('tftp_server_source', '')}), "
                         f"expected {expected_server_ip!r}"
                     )
-                if not bootfile:
-                    issues.append(
-                        "No boot filename in response (option 67 / BOOTP file both absent)"
+                if not bootfile and tftp_server:
+                    # No filename in DHCP is normal for pxe-service proxy mode
+                    warnings_list.append(
+                        "No boot filename in DHCP response — normal with pxe-service proxy DHCP"
                     )
 
             if not issues and not warnings_list:
