@@ -14,7 +14,15 @@ import BootFiles from './components/BootFiles/BootFiles'
 
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
-  const [activeTab, setActiveTab] = useState('builder')
+  const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'preview', 'export', 'monitoring']
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = window.location.hash.slice(1)
+    return VALID_TABS.includes(saved) ? saved : 'builder'
+  })
+  const switchTab = (tab) => {
+    setActiveTab(tab)
+    window.location.hash = tab
+  }
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -270,43 +278,43 @@ function App() {
           <div className="tabs">
             <button
               className={`tab ${activeTab === 'builder' ? 'active' : ''}`}
-              onClick={() => setActiveTab('builder')}
+              onClick={() => switchTab('builder')}
             >
               🏗️ Builder
             </button>
             <button
               className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
-              onClick={() => setActiveTab('assets')}
+              onClick={() => switchTab('assets')}
             >
               📦 Assets
             </button>
             <button
               className={`tab ${activeTab === 'dhcp' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dhcp')}
+              onClick={() => switchTab('dhcp')}
             >
               🌐 DHCP
             </button>
             <button
               className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
-              onClick={() => setActiveTab('boot')}
+              onClick={() => switchTab('boot')}
             >
               🚀 Boot Files
             </button>
             <button
               className={`tab ${activeTab === 'preview' ? 'active' : ''}`}
-              onClick={() => setActiveTab('preview')}
+              onClick={() => switchTab('preview')}
             >
               👁️ Preview
             </button>
             <button
               className={`tab ${activeTab === 'export' ? 'active' : ''}`}
-              onClick={() => setActiveTab('export')}
+              onClick={() => switchTab('export')}
             >
               💾 Export
             </button>
             <button
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
-              onClick={() => setActiveTab('monitoring')}
+              onClick={() => switchTab('monitoring')}
             >
               📊 Monitoring
             </button>
