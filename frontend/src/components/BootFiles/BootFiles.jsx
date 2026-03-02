@@ -7,10 +7,11 @@ function BootFiles() {
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false)
   const [templates, setTemplates] = useState({})
   const [selectedTemplate, setSelectedTemplate] = useState('direct')
+  const [fileExists, setFileExists] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
-  const [settings, setSettings] = useState({ server_ip: '192.168.10.32', http_port: 9021 })
+  const [settings, setSettings] = useState({ server_ip: '', http_port: 9021 })
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -25,8 +26,11 @@ function BootFiles() {
 
       const autoexecRes = await fetch('/api/boot/autoexec')
       const autoexecData = await autoexecRes.json()
+      setFileExists(autoexecData.exists)
       if (autoexecData.exists) {
         setAutoexec(autoexecData.content)
+      } else {
+        setAutoexec('')
       }
     } catch (error) {
       showMessage('error', `Failed to load data: ${error.message}`)
@@ -61,6 +65,7 @@ function BootFiles() {
 
       if (result.success) {
         setAutoexec(result.content)
+        setFileExists(true)
         showMessage('success', `✅ ${result.message}`)
       } else {
         showMessage('error', `❌ Failed to apply template`)
@@ -84,6 +89,7 @@ function BootFiles() {
       const result = await response.json()
 
       if (result.success) {
+        setFileExists(true)
         showMessage('success', `✅ Saved (${result.size} bytes)`)
       } else {
         showMessage('error', `❌ Failed to save`)
@@ -106,6 +112,7 @@ function BootFiles() {
 
       if (result.success) {
         setAutoexec('')
+        setFileExists(false)
         showMessage('success', `✅ ${result.message}`)
       } else {
         showMessage('error', '❌ Failed to disable autoexec.ipxe')
@@ -126,6 +133,13 @@ function BootFiles() {
       {message && (
         <div className={`message ${message.type}`}>
           {message.text}
+        </div>
+      )}
+
+      {!fileExists && (
+        <div className="message warning" style={{ marginBottom: '16px' }}>
+          ⚠️ <strong>autoexec.ipxe not found</strong> — iPXE clients won't chain to boot.ipxe.
+          Select a template below and click <strong>Apply</strong> to create it.
         </div>
       )}
 
