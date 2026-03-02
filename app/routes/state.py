@@ -23,6 +23,7 @@ PXE_CLIENTS: Dict[str, dict] = {}
 PXE_LOOP_WINDOW_SECONDS = 30
 PXE_LOOP_THRESHOLD = 3
 PXE_STALL_THRESHOLD_SECONDS = 15
+PXE_CLIENT_TTL_SECONDS = 3600  # evict clients not seen in 1 hour
 
 # ---------------------------------------------------------------------------
 # Download progress tracking (thread-safe)
@@ -259,6 +260,16 @@ def _build_boot_session(client_ip: str, state: dict, now: float | None = None) -
 def _refresh_boot_sessions(now: float | None = None) -> List[dict]:
     """Update stalled warnings and return current boot sessions."""
     now = now or time.time()
+
+    # Evict clients not seen within TTL
+    stale = [
+        ip
+        for ip, s in PXE_CLIENTS.items()
+        if s["last_seen_at"] and now - s["last_seen_at"] > PXE_CLIENT_TTL_SECONDS
+    ]
+    for ip in stale:
+        del PXE_CLIENTS[ip]
+
     sessions = []
     for client_ip, state in PXE_CLIENTS.items():
         if (

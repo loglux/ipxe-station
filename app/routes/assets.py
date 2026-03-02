@@ -1,6 +1,7 @@
 """Asset management routes (download, upload, extract, catalog)."""
 
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -20,6 +21,8 @@ from .state import (
 )
 
 assets_router = APIRouter(prefix="/api/assets", tags=["assets"])
+
+_DOWNLOAD_PROGRESS_TTL = 3600  # seconds — completed/failed entries are dropped after 1 hour
 
 
 class DownloadRequest(BaseModel):
@@ -94,7 +97,10 @@ def assets_boot_recipe(version_path: str, scenario: str):
     - **scenario**: wizard scenario ID, e.g. ``ubuntu_live``
     """
     from app.backend.boot_recipes import get_recipe
-    from app.backend.config import settings
+
+    from .state import load_settings
+
+    s = load_settings()
 
     # Derive catalog prefix from the directory name (e.g. "ubuntu-22.04" → "ubuntu")
     prefix = version_path.split("-")[0]
@@ -109,7 +115,7 @@ def assets_boot_recipe(version_path: str, scenario: str):
             status_code=404, detail=f"Version '{version_path}' not found in catalog"
         )
 
-    return get_recipe(scenario, entry, settings.pxe_server_ip, settings.http_port)
+    return get_recipe(scenario, entry, s.server_ip, s.http_port)
 
 
 @assets_router.post("/download")
@@ -167,6 +173,7 @@ def download_asset(request: DownloadRequest):
                 "total": total_size,
                 "percentage": 100,
                 "status": "complete",
+                "completed_at": time.time(),
             }
 
         add_log("download", "info", f"Completed downloading {progress_key} ({downloaded} bytes)")
@@ -185,6 +192,7 @@ def download_asset(request: DownloadRequest):
                     download_progress[progress_key]["file_count"] = extraction_result.get(
                         "file_count", 0
                     )
+                    download_progress[progress_key]["completed_at"] = time.time()
                 add_log(
                     "download",
                     "info",
@@ -196,6 +204,7 @@ def download_asset(request: DownloadRequest):
                     download_progress[progress_key]["extraction_error"] = extraction_result.get(
                         "error", "Unknown error"
                     )
+                    download_progress[progress_key]["completed_at"] = time.time()
                 add_log(
                     "download",
                     "error",
@@ -211,6 +220,7 @@ def download_asset(request: DownloadRequest):
                 "percentage": 0,
                 "status": "error",
                 "error": str(exc),
+                "completed_at": time.time(),
             }
         add_log("download", "error", f"Download failed for {progress_key}: {str(exc)}")
         raise HTTPException(status_code=500, detail=f"Download failed: {exc}")
@@ -230,8 +240,18 @@ def get_download_progress(file_path: str):
 
 @assets_router.get("/download/progress")
 def get_all_download_progress():
-    """Get all active download progress."""
+    """Get all active download progress, dropping stale completed entries."""
+    _terminal = {"complete", "extracted", "extraction_failed", "error"}
+    now = time.time()
     with download_progress_lock:
+        stale = [
+            k
+            for k, v in download_progress.items()
+            if v.get("status") in _terminal
+            and now - v.get("completed_at", now) > _DOWNLOAD_PROGRESS_TTL
+        ]
+        for k in stale:
+            del download_progress[k]
         return {"downloads": download_progress.copy()}
 
 

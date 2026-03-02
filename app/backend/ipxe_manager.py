@@ -59,7 +59,7 @@ class iPXEMenu:
     """Complete iPXE menu configuration"""
 
     title: str = "PXE Boot Station"
-    timeout: int = settings.menu_timeout  # milliseconds
+    timeout: int = 30000  # milliseconds
     default_entry: Optional[str] = None
     entries: List[iPXEEntry] = field(default_factory=list)
     header_text: str = ""
