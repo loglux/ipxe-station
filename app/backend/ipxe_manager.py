@@ -363,8 +363,36 @@ class iPXEValidator:
                 )
                 if not iso_candidate.exists():
                     warnings.append(f"{entry.name}: ISO missing at {iso_candidate}")
-            # Non-Ubuntu distros (SystemRescue, Kaspersky) stream from HTTP —
-            # no ISO file check needed here; their content validity is checked elsewhere
+
+        # HTTP-served distros: check that the extracted ISO content directory exists.
+        # Each entry maps (cmdline marker, URL regex, required subdir, display name).
+        # Add a new row here when supporting a new distro type.
+        _HTTP_CONTENT_CHECKS = [
+            (
+                "archiso_http_srv=",
+                r"archiso_http_srv=\S+?/http/(rescue-[\d.]+)/?",
+                "sysresccd",
+                "SystemRescue",
+            ),
+            (
+                "netboot=",
+                r"netboot=\S+?/http/(kaspersky-[\w.]+)/?",
+                "krd",
+                "Kaspersky",
+            ),
+        ]
+        for marker, pattern, subdir, label in _HTTP_CONTENT_CHECKS:
+            if marker not in cmdline:
+                continue
+            m = re.search(pattern, cmdline)
+            if not m:
+                continue
+            content_dir = Path(base_path) / m.group(1) / subdir
+            if not content_dir.exists():
+                warnings.append(
+                    f"{entry.name}: {label} content missing at {content_dir}"
+                    " — download and extract ISO first"
+                )
 
         return warnings
 
