@@ -23,11 +23,16 @@ build_frontend() {
         warn "No frontend/ directory — skipping"
         return
     fi
-    if ! command -v npm >/dev/null 2>&1; then
-        warn "npm not found — skipping frontend build"
-        return
+    if command -v npm >/dev/null 2>&1; then
+        (cd "$FRONTEND_DIR" && npm install && npm run build)
+    else
+        info "npm not found — building via Docker Node container..."
+        docker run --rm \
+            -v "$(pwd)/$FRONTEND_DIR:/frontend" \
+            -w /frontend \
+            node:20-alpine \
+            sh -c "npm install && npm run build"
     fi
-    (cd "$FRONTEND_DIR" && npm install && npm run build)
     ok "Frontend built → app/frontend/dist/"
 }
 
