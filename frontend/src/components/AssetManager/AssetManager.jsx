@@ -1,62 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './AssetManager.css'
 
-// Downloadable distros with URLs and menu configurations
+// Downloadable distros with URLs and menu configurations (Debian only — Ubuntu is dynamic)
 const DOWNLOADABLE_DISTROS = [
-  {
-    id: 'ubuntu-24.04',
-    name: 'Ubuntu 24.04 LTS (Noble)',
-    // No netboot images available for 24.04 - use ISO only
-    iso_url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso',
-    dest_folder: 'ubuntu-24.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-24.04-live-server-amd64.iso' },
-    size: 'ISO only',
-    iso_size: '~2.6 GB',
-    supports_iso: true,
-    iso_only: true,
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'casper',
-      cmdline: 'boot=casper netboot=url url=http://${server_ip}:${port}/ubuntu-24.04/',
-      requires_internet: false
-    }
-  },
-  {
-    id: 'ubuntu-22.04',
-    name: 'Ubuntu 22.04 LTS (Jammy)',
-    // No netboot images available for 22.04 - use ISO only
-    iso_url: 'https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso',
-    dest_folder: 'ubuntu-22.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-22.04-live-server-amd64.iso' },
-    size: 'ISO only',
-    iso_size: '~2.4 GB',
-    supports_iso: true,
-    iso_only: true,
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'casper',
-      cmdline: 'boot=casper netboot=url url=http://${server_ip}:${port}/ubuntu-22.04/',
-      requires_internet: false
-    }
-  },
-  {
-    id: 'ubuntu-20.04',
-    name: 'Ubuntu 20.04 LTS (Focal)',
-    kernel_url: 'http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/linux',
-    initrd_url: 'http://archive.ubuntu.com/ubuntu/dists/focal/main/installer-amd64/current/legacy-images/netboot/ubuntu-installer/amd64/initrd.gz',
-    iso_url: 'https://releases.ubuntu.com/20.04/ubuntu-20.04.6-live-server-amd64.iso',
-    dest_folder: 'ubuntu-20.04',
-    files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-20.04-live-server-amd64.iso' },
-    size: '~60 MB',
-    iso_size: '~1.3 GB',
-    supports_iso: true,
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp url=http://${server_ip}:${port}/ubuntu-20.04/',
-      requires_internet: true
-    }
-  },
   {
     id: 'debian-13',
     name: 'Debian 13 (Trixie) Testing',
@@ -144,6 +90,9 @@ function AssetManager() {
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
   const [kasperskyVersions, setKasperskyVersions] = useState([])
   const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
+  const [ubuntuVersions, setUbuntuVersions] = useState([])
+  const [selectedUbuntuVersion, setSelectedUbuntuVersion] = useState(null)
+  const [ubuntuLoading, setUbuntuLoading] = useState(false)
   const [uploadDest, setUploadDest] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -203,11 +152,10 @@ function AssetManager() {
   useEffect(() => {
     fetchAssets()
     fetchCatalog()
+    fetchUbuntuVersions()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
     pollProgress()
-    // Check Ubuntu ISO URLs
-    DOWNLOADABLE_DISTROS.forEach(d => { if (d.iso_url) checkUrl(d.iso_url) })
 
     const interval = setInterval(pollProgress, 2000)
     return () => clearInterval(interval)
@@ -305,6 +253,49 @@ function AssetManager() {
       }
     } catch (error) {
       console.error('Failed to fetch Kaspersky versions:', error)
+    }
+  }
+
+  const fetchUbuntuVersions = async () => {
+    setUbuntuLoading(true)
+    try {
+      const response = await fetch('/api/assets/versions/ubuntu')
+      const data = await response.json()
+      setUbuntuVersions(data.versions || [])
+      if (data.versions && data.versions.length > 0) {
+        setSelectedUbuntuVersion(data.versions[0])
+        checkUrl(data.versions[0].iso_url)
+      }
+    } catch (error) {
+      console.error('Failed to fetch Ubuntu versions:', error)
+    } finally {
+      setUbuntuLoading(false)
+    }
+  }
+
+  const downloadUbuntu = async () => {
+    if (!selectedUbuntuVersion) return
+    const distroId = 'ubuntu-' + selectedUbuntuVersion.version
+    setDownloading(prev => ({ ...prev, [distroId]: true }))
+    try {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: 'Downloading ISO... (this may take a while)' }))
+      const isoDest = `${selectedUbuntuVersion.dest_folder}/${selectedUbuntuVersion.iso_name}`
+      const resp = await fetch('/api/assets/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: selectedUbuntuVersion.iso_url, dest: isoDest })
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.detail || 'Failed to download ISO')
+      }
+      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded!' }))
+      setTimeout(() => { fetchCatalog(); setDownloadStatus(prev => ({ ...prev, [distroId]: '' })) }, 2000)
+    } catch (error) {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
+      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [distroId]: '' })), 5000)
+    } finally {
+      setDownloading(prev => ({ ...prev, [distroId]: false }))
     }
   }
 
@@ -588,6 +579,73 @@ function AssetManager() {
             <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
               Download netboot files (kernel + initrd) for network installation
             </p>
+
+            {/* Ubuntu — dynamic version picker */}
+            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+              <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
+              {ubuntuLoading ? (
+                <p className="text-sm text-muted">Loading available versions...</p>
+              ) : ubuntuVersions.length > 0 ? (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
+                    <select
+                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      value={selectedUbuntuVersion?.version || ''}
+                      onChange={(e) => {
+                        const v = ubuntuVersions.find(u => u.version === e.target.value)
+                        setSelectedUbuntuVersion(v)
+                        if (v?.iso_url) checkUrl(v.iso_url)
+                      }}
+                    >
+                      {ubuntuVersions.map(v => (
+                        <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                      ))}
+                    </select>
+                    {selectedUbuntuVersion?.iso_url && (
+                      <div style={{ marginTop: '4px' }}>
+                        <UrlBadge url={selectedUbuntuVersion.iso_url} urlStatus={urlStatus} />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ minWidth: '300px' }}>
+                    {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
+                      downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Ubuntu ISO</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                          <span>{downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%</span>
+                          <span>
+                            {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                            {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                        </div>
+                      </div>
+                    )}
+                    {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version] && (
+                      <div className="download-status" style={{ marginBottom: '8px' }}>
+                        {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version]}
+                      </div>
+                    )}
+                    <button
+                      className="btn btn-primary"
+                      onClick={downloadUbuntu}
+                      disabled={!selectedUbuntuVersion || downloading['ubuntu-' + selectedUbuntuVersion?.version]}
+                    >
+                      {downloading['ubuntu-' + selectedUbuntuVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>Could not load versions from releases.ubuntu.com</p>
+                  <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuVersions}>🔄 Retry</button>
+                </div>
+              )}
+            </div>
             <div className="download-grid">
               {DOWNLOADABLE_DISTROS.map(distro => (
                 <div key={distro.id} className="download-card">

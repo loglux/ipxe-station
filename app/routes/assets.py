@@ -556,6 +556,58 @@ def get_kaspersky_versions():
     return {"versions": versions}
 
 
+@assets_router.get("/versions/ubuntu")
+def get_ubuntu_versions():
+    """Fetch available Ubuntu Server ISO versions from releases.ubuntu.com."""
+    import re
+
+    try:
+        main_url = "https://releases.ubuntu.com/"
+        resp = requests.get(main_url, timeout=10)
+        resp.raise_for_status()
+
+        # LTS releases have minor version == 04 (e.g. 22.04, 24.04)
+        major_versions = re.findall(r'href="(\d+\.04)/"', resp.text)
+        # Drop EOL (before 20.04)
+        active = sorted({v for v in major_versions if float(v) >= 20.04}, reverse=True)
+
+        result = []
+        for major_ver in active[:6]:
+            try:
+                dir_resp = requests.get(f"{main_url}{major_ver}/", timeout=10)
+                dir_resp.raise_for_status()
+
+                server_isos = sorted(
+                    set(re.findall(r"ubuntu-[\d.]+-live-server-amd64\.iso", dir_resp.text)),
+                    key=lambda x: [int(n) for n in re.findall(r"\d+", x)],
+                    reverse=True,
+                )
+                if not server_isos:
+                    continue
+
+                latest = server_isos[0]
+                m = re.search(r"ubuntu-([\d.]+)-live-server", latest)
+                full_ver = m.group(1) if m else major_ver
+                result.append(
+                    {
+                        "version": major_ver,
+                        "full_version": full_ver,
+                        "name": f"Ubuntu {full_ver} LTS Server",
+                        "iso_name": latest,
+                        "iso_url": f"{main_url}{major_ver}/{latest}",
+                        "dest_folder": f"ubuntu-{major_ver}",
+                        "size_est": "~2.6 GB",
+                    }
+                )
+            except Exception:
+                continue
+
+        return {"versions": result}
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Ubuntu versions: {exc}")
+
+
 @assets_router.get("/check-url")
 def check_url(url: str):
     """Check if a remote URL is accessible via HEAD request."""
