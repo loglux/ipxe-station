@@ -554,3 +554,18 @@ def get_kaspersky_versions():
         },
     ]
     return {"versions": versions}
+
+
+@assets_router.get("/check-url")
+def check_url(url: str):
+    """Check if a remote URL is accessible via HEAD request."""
+    try:
+        r = requests.head(url, allow_redirects=True, timeout=10)
+        size = r.headers.get("content-length")
+        return {
+            "ok": r.status_code == 200,
+            "status": r.status_code,
+            "size": int(size) if size else None,
+        }
+    except Exception as exc:
+        return {"ok": False, "status": None, "size": None, "error": str(exc)}

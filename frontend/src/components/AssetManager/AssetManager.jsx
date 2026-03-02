@@ -120,6 +120,17 @@ const KASPERSKY_CONFIG = {
   dynamic_versions: true
 }
 
+function UrlBadge({ url, urlStatus }) {
+  const st = urlStatus[url]
+  if (!st) return null
+  if (st.checking) return <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>🔍 Checking...</span>
+  if (st.ok) {
+    const gb = st.size ? ` · ${(st.size / 1024 / 1024 / 1024).toFixed(1)} GB` : ''
+    return <span style={{ fontSize: '11px', color: 'var(--color-success)' }}>✅ Available{gb}</span>
+  }
+  return <span style={{ fontSize: '11px', color: 'var(--color-danger)' }}>❌ Not found — URL may be outdated</span>
+}
+
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
@@ -137,6 +148,19 @@ function AssetManager() {
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const uploadInputRef = useRef(null)
+  const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
+
+  const checkUrl = useCallback(async (url) => {
+    if (!url) return
+    setUrlStatus(prev => ({ ...prev, [url]: { checking: true } }))
+    try {
+      const r = await fetch(`/api/assets/check-url?url=${encodeURIComponent(url)}`)
+      const data = await r.json()
+      setUrlStatus(prev => ({ ...prev, [url]: { checking: false, ...data } }))
+    } catch {
+      setUrlStatus(prev => ({ ...prev, [url]: { checking: false, ok: false, error: 'Network error' } }))
+    }
+  }, [])
 
   const pollProgress = useCallback(async () => {
     try {
@@ -182,10 +206,12 @@ function AssetManager() {
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
     pollProgress()
+    // Check Ubuntu ISO URLs
+    DOWNLOADABLE_DISTROS.forEach(d => { if (d.iso_url) checkUrl(d.iso_url) })
 
     const interval = setInterval(pollProgress, 2000)
     return () => clearInterval(interval)
-  }, [pollProgress])
+  }, [pollProgress, checkUrl])
 
   const fetchAssets = async () => {
     try {
@@ -260,7 +286,8 @@ function AssetManager() {
       const data = await response.json()
       setSystemRescueVersions(data.versions || [])
       if (data.versions && data.versions.length > 0) {
-        setSelectedSysrescueVersion(data.versions[0]) // Select latest by default
+        setSelectedSysrescueVersion(data.versions[0])
+        checkUrl(data.versions[0].iso_url)
       }
     } catch (error) {
       console.error('Failed to fetch SystemRescue versions:', error)
@@ -273,7 +300,8 @@ function AssetManager() {
       const data = await response.json()
       setKasperskyVersions(data.versions || [])
       if (data.versions && data.versions.length > 0) {
-        setSelectedKasperskyVersion(data.versions[0]) // Select version 24 (recommended) by default
+        setSelectedKasperskyVersion(data.versions[0])
+        checkUrl(data.versions[0].iso_url)
       }
     } catch (error) {
       console.error('Failed to fetch Kaspersky versions:', error)
@@ -566,6 +594,12 @@ function AssetManager() {
                   <div className="download-name">{distro.name}</div>
                   <div className="download-size">{distro.size}</div>
 
+                  {distro.iso_url && (
+                    <div style={{ marginTop: '6px' }}>
+                      <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
+                    </div>
+                  )}
+
                   {distro.supports_iso && (
                     <label style={{ fontSize: '12px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <input
@@ -673,6 +707,7 @@ function AssetManager() {
                       onChange={(e) => {
                         const version = systemRescueVersions.find(v => v.version === e.target.value)
                         setSelectedSysrescueVersion(version)
+                        if (version?.iso_url) checkUrl(version.iso_url)
                       }}
                     >
                       {systemRescueVersions.map(v => (
@@ -681,31 +716,36 @@ function AssetManager() {
                         </option>
                       ))}
                     </select>
+                    {selectedSysrescueVersion?.iso_url && (
+                      <div style={{ marginTop: '4px' }}>
+                        <UrlBadge url={selectedSysrescueVersion.iso_url} urlStatus={urlStatus} />
+                      </div>
+                    )}
                   </div>
                   <div style={{ minWidth: '300px' }}>
                     {/* Progress bar for SystemRescue */}
-                    {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`] && (
+                    {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
                         <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
                           SystemRescue ISO
-                          {downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
+                          {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
                             <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
                           }
-                          {downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
+                          {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
                             <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                              ✓ Extracted ({downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
+                              ✓ Extracted ({downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
                             </span>
                           }
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                          <span>{downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
+                          <span>{downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
                           <span>
-                            {(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                            {(downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                            {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                            {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
                           </span>
                         </div>
                         <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
+                          <div style={{ width: `${downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
                         </div>
                       </div>
                     )}
@@ -753,6 +793,7 @@ function AssetManager() {
                       onChange={(e) => {
                         const version = kasperskyVersions.find(v => v.version === e.target.value)
                         setSelectedKasperskyVersion(version)
+                        if (version?.iso_url) checkUrl(version.iso_url)
                       }}
                     >
                       {kasperskyVersions.map(v => (
@@ -764,6 +805,11 @@ function AssetManager() {
                     {selectedKasperskyVersion?.notes && (
                       <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--color-text-secondary)' }}>
                         ℹ️ {selectedKasperskyVersion.notes}
+                      </div>
+                    )}
+                    {selectedKasperskyVersion?.iso_url && (
+                      <div style={{ marginTop: '4px' }}>
+                        <UrlBadge url={selectedKasperskyVersion.iso_url} urlStatus={urlStatus} />
                       </div>
                     )}
                   </div>
