@@ -18,6 +18,9 @@ const SCENARIO_TITLES = {
 };
 
 const DHCPHelper = () => {
+  // ── Active mode ───────────────────────────────────────────────────────────
+  const [activeMode, setActiveMode] = useState('proxy'); // 'proxy' | 'router'
+
   // ── Proxy DHCP state ─────────────────────────────────────────────────────
   const [proxyStatus, setProxyStatus] = useState({ running: false, pid: null });
   const [proxySettings, setProxySettings] = useState({
@@ -260,11 +263,28 @@ const DHCPHelper = () => {
 
       <div className="dhcp-content">
 
-        {/* ── Option 1: Proxy DHCP ─────────────────────────────────────── */}
-        <div className="proxy-dhcp-panel">
-          <div className="proxy-dhcp-title-row">
-            <h3>Option 1 — Proxy DHCP Server</h3>
+        {/* ── Mode toggle ───────────────────────────────────────────────── */}
+        <div className="dhcp-mode-toggle">
+          <button
+            className={`dhcp-mode-btn${activeMode === 'proxy' ? ' active' : ''}`}
+            onClick={() => setActiveMode('proxy')}
+          >
+            Proxy DHCP
+            {proxyStatus.running && <span className="toggle-running-dot" />}
             <span className="badge-recommended">Recommended</span>
+          </button>
+          <button
+            className={`dhcp-mode-btn${activeMode === 'router' ? ' active' : ''}`}
+            onClick={() => setActiveMode('router')}
+          >
+            Router DHCP config
+          </button>
+        </div>
+
+        {/* ── Option 1: Proxy DHCP ─────────────────────────────────────── */}
+        {activeMode === 'proxy' && <div className="proxy-dhcp-panel">
+          <div className="proxy-dhcp-title-row">
+            <h3>Proxy DHCP Server</h3>
             <span className={`proxy-status-pill ${proxyStatus.running ? 'running' : 'stopped'}`}>
               {proxyStatus.running ? `Running (pid ${proxyStatus.pid})` : 'Stopped'}
             </span>
@@ -346,15 +366,12 @@ const DHCPHelper = () => {
               {proxyMessage.text}
             </div>
           )}
-        </div>
-
-        {/* ── Divider ──────────────────────────────────────────────────── */}
-        <div className="dhcp-or-divider"><span>or</span></div>
+        </div>}
 
         {/* ── Option 2: Configure your router ──────────────────────────── */}
-        <div className="proxy-dhcp-panel">
+        {activeMode === 'router' && <div className="proxy-dhcp-panel">
           <div className="proxy-dhcp-title-row">
-            <h3>Option 2 — Configure your router's DHCP server</h3>
+            <h3>Configure your router's DHCP server</h3>
           </div>
 
           <p className="proxy-dhcp-description">
@@ -440,7 +457,7 @@ const DHCPHelper = () => {
             </pre>
           </details>
           )}
-        </div>
+        </div>}
 
         {/* Network Validation */}
         <div className="dhcp-validation">

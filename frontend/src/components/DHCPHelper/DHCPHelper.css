@@ -190,24 +190,56 @@
   color: var(--color-info-text);
 }
 
-/* OR divider between the two approaches */
-.dhcp-or-divider {
+/* Mode toggle */
+.dhcp-mode-toggle {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  align-self: flex-start;
 }
 
-.dhcp-or-divider::before,
-.dhcp-or-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--color-border);
+.dhcp-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-right: 1px solid var(--color-border);
+}
+
+.dhcp-mode-btn:last-child {
+  border-right: none;
+}
+
+.dhcp-mode-btn:hover:not(.active) {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.dhcp-mode-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.dhcp-mode-btn.active .badge-recommended {
+  background: rgba(255,255,255,0.25);
+  color: white;
+}
+
+.toggle-running-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
 }
 
 /* Recommended badge */
