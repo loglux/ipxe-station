@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import './Settings.css'
 
-export default function Settings({ isOpen, onClose }) {
+export default function Settings({ isOpen, onClose, onSave }) {
   const [settings, setSettings] = useState({
-    server_ip: '192.168.10.32',
+    server_ip: '',
     http_port: 9021,
     tftp_port: 69,
     default_timeout: 30000,
@@ -73,6 +73,7 @@ export default function Settings({ isOpen, onClose }) {
       const data = await response.json()
       if (data.success) {
         setMessage({ type: 'success', text: 'Settings saved successfully!' })
+        onSave?.(settings)
         setTimeout(() => {
           setMessage(null)
           onClose()

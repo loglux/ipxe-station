@@ -17,7 +17,7 @@ const SCENARIO_TITLES = {
   partial: 'PXE partially configured',
 };
 
-const DHCPHelper = () => {
+const DHCPHelper = ({ settingsVersion = 0 }) => {
   // ── Active mode ───────────────────────────────────────────────────────────
   const [activeMode, setActiveMode] = useState('proxy'); // 'proxy' | 'router'
 
@@ -172,7 +172,7 @@ const DHCPHelper = () => {
 
     startProxyPolling();
     return () => stopProxyPolling();
-  }, [startProxyPolling, stopProxyPolling]);
+  }, [startProxyPolling, stopProxyPolling, settingsVersion]);
 
   // ── Config generator helpers ─────────────────────────────────────────────
 

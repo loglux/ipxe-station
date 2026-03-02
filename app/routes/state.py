@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from fastapi import HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,25 @@ for _d in (HTTP_ROOT, IPXE_ROOT, TFTP_ROOT):
 SETTINGS_FILE = IPXE_ROOT / "settings.json"
 
 
+def _auto_detect_ip() -> str:
+    """Detect the outbound IP address of this machine."""
+    import socket
+
+    env_ip = os.getenv("PXE_SERVER_IP", "")
+    if env_ip:
+        return env_ip
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "192.168.1.1"
+
+
 class SettingsModel(BaseModel):
-    server_ip: str = os.getenv("PXE_SERVER_IP", "192.168.1.1")
+    server_ip: str = Field(default_factory=_auto_detect_ip)
     http_port: int = 9021
     tftp_port: int = 69
     default_timeout: int = 30000  # milliseconds

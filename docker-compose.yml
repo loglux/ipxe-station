@@ -33,8 +33,8 @@ services:
       - UVICORN_PORT=9021
       - UVICORN_RELOAD=1    # hot-reload on code changes (remove in prod)
 
-      # PXE settings
-      - PXE_SERVER_IP=192.168.10.32
+      # PXE settings — leave PXE_SERVER_IP unset to auto-detect on startup
+      # - PXE_SERVER_IP=192.168.1.1
       - HTTP_PORT=9021
       - TFTP_PORT=69
 

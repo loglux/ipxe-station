@@ -27,6 +27,7 @@ function App() {
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsVersion, setSettingsVersion] = useState(0)
   const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
   const [menuTitle, setMenuTitle] = useState('PXE Boot Menu')
   const [menuTimeout, setMenuTimeout] = useState(30000)
@@ -443,7 +444,7 @@ function App() {
             )}
 
             {activeTab === 'dhcp' && (
-              <DHCPHelper />
+              <DHCPHelper settingsVersion={settingsVersion} />
             )}
 
             {activeTab === 'boot' && (
@@ -494,6 +495,7 @@ function App() {
       <Settings
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onSave={() => setSettingsVersion(v => v + 1)}
       />
 
       <ConfirmDialog
