@@ -260,18 +260,19 @@ const DHCPHelper = () => {
 
       <div className="dhcp-content">
 
-        {/* ── Proxy DHCP Server ────────────────────────────────────────── */}
+        {/* ── Option 1: Proxy DHCP ─────────────────────────────────────── */}
         <div className="proxy-dhcp-panel">
           <div className="proxy-dhcp-title-row">
-            <h3>Proxy DHCP Server</h3>
+            <h3>Option 1 — Proxy DHCP Server</h3>
+            <span className="badge-recommended">Recommended</span>
             <span className={`proxy-status-pill ${proxyStatus.running ? 'running' : 'stopped'}`}>
               {proxyStatus.running ? `Running (pid ${proxyStatus.pid})` : 'Stopped'}
             </span>
           </div>
 
           <p className="proxy-dhcp-description">
-            Runs dnsmasq alongside your existing DHCP server. Responds only to PXE boot
-            requests — no router configuration needed.
+            Runs a lightweight dnsmasq instance alongside your existing DHCP server.
+            Intercepts only PXE boot requests — no access to your router required.
           </p>
 
           <div className="proxy-dhcp-fields">
@@ -345,16 +346,25 @@ const DHCPHelper = () => {
               {proxyMessage.text}
             </div>
           )}
-
-          <div className="proxy-dhcp-info">
-            No router configuration needed. Proxy DHCP only responds to PXE boot requests
-            and does not interfere with normal IP address assignment.
-          </div>
         </div>
 
-        {/* ── Config Generator ─────────────────────────────────────────── */}
-        <div className="dhcp-settings">
-          <div className="setting-group">
+        {/* ── Divider ──────────────────────────────────────────────────── */}
+        <div className="dhcp-or-divider"><span>or</span></div>
+
+        {/* ── Option 2: Configure your router ──────────────────────────── */}
+        <div className="proxy-dhcp-panel">
+          <div className="proxy-dhcp-title-row">
+            <h3>Option 2 — Configure your router's DHCP server</h3>
+          </div>
+
+          <p className="proxy-dhcp-description">
+            If you have admin access to your DHCP server (router, ISC DHCP, MikroTik, Windows),
+            add the PXE options directly to its config. Select your server type to generate
+            the correct snippet.
+          </p>
+
+          <div className="dhcp-settings-inner">
+            <div className="setting-group">
             <label htmlFor="server-type">DHCP Server Type:</label>
             <select
               id="server-type"
@@ -408,10 +418,10 @@ const DHCPHelper = () => {
               />
             </div>
           </div>
-        </div>
+          </div>
 
-        {/* Generated Config */}
-        {generatedConfig && (
+          {/* Generated Config */}
+          {generatedConfig && (
           <details className="config-output">
             <summary className="config-summary">
               <span>Generated Configuration</span>
@@ -429,7 +439,8 @@ const DHCPHelper = () => {
               <code>{generatedConfig.config}</code>
             </pre>
           </details>
-        )}
+          )}
+        </div>
 
         {/* Network Validation */}
         <div className="dhcp-validation">
@@ -545,19 +556,22 @@ const DHCPHelper = () => {
 
         {/* Help Section */}
         <div className="dhcp-help">
-          <h3>How to Use</h3>
-          <ol>
-            <li>Select your DHCP server type from the dropdown</li>
-            <li>Verify the PXE Server IP matches your iPXE Station server</li>
-            <li>Copy or download the generated configuration</li>
-            <li>Add the configuration to your DHCP server config file</li>
-            <li>Reload/restart your DHCP server</li>
-            <li>Optionally, validate the network DHCP settings</li>
-          </ol>
-
+          <h3>Which option to choose?</h3>
+          <div className="help-options">
+            <div className="help-option">
+              <strong>Option 1 — Proxy DHCP</strong>
+              <p>No router access needed. Start it here and it runs automatically.
+                Best for most setups.</p>
+            </div>
+            <div className="help-option">
+              <strong>Option 2 — Router config</strong>
+              <p>You have shell/admin access to your DHCP server. Generate the snippet,
+                paste it in, then reload the service.</p>
+            </div>
+          </div>
           <div className="help-note">
-            <strong>Note:</strong> After applying these settings, PXE clients on your network
-            will automatically boot from this iPXE Station server.
+            Use <strong>Check Network DHCP</strong> above to confirm your chosen method
+            is working correctly before booting a client.
           </div>
         </div>
       </div>

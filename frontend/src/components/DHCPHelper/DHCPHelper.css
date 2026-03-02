@@ -190,7 +190,44 @@
   color: var(--color-info-text);
 }
 
-/* Settings Panel */
+/* OR divider between the two approaches */
+.dhcp-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dhcp-or-divider::before,
+.dhcp-or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* Recommended badge */
+.badge-recommended {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-primary);
+  color: white;
+  letter-spacing: 0.02em;
+}
+
+/* Settings inner (inside Option 2 panel, no extra card) */
+.dhcp-settings-inner {
+  margin-top: 4px;
+}
+
+/* Settings Panel — keep for backwards compat / standalone use */
 .dhcp-settings {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
@@ -679,6 +716,35 @@ details.probe-details[open] > summary::before {
   line-height: 1.6;
 }
 
+.help-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.help-option {
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.help-option strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.help-option p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
 .help-note {
   padding: 12px 16px;
   background: var(--color-info-bg);
@@ -698,7 +764,8 @@ details.probe-details[open] > summary::before {
     padding: 16px;
   }
 
-  .setting-row {
+  .setting-row,
+  .help-options {
     grid-template-columns: 1fr;
   }
 
