@@ -343,12 +343,15 @@ class iPXEValidator:
         if initrd_path and not initrd_path.exists():
             warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
 
-        # ISO check for live boots — skip if recipe already set a fetch= or url= in cmdline
+        # ISO check for live boots — skip if recipe already set a fetch= or url= in cmdline,
+        # or if it's an HTTP-served distro (SystemRescue, Kaspersky) that streams from the server
         cmdline = entry.cmdline or ""
         if (
             (entry.requires_iso or entry.boot_mode == "live")
             and "fetch=" not in cmdline
             and "url=" not in cmdline
+            and "archiso_http_srv=" not in cmdline  # SystemRescue HTTP boot
+            and "netboot=" not in cmdline  # Kaspersky HTTP boot
         ):
             version = None
             if entry.kernel:
