@@ -27,7 +27,7 @@ build_frontend() {
         warn "npm not found — skipping frontend build"
         return
     fi
-    (cd "$FRONTEND_DIR" && npm run build)
+    (cd "$FRONTEND_DIR" && npm install && npm run build)
     ok "Frontend built → app/frontend/dist/"
 }
 
