@@ -148,6 +148,25 @@ add_log("system", "info", "iPXE Station monitoring initialised")
 add_log("system", "info", "TFTP log integration started")
 
 
+# Auto-start proxy DHCP if it was enabled when the container last ran.
+def _autostart_proxy_dhcp():
+    try:
+        from app.routes.proxy_dhcp import _manager as _proxy_manager
+
+        s = _proxy_manager.load_settings()
+        if s.enabled:
+            result = _proxy_manager.start(s)
+            if result.get("success"):
+                add_log("dhcp", "info", f"Proxy DHCP auto-started (pid {result.get('pid')})")
+            else:
+                add_log("dhcp", "warning", f"Proxy DHCP auto-start failed: {result.get('error')}")
+    except Exception as exc:
+        add_log("dhcp", "warning", f"Proxy DHCP auto-start error: {exc}")
+
+
+_autostart_proxy_dhcp()
+
+
 # ---------------------------------------------------------------------------
 # Frontend (Vite SPA)
 # ---------------------------------------------------------------------------

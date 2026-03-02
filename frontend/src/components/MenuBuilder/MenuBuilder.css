@@ -92,3 +92,92 @@
 .empty-state p {
   margin-bottom: var(--spacing-sm);
 }
+
+/* Inline tree controls — shown on row hover */
+.tree-controls {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tree-node:hover .tree-controls {
+  display: flex;
+}
+
+.tree-node.selected .tree-controls {
+  display: flex;
+}
+
+.tree-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  opacity: 0.7;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.tree-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(255,255,255,0.15);
+}
+
+.tree-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.tree-btn-del:hover:not(:disabled) {
+  background: var(--color-danger, #ef4444);
+  border-color: var(--color-danger, #ef4444);
+  color: white;
+  opacity: 1;
+}
+
+.tree-move-select {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 11px;
+  padding: 1px 4px;
+  cursor: pointer;
+  max-width: 130px;
+  opacity: 0.7;
+}
+
+.tree-move-select:hover,
+.tree-move-select:focus {
+  opacity: 1;
+  outline: none;
+}
+
+/* Non-selected rows: style against light background */
+.tree-node:not(.selected) .tree-btn {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.tree-node:not(.selected) .tree-move-select {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+}
+
+.tree-node.disabled .tree-label {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.tree-empty-submenu {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  padding: 4px 0;
+}

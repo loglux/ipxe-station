@@ -164,6 +164,43 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
           </div>
         )}
 
+        {/* Parent submenu — always visible, key for menu organisation */}
+        <div className="form-group">
+          <label>Parent Submenu</label>
+          <select
+            value={entry.parent || ''}
+            onChange={(e) => handleFieldChange('parent', e.target.value || null)}
+            className="form-control"
+          >
+            <option value="">(root level)</option>
+            {availableSubmenus.map(submenu => (
+              <option key={submenu.name} value={submenu.name}>
+                {submenu.title || submenu.name}
+              </option>
+            ))}
+          </select>
+          <small className="form-hint">Move this entry into a submenu</small>
+        </div>
+
+        {/* Boot mode — always visible for boot entries */}
+        {entry.entry_type === 'boot' && (
+          <div className="form-group">
+            <label>Boot Mode</label>
+            <select
+              value={entry.boot_mode || 'rescue'}
+              onChange={(e) => handleFieldChange('boot_mode', e.target.value)}
+              className="form-control"
+            >
+              <option value="netboot">Network Boot [NET]</option>
+              <option value="live">Live Boot [LIVE]</option>
+              <option value="rescue">Rescue / Tool [RESCUE]</option>
+              <option value="preseed">Preseed Install</option>
+              <option value="custom">Custom (no label)</option>
+            </select>
+            <small className="form-hint">Controls the label prefix shown in the boot menu</small>
+          </div>
+        )}
+
         {/* Description (optional for all) */}
         <div className="form-group">
           <label>Description</label>
@@ -188,21 +225,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
           </label>
         </div>
 
-        {/* Requirements (for boot entries) */}
-        {!expertMode && entry.entry_type === 'boot' && (
-          <div className="property-section">
-            <h4>Requirements</h4>
-            <div className="requirement-badges">
-              {entry.requires_internet && <span className="badge badge-info">🌐 Internet</span>}
-              {entry.requires_iso && <span className="badge badge-info">💿 ISO File</span>}
-              {!entry.requires_internet && !entry.requires_iso && (
-                <span className="text-muted text-sm">No special requirements</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Expert Mode - Technical Fields */}
+        {/* Expert Mode - low-level fields */}
         {expertMode && (
           <div className="expert-section">
             <div className="expert-header">
@@ -211,7 +234,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
             </div>
 
             <div className="form-group">
-              <label>Entry Type *</label>
+              <label>Entry Type</label>
               <select
                 value={entry.entry_type || 'boot'}
                 onChange={(e) => handleFieldChange('entry_type', e.target.value)}
@@ -223,43 +246,6 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                 <option value="action">Action</option>
                 <option value="separator">Separator</option>
               </select>
-              <small className="form-hint">Type of menu entry</small>
-            </div>
-
-            {entry.entry_type === 'boot' && (
-              <div className="form-group">
-                <label>Boot Mode</label>
-                <select
-                  value={entry.boot_mode || 'netboot'}
-                  onChange={(e) => handleFieldChange('boot_mode', e.target.value)}
-                  className="form-control"
-                >
-                  <option value="netboot">Network Boot</option>
-                  <option value="live">Live Boot</option>
-                  <option value="rescue">Rescue Mode</option>
-                  <option value="preseed">Preseed Install</option>
-                  <option value="tool">System Tool</option>
-                  <option value="custom">Custom</option>
-                </select>
-                <small className="form-hint">Boot method for this entry</small>
-              </div>
-            )}
-
-            <div className="form-group">
-              <label>Parent Menu</label>
-              <select
-                value={entry.parent || ''}
-                onChange={(e) => handleFieldChange('parent', e.target.value || null)}
-                className="form-control"
-              >
-                <option value="">(root level)</option>
-                {availableSubmenus.map(submenu => (
-                  <option key={submenu.name} value={submenu.name}>
-                    {submenu.title || submenu.name}
-                  </option>
-                ))}
-              </select>
-              <small className="form-hint">Place this entry inside a submenu</small>
             </div>
 
             <div className="form-group">
@@ -271,7 +257,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                 className="form-control"
                 min="0"
               />
-              <small className="form-hint">Display order in menu (lower numbers first)</small>
+              <small className="form-hint">Lower numbers appear first</small>
             </div>
 
             {entry.entry_type === 'boot' && (
@@ -286,7 +272,6 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                     <span>Requires Internet Connection</span>
                   </label>
                 </div>
-
                 <div className="form-group">
                   <label className="checkbox-label">
                     <input

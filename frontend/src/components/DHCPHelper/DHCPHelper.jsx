@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './DHCPHelper.css';
 
+const SCENARIO_ICONS = {
+  proxy_ok: '✓', router_ok: '✓', conflict: '⚠',
+  no_pxe: '✗', wrong_server: '⚠', proxy_no_dhcp: '✗', no_dhcp: '✗', partial: '⚠',
+};
+
+const SCENARIO_TITLES = {
+  proxy_ok: 'Proxy DHCP active — correctly configured',
+  router_ok: 'Router DHCP active — correctly configured',
+  conflict: 'Conflict: proxy and router both responding',
+  no_pxe: 'No PXE configuration found',
+  wrong_server: 'PXE configured but pointing to wrong server',
+  proxy_no_dhcp: 'Proxy DHCP active but no IP-assignment DHCP server',
+  no_dhcp: 'No DHCP server found',
+  partial: 'PXE partially configured',
+};
+
 const DHCPHelper = () => {
   // ── Proxy DHCP state ─────────────────────────────────────────────────────
   const [proxyStatus, setProxyStatus] = useState({ running: false, pid: null });
@@ -24,6 +40,7 @@ const DHCPHelper = () => {
   const [loading, setLoading] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   // ── Proxy DHCP helpers ───────────────────────────────────────────────────
 
@@ -224,6 +241,12 @@ const DHCPHelper = () => {
     }
   };
 
+  const applyFix = async (fix_url, fix_method = 'POST') => {
+    setLoading(true);
+    await fetch(fix_url, { method: fix_method });
+    await validateNetwork();
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -389,10 +412,10 @@ const DHCPHelper = () => {
 
         {/* Generated Config */}
         {generatedConfig && (
-          <div className="config-output">
-            <div className="config-header">
-              <h3>Generated Configuration</h3>
-              <div className="config-actions">
+          <details className="config-output">
+            <summary className="config-summary">
+              <span>Generated Configuration</span>
+              <div className="config-actions" onClick={e => e.stopPropagation()}>
                 <button onClick={copyToClipboard} className="btn-copy">
                   {copySuccess ? '✓ Copied!' : '📋 Copy'}
                 </button>
@@ -400,12 +423,12 @@ const DHCPHelper = () => {
                   💾 Download
                 </button>
               </div>
-            </div>
+            </summary>
 
             <pre className="config-text">
               <code>{generatedConfig.config}</code>
             </pre>
-          </div>
+          </details>
         )}
 
         {/* Network Validation */}
@@ -430,81 +453,92 @@ const DHCPHelper = () => {
 
           {validationResult && (
             <div className={`validation-result ${validationResult.status}`}>
-              <h4>Validation Result:</h4>
-              <p>{validationResult.message}</p>
 
-              {/* DHCP server summary line */}
-              {validationResult.detected?.dhcp_server && (
-                <div className="validation-detected">
-                  <strong>DHCP server:</strong> {validationResult.detected.dhcp_server}
-                  {validationResult.interface && (
-                    <> &nbsp;·&nbsp; <strong>Interface:</strong> {validationResult.interface}</>
-                  )}
+              {/* Scenario banner */}
+              {validationResult.scenario && (
+                <div className={`scenario-banner scenario-${validationResult.scenario}`}>
+                  <span className="scenario-icon">{SCENARIO_ICONS[validationResult.scenario]}</span>
+                  <strong>{SCENARIO_TITLES[validationResult.scenario]}</strong>
                 </div>
               )}
 
-              {/* Per-probe breakdown table */}
-              {validationResult.probes && (
-                <table className="probe-table">
-                  <thead>
-                    <tr>
-                      <th>Client type</th>
-                      <th>Status</th>
-                      <th>TFTP / Boot URL</th>
-                      <th>Boot file</th>
-                      <th>Offered IP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(validationResult.probes).map((probe) => (
-                      <tr key={probe.label} className={`probe-row probe-${probe.status}`}>
-                        <td>{probe.label}</td>
-                        <td>
-                          <span className={`probe-status-pill probe-status-${probe.status}`}>
-                            {probe.status === 'success' ? '✓' : probe.status === 'no_response' ? '—' : probe.status === 'warning' ? '⚠' : '✗'}
-                            {' '}{probe.status}
-                          </span>
-                        </td>
-                        <td className="probe-mono">
-                          {probe.boot_url || probe.tftp_server || <span className="text-muted">—</span>}
-                        </td>
-                        <td className="probe-mono">
-                          {probe.bootfile || <span className="text-muted">—</span>}
-                        </td>
-                        <td className="probe-mono">
-                          {probe.offered_ip || <span className="text-muted">—</span>}
-                        </td>
+              {/* Recommendations */}
+              {validationResult.recommendations?.length > 0 && (
+                <div className="recommendations">
+                  {validationResult.recommendations.map((rec, i) => (
+                    <div key={i} className={`recommendation recommendation-${rec.severity}`}>
+                      <div className="recommendation-body">
+                        <strong>{rec.title}</strong>
+                        <p>{rec.description}</p>
+                      </div>
+                      {rec.fix_url && (
+                        <button
+                          className={`btn btn-sm btn-fix-${rec.severity}`}
+                          onClick={() => applyFix(rec.fix_url, rec.fix_method)}
+                          disabled={loading}
+                        >
+                          {rec.fix_label}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Collapsible probe table */}
+              <details
+                className="probe-details"
+                onToggle={e => setDetailsExpanded(e.target.open)}
+              >
+                <summary>
+                  Technical details ({Object.keys(validationResult.probes || {}).length} probes)
+                </summary>
+                {validationResult.probes && (
+                  <table className="probe-table">
+                    <thead>
+                      <tr>
+                        <th>Client type</th>
+                        <th>Status</th>
+                        <th>TFTP / Boot URL</th>
+                        <th>Boot file</th>
+                        <th>Offered IP</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {/* Issues / warnings */}
-              {validationResult.issues?.length > 0 && (
-                <ul className="validation-issues">
-                  {validationResult.issues.map((issue, idx) => (
-                    <li key={idx}>{issue}</li>
-                  ))}
-                </ul>
-              )}
-              {validationResult.warnings?.length > 0 && (
-                <ul className="validation-warnings">
-                  {validationResult.warnings.map((w, idx) => (
-                    <li key={idx}>{w}</li>
-                  ))}
-                </ul>
-              )}
-              {validationResult.suggestions && (
-                <div className="validation-suggestions">
-                  <h5>Suggestions:</h5>
-                  <ul>
-                    {validationResult.suggestions.map((suggestion, idx) => (
-                      <li key={idx}>{suggestion}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                    </thead>
+                    <tbody>
+                      {Object.values(validationResult.probes).map((probe) => (
+                        <tr key={probe.label} className={`probe-row probe-${probe.status}`}>
+                          <td>{probe.label}</td>
+                          <td>
+                            <span className={`probe-status-pill probe-status-${probe.status}`}>
+                              {probe.status === 'success' ? '✓' : probe.status === 'no_response' ? '—' : probe.status === 'warning' ? '⚠' : '✗'}
+                              {' '}{probe.status}
+                            </span>
+                          </td>
+                          <td className="probe-mono">
+                            {probe.boot_url || probe.tftp_server || <span className="text-muted">—</span>}
+                          </td>
+                          <td className="probe-mono">
+                            {probe.bootfile || <span className="text-muted">—</span>}
+                          </td>
+                          <td className="probe-mono">
+                            {probe.offered_ip || <span className="text-muted">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {validationResult.suggestions && (
+                  <div className="validation-suggestions">
+                    <h5>Suggestions:</h5>
+                    <ul>
+                      {validationResult.suggestions.map((suggestion, idx) => (
+                        <li key={idx}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </details>
             </div>
           )}
         </div>

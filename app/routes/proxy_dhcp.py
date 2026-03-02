@@ -24,7 +24,7 @@ def start_proxy_dhcp(settings: ProxyDHCPSettings):
     """
     try:
         effective = _manager.load_settings().model_copy(
-            update=settings.model_dump(exclude_unset=True)
+            update={**settings.model_dump(exclude_unset=True), "enabled": True}
         )
         _manager.save_settings(effective)
         result = _manager.start(effective)
@@ -48,6 +48,8 @@ def stop_proxy_dhcp():
         result = _manager.stop()
         if result["success"]:
             add_log("dhcp", "info", "Proxy DHCP stopped")
+            saved = _manager.load_settings().model_copy(update={"enabled": False})
+            _manager.save_settings(saved)
         else:
             add_log("dhcp", "warning", f"Proxy DHCP stop issue: {result.get('error')}")
         return result

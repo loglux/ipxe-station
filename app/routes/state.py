@@ -297,9 +297,9 @@ def _record_http_boot_flow(request: Request, path: str, status_code: int):
         state["last_boot_script_at"] = time.time()
         state["recent_ipxe_efi_requests"].clear()
         stage = "boot_script"
-    elif normalized.endswith(("/vmlinuz", "/linux")):
+    elif normalized.endswith(("/vmlinuz", "/linux", "/k-x86_64", "/k-x86")):
         stage = "kernel"
-    elif "initrd" in normalized:
+    elif "initrd" in normalized or "sysresccd.img" in normalized:
         stage = "initrd"
 
     if not stage:
@@ -344,18 +344,63 @@ def _scan_distro_versions(prefix: str, base: Path):
         initrd = None
         iso = None
         wim = None
+        squashfs = None
 
         if prefix == "kaspersky":
-            for name in ["vmlinuz", "k-x86_64", "k-x86"]:
+            # Prefer live/ layout (standard KRD ISO extraction)
+            live_vmlinuz = path / "live" / "vmlinuz"
+            live_initrd = path / "live" / "initrd.img"
+            live_squashfs = path / "live" / "filesystem.squashfs"
+            if live_vmlinuz.exists():
+                kernel = f"{path.name}/live/vmlinuz"
+            if live_initrd.exists():
+                initrd = f"{path.name}/live/initrd.img"
+            if live_squashfs.exists():
+                squashfs = f"{path.name}/live/filesystem.squashfs"
+            # Fallback: root-level files
+            if not kernel:
+                for name in ["vmlinuz", "k-x86_64", "k-x86"]:
+                    candidate = path / name
+                    if candidate.exists():
+                        kernel = f"{path.name}/{name}"
+                        break
+            if not initrd:
+                for name in ["initrd.img", "initrd.xz", "initrd"]:
+                    candidate = path / name
+                    if candidate.exists():
+                        initrd = f"{path.name}/{name}"
+                        break
+            # Fallback: krd/boot/grub/ layout
+            if not kernel:
+                candidate = path / "krd" / "boot" / "grub" / "k-x86_64"
+                if candidate.exists():
+                    kernel = f"{path.name}/krd/boot/grub/k-x86_64"
+            if not initrd:
+                for name in ["initrd.xz", "initrd.img"]:
+                    candidate = path / "krd" / "boot" / "grub" / name
+                    if candidate.exists():
+                        initrd = f"{path.name}/krd/boot/grub/{name}"
+                        break
+        elif prefix in ("rescue", "systemrescue"):
+            for name in ["vmlinuz", "linux"]:
                 candidate = path / name
                 if candidate.exists():
                     kernel = f"{path.name}/{name}"
                     break
-            for name in ["initrd.img", "initrd.xz", "initrd"]:
+            for name in ["initrd", "initrd.img", "initrd.lz", "initrd.xz"]:
                 candidate = path / name
                 if candidate.exists():
                     initrd = f"{path.name}/{name}"
                     break
+            # Fallback: sysresccd/boot/x86_64/ layout (extracted ISO)
+            if not kernel:
+                candidate = path / "sysresccd" / "boot" / "x86_64" / "vmlinuz"
+                if candidate.exists():
+                    kernel = f"{path.name}/sysresccd/boot/x86_64/vmlinuz"
+            if not initrd:
+                candidate = path / "sysresccd" / "boot" / "x86_64" / "sysresccd.img"
+                if candidate.exists():
+                    initrd = f"{path.name}/sysresccd/boot/x86_64/sysresccd.img"
         else:
             for name in ["vmlinuz", "linux"]:
                 candidate = path / name
@@ -367,6 +412,25 @@ def _scan_distro_versions(prefix: str, base: Path):
                 if candidate.exists():
                     initrd = f"{path.name}/{name}"
                     break
+            # Fallback: casper/ layout (Ubuntu extracted ISO)
+            if not kernel:
+                for name in ["vmlinuz"]:
+                    candidate = path / "casper" / name
+                    if candidate.exists():
+                        kernel = f"{path.name}/casper/{name}"
+                        break
+            if not initrd:
+                for name in ["initrd", "initrd.lz"]:
+                    candidate = path / "casper" / name
+                    if candidate.exists():
+                        initrd = f"{path.name}/casper/{name}"
+                        break
+            # Detect squashfs for Ubuntu casper boot
+            for sqname in ["ubuntu-server-minimal.squashfs", "filesystem.squashfs"]:
+                candidate = path / "casper" / sqname
+                if candidate.exists():
+                    squashfs = f"{path.name}/casper/{sqname}"
+                    break
 
         for item in path.glob("*.iso"):
             iso = f"{path.name}/{item.name}"
@@ -376,7 +440,14 @@ def _scan_distro_versions(prefix: str, base: Path):
             break
 
         results.append(
-            {"version": version, "kernel": kernel, "initrd": initrd, "iso": iso, "wim": wim}
+            {
+                "version": version,
+                "kernel": kernel,
+                "initrd": initrd,
+                "iso": iso,
+                "wim": wim,
+                "squashfs": squashfs,
+            }
         )
     return results
 

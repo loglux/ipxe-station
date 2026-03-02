@@ -296,11 +296,17 @@ class DHCPValidator:
         ip_hdr = ip_hdr[:10] + struct.pack("!H", ck) + ip_hdr[12:]
         return ip_hdr + ip_payload
 
-    def _build_discover(self, probe_mac: bytes, xid: int, arch: int, is_ipxe: bool) -> bytes:
-        """Build a DHCP DISCOVER packet for a specific client type."""
+    def _build_discover(
+        self, probe_mac: bytes, xid: int, arch: Optional[int], is_ipxe: bool
+    ) -> bytes:
+        """Build a DHCP DISCOVER packet for a specific client type.
+
+        When *arch* is None, no PXE options (60, 93, 175) are added — this produces
+        a plain DHCP DISCOVER that only a real IP-assignment DHCP server will answer.
+        dnsmasq in proxy mode ignores plain (non-PXEClient) DISCOVERs.
+        """
         import struct
 
-        vendor_class = self._VENDOR_CLASS.get(arch, b"PXEClient:Arch:00000:UNDI:002001")
         pkt = struct.pack("!BBBBIHH", 1, 1, 6, 0, xid, 0, 0x8000)
         pkt += b"\x00" * 4  # ciaddr
         pkt += b"\x00" * 4  # yiaddr
@@ -311,8 +317,10 @@ class DHCPValidator:
         pkt += b"\x00" * 128  # file
         pkt += b"\x63\x82\x53\x63"  # DHCP magic cookie
         pkt += b"\x35\x01\x01"  # option 53: DHCP DISCOVER
-        pkt += b"\x3c" + bytes([len(vendor_class)]) + vendor_class  # option 60: vendor class
-        pkt += bytes([0x5D, 0x02, (arch >> 8) & 0xFF, arch & 0xFF])  # option 93: client arch
+        if arch is not None:
+            vendor_class = self._VENDOR_CLASS.get(arch, b"PXEClient:Arch:00000:UNDI:002001")
+            pkt += b"\x3c" + bytes([len(vendor_class)]) + vendor_class  # option 60: vendor class
+            pkt += bytes([0x5D, 0x02, (arch >> 8) & 0xFF, arch & 0xFF])  # option 93: client arch
         if is_ipxe:
             pkt += b"\xaf\x01\x00"  # option 175: iPXE extensions tag
         pkt += b"\x37\x07\x01\x03\x06\x0f\x42\x43\x2b"  # param request list
@@ -440,6 +448,13 @@ class DHCPValidator:
                 "arch": 0x0000,
                 "is_ipxe": True,
             },
+            {
+                "name": "dhcp",
+                "label": "DHCP (IP assignment)",
+                "arch": None,  # plain DISCOVER — no PXE options, proxy ignores this
+                "is_ipxe": False,
+                "is_plain": True,
+            },
         ]
 
         for p in probe_defs:
@@ -454,7 +469,7 @@ class DHCPValidator:
                     random.randint(0, 255),
                 ]
             )
-            p["offer"] = None
+            p["offers"] = []  # collect ALL offers (may get both proxy + router)
 
         # Receive socket: regular UDP on port 68 to capture broadcast DHCP OFFERs
         recv_sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM, _socket.IPPROTO_UDP)
@@ -502,7 +517,9 @@ class DHCPValidator:
         # source IP — each probe must wait for the router to reset before the next.
         # Other DHCP servers (ISC, Windows, pfSense, Mikrotik) don't have this limit
         # and will respond instantly; the delays just add a small overhead for them.
-        probe_delays = [5.0, 10.0, 0.0]  # after BIOS, after UEFI, after iPXE
+        # Plain DHCP probe (4th) uses a different MAC and no PXE vendor class, so
+        # it doesn't trigger PXE-specific rate limiting — no extra delay needed.
+        probe_delays = [5.0, 10.0, 0.0, 0.0]  # after BIOS, UEFI, iPXE, plain
 
         try:
             for p, delay_after in zip(probe_defs, probe_delays):
@@ -513,7 +530,11 @@ class DHCPValidator:
                 else:
                     recv_sock.sendto(dhcp_pkt, ("255.255.255.255", 67))
 
-                # Wait for this probe's OFFER
+                # Collect all OFFER responses within timeout window.
+                # In proxy DHCP mode a client can receive two OFFERs:
+                #   1. Router DHCP  → real IP (yiaddr != 0.0.0.0)
+                #   2. Our proxy    → yiaddr = 0.0.0.0, option 43 PXE info
+                # Collecting both lets us detect the conflict scenario.
                 deadline = time.monotonic() + self.timeout
                 while time.monotonic() < deadline:
                     recv_sock.settimeout(max(0.1, deadline - time.monotonic()))
@@ -526,8 +547,7 @@ class DHCPValidator:
                     resp_xid = struct.unpack("!I", data[4:8])[0]
                     if resp_xid != p["xid"]:
                         continue
-                    p["offer"] = self._parse_offer(data, addr)
-                    break
+                    p["offers"].append(self._parse_offer(data, addr))
 
                 # Wait between probes so the router's rate-limit can reset
                 if delay_after > 0:
@@ -556,13 +576,77 @@ class DHCPValidator:
         # --- Evaluate each probe ---
         probes_out: Dict[str, Any] = {}
         for p in probe_defs:
-            offer = p["offer"]
-            if offer is None:
+            offers = p["offers"]
+
+            # Plain DHCP probe: only checks that a real IP-assignment DHCP server exists.
+            # dnsmasq in proxy mode does NOT respond to plain DISCOVERs, so only the
+            # router (or another DHCP server) will answer.  yiaddr must be a real IP.
+            if p.get("is_plain"):
+                if not offers:
+                    probes_out[p["name"]] = {
+                        "label": p["label"],
+                        "status": "warning",
+                        "message": (
+                            "No response — no IP-assignment DHCP server detected. "
+                            "PXE clients will not receive an IP address."
+                        ),
+                    }
+                else:
+                    real_offer = next((o for o in offers if o["offered_ip"] != "0.0.0.0"), None)
+                    if real_offer:
+                        probes_out[p["name"]] = {
+                            "label": p["label"],
+                            "status": "success",
+                            "message": f"IP offer received ({real_offer['offered_ip']})",
+                            "dhcp_server": real_offer["dhcp_server"],
+                            "offered_ip": real_offer["offered_ip"],
+                        }
+                    else:
+                        probes_out[p["name"]] = {
+                            "label": p["label"],
+                            "status": "warning",
+                            "message": (
+                                "Only proxy DHCP responded (0.0.0.0) — "
+                                "no real IP-assignment DHCP server found. "
+                                "PXE clients will not receive an IP address."
+                            ),
+                            "dhcp_server": offers[0]["dhcp_server"],
+                            "offered_ip": "0.0.0.0",
+                        }
+                continue
+
+            # PXE probes (BIOS / UEFI / iPXE)
+            if not offers:
                 probes_out[p["name"]] = {"label": p["label"], "status": "no_response"}
                 continue
 
+            # Pick the best offer for PXE evaluation:
+            # prefer our proxy (0.0.0.0) over the router if both responded —
+            # the proxy response contains the authoritative PXE boot info.
+            proxy_offer = next((o for o in offers if o["offered_ip"] == "0.0.0.0"), None)
+            router_offer = next((o for o in offers if o["offered_ip"] != "0.0.0.0"), None)
+            offer = proxy_offer or router_offer
+
             issues: List[str] = []
             warnings_list: List[str] = []
+
+            # Conflict: both proxy AND router responded with explicit PXE options.
+            # Router simply giving an IP alongside the proxy is normal proxy DHCP behaviour —
+            # dnsmasq always sets siaddr to its own IP, which is NOT an explicit PXE config.
+            # Only flag a conflict when the router's offer has option 66 (TFTP server name)
+            # or option 67 (bootfile), meaning an administrator explicitly configured PXE
+            # on the router AND our proxy is also active — two competing PXE sources.
+            router_has_pxe = router_offer and (
+                router_offer.get("bootfile")
+                or router_offer.get("tftp_server_source") == "option 66"
+            )
+            if proxy_offer and router_has_pxe:
+                warnings_list.append(
+                    f"Both proxy DHCP ({proxy_offer['dhcp_server']}) and router DHCP "
+                    f"({router_offer['dhcp_server']}) are providing PXE options — disable "
+                    "options 66/67 on the router when using Proxy DHCP to avoid conflicts"
+                )
+
             tftp_server = offer["tftp_server"]
             bootfile = offer["bootfile"]
 
@@ -591,11 +675,8 @@ class DHCPValidator:
                         f"TFTP server is {tftp_server!r} ({offer.get('tftp_server_source', '')}), "
                         f"expected {expected_server_ip!r}"
                     )
-                if not bootfile and tftp_server:
-                    # No filename in DHCP is normal for pxe-service proxy mode
-                    warnings_list.append(
-                        "No boot filename in DHCP response — normal with pxe-service proxy DHCP"
-                    )
+                # No bootfile in DHCP is expected with pxe-service proxy mode —
+                # not an error, not a warning, the client negotiates it via TFTP.
 
             if not issues and not warnings_list:
                 probe_status, probe_msg = "success", "Correctly configured"
@@ -611,6 +692,11 @@ class DHCPValidator:
                 "dhcp_server": offer["dhcp_server"],
                 "offered_ip": offer["offered_ip"],
             }
+            if proxy_offer and router_has_pxe:
+                probe_result["conflict"] = {
+                    "proxy": proxy_offer["dhcp_server"],
+                    "router": router_offer["dhcp_server"],
+                }
             if p["is_ipxe"] and bootfile:
                 probe_result["boot_url"] = bootfile
             if not p["is_ipxe"]:
@@ -625,16 +711,34 @@ class DHCPValidator:
             probes_out[p["name"]] = probe_result
 
         # --- Overall status ---
-        statuses = {v.get("status") for v in probes_out.values()}
-        if statuses == {"no_response"}:
+        # Evaluate PXE probes (BIOS/UEFI/iPXE) and plain DHCP probe separately.
+        pxe_statuses = {
+            probes_out[n].get("status") for n in ("bios", "uefi", "ipxe") if n in probes_out
+        }
+        dhcp_probe_status = probes_out.get("dhcp", {}).get("status")
+
+        if pxe_statuses == {"no_response"}:
             overall_status = "no_response"
             overall_message = "No DHCP OFFER received from network"
         elif (
-            "success" in statuses and "not_configured" not in statuses and "warning" not in statuses
+            "success" in pxe_statuses
+            and "not_configured" not in pxe_statuses
+            and "warning" not in pxe_statuses
         ):
-            overall_status = "success"
-            overall_message = "DHCP server is correctly configured for PXE boot"
-        elif "success" in statuses or "warning" in statuses:
+            if dhcp_probe_status == "success":
+                overall_status = "success"
+                overall_message = "PXE boot and IP assignment are correctly configured"
+            elif dhcp_probe_status == "warning":
+                overall_status = "warning"
+                overall_message = (
+                    "PXE boot is configured but no IP-assignment DHCP server was detected — "
+                    "clients will not receive an IP address"
+                )
+            else:
+                # dhcp probe absent (shouldn't happen) — treat PXE-only result as success
+                overall_status = "success"
+                overall_message = "DHCP server is correctly configured for PXE boot"
+        elif "success" in pxe_statuses or "warning" in pxe_statuses:
             overall_status = "warning"
             overall_message = "DHCP server has PXE configuration but with potential issues"
         else:
@@ -656,6 +760,9 @@ class DHCPValidator:
         if bios.get("bootfile"):
             detected["option_67_bootfile"] = bios["bootfile"]
 
+        scenario = self._detect_scenario(probes_out, expected_server_ip)
+        recommendations = self._build_recommendations(scenario, probes_out, expected_server_ip)
+
         return {
             "status": overall_status,
             "message": overall_message,
@@ -664,4 +771,169 @@ class DHCPValidator:
             "probes": probes_out,
             "issues": [m for p in probes_out.values() for m in p.get("issues", [])],
             "warnings": [m for p in probes_out.values() for m in p.get("warnings", [])],
+            "scenario": scenario,
+            "recommendations": recommendations,
         }
+
+    def _detect_scenario(self, probes_out: Dict[str, Any], expected_server_ip: str) -> str:
+        """Classify the network's DHCP/PXE state into one of the known scenario keys."""
+        pxe_names = ("bios", "uefi", "ipxe")
+        pxe_probes = [probes_out[n] for n in pxe_names if n in probes_out]
+        dhcp_probe = probes_out.get("dhcp", {})
+
+        pxe_statuses = {p.get("status") for p in pxe_probes}
+        dhcp_status = dhcp_probe.get("status")
+
+        # 1. No DHCP at all — all PXE probes no_response AND no IP-assignment DHCP
+        if pxe_statuses <= {"no_response"} and dhcp_status != "success":
+            return "no_dhcp"
+
+        # 2. Conflict — both proxy AND router PXE responded to at least one probe
+        if any("conflict" in p for p in pxe_probes):
+            return "conflict"
+
+        # 3a. Proxy OK: BIOS/UEFI succeed in proxy mode (offered_ip=0.0.0.0), iPXE probe may be
+        # not_configured because proxy sends a TFTP filename rather than an HTTP URL — expected.
+        bios_ok = probes_out.get("bios", {}).get("status") == "success"
+        uefi_ok = probes_out.get("uefi", {}).get("status") == "success"
+        bios_proxy = probes_out.get("bios", {}).get("offered_ip") == "0.0.0.0"
+        uefi_proxy = probes_out.get("uefi", {}).get("offered_ip") == "0.0.0.0"
+        if (bios_ok or uefi_ok) and (bios_proxy or uefi_proxy) and dhcp_status == "success":
+            return "proxy_ok"
+
+        # 3b. All PXE probes successful AND IP-assignment DHCP present
+        if pxe_statuses == {"success"} and dhcp_status == "success":
+            # proxy_ok when any PXE offer came from a proxy (offered_ip == 0.0.0.0)
+            if any(p.get("offered_ip") == "0.0.0.0" for p in pxe_probes):
+                return "proxy_ok"
+            return "router_ok"
+
+        # 4. All PXE probes successful but no IP-assignment DHCP → clients won't get IPs
+        if pxe_statuses == {"success"} and dhcp_status in ("warning", None):
+            return "proxy_no_dhcp"
+
+        # 5. DHCP gives IPs but no PXE anywhere
+        if pxe_statuses <= {"no_response", "not_configured"} and dhcp_status == "success":
+            return "no_pxe"
+
+        # 6. PXE configured but TFTP/boot URL points to wrong server
+        for p in pxe_probes:
+            if p.get("status") == "warning":
+                probe_warnings = p.get("warnings", [])
+                if any(
+                    "TFTP server" in w or "does not reference" in w or "Boot URL" in w
+                    for w in probe_warnings
+                ):
+                    return "wrong_server"
+
+        return "partial"
+
+    def _build_recommendations(
+        self, scenario: str, probes_out: Dict[str, Any], expected_server_ip: str
+    ) -> List[Dict[str, Any]]:
+        """Return actionable recommendations for the detected scenario."""
+        recs: List[Dict[str, Any]] = []
+
+        def rec(title: str, description: str, severity: str, fix_url=None, fix_label=None):
+            recs.append(
+                {
+                    "title": title,
+                    "description": description,
+                    "severity": severity,
+                    "fix_url": fix_url,
+                    "fix_method": "POST",
+                    "fix_label": fix_label,
+                }
+            )
+
+        if scenario == "proxy_ok":
+            rec(
+                "Proxy DHCP active",
+                "Proxy DHCP is active. Clients get IP from router, PXE from proxy.",
+                "success",
+            )
+
+        elif scenario == "router_ok":
+            rec(
+                "Router DHCP correctly configured",
+                "Router DHCP is providing correct PXE configuration.",
+                "success",
+            )
+
+        elif scenario == "conflict":
+            rec(
+                "Disable router PXE options",
+                "Disable PXE options (66/67) on your router to use Proxy DHCP exclusively.",
+                "warning",
+            )
+            rec(
+                "Stop Proxy DHCP",
+                "Or stop Proxy DHCP to use router PXE only.",
+                "info",
+                fix_url="/api/proxy-dhcp/stop",
+                fix_label="Stop Proxy DHCP",
+            )
+
+        elif scenario == "no_pxe":
+            rec(
+                "No PXE configuration found",
+                "No PXE boot configuration found. Clients will get an IP but cannot boot.",
+                "error",
+            )
+            rec(
+                "Enable Proxy DHCP",
+                "Enable Proxy DHCP — no router changes needed.",
+                "info",
+                fix_url="/api/proxy-dhcp/start",
+                fix_label="Start Proxy DHCP",
+            )
+            rec(
+                "Configure router manually",
+                f"Or configure router: option 66 = {expected_server_ip}, "
+                "option 67 = undionly.kpxe / ipxe.efi",
+                "info",
+            )
+
+        elif scenario == "wrong_server":
+            wrong_ip: Optional[str] = None
+            for name in ("bios", "uefi", "ipxe"):
+                p = probes_out.get(name, {})
+                if p.get("tftp_server") and p["tftp_server"] != expected_server_ip:
+                    wrong_ip = p["tftp_server"]
+                    break
+            ip_desc = f"TFTP server is {wrong_ip!r}" if wrong_ip else "PXE is configured"
+            rec(
+                "Wrong PXE server",
+                f"{ip_desc}, not {expected_server_ip!r}. "
+                "Update router option 66 or enable Proxy DHCP.",
+                "warning",
+                fix_url="/api/proxy-dhcp/start",
+                fix_label="Start Proxy DHCP",
+            )
+
+        elif scenario == "proxy_no_dhcp":
+            rec(
+                "No IP-assignment DHCP server",
+                "Proxy DHCP responds to PXE but no router DHCP found — clients will not receive "
+                "IP addresses. Check your router's DHCP server.",
+                "error",
+            )
+
+        elif scenario == "no_dhcp":
+            rec(
+                "No DHCP server found",
+                "No DHCP server found. Check router is running and DHCP is enabled.",
+                "error",
+            )
+
+        elif scenario == "partial":
+            for name in ("bios", "uefi", "ipxe"):
+                p = probes_out.get(name, {})
+                if p.get("status") in ("no_response", "not_configured", "warning"):
+                    rec(
+                        f"{p.get('label', name)} not configured",
+                        p.get("message", "No PXE response for this client type."),
+                        "warning",
+                    )
+
+        return recs

@@ -24,6 +24,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [kernel, setKernel] = useState('')
   const [initrd, setInitrd] = useState('')
   const [cmdline, setCmdline] = useState('')
+  const [bootOptions, setBootOptions] = useState([])
+  const [selectedBootOption, setSelectedBootOption] = useState(null)
+  const [recipeLoading, setRecipeLoading] = useState(false)
+  const [recipeError, setRecipeError] = useState(null)
 
   // Handle initial category selection
   useEffect(() => {
@@ -36,14 +40,41 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     }
   }, [isOpen, initialCategory])
 
-  const handleVersionSelect = useCallback((version) => {
+  const handleVersionSelect = useCallback(async (version) => {
     setSelectedVersion(version)
     setKernel(version.kernel || '')
     setInitrd(version.initrd || '')
+    setCmdline('')
+    setBootOptions([])
+    setSelectedBootOption(null)
+    setRecipeError(null)
 
     // Update title to include version
     const scenario = getScenario(selectedScenario)
     setEntryTitle(`${scenario.displayName} ${version.version}`)
+
+    // Fetch boot recipe from backend
+    const catalogKey = SCENARIO_CATALOG_KEY[selectedScenario] || selectedScenario
+    const versionPath = `${catalogKey}-${version.version}`
+    setRecipeLoading(true)
+    try {
+      const resp = await fetch(`/api/assets/boot-recipe?version_path=${encodeURIComponent(versionPath)}&scenario=${encodeURIComponent(selectedScenario)}`)
+      const data = await resp.json()
+      if (data.error) {
+        setRecipeError(data.error)
+      } else if (data.options?.length > 0) {
+        setBootOptions(data.options)
+        const rec = data.options.find(o => o.recommended) || data.options[0]
+        setSelectedBootOption(rec)
+        setKernel(rec.kernel)
+        setInitrd(rec.initrd)
+        setCmdline(rec.cmdline)
+      }
+    } catch {
+      setRecipeError('Failed to load boot recipe')
+    } finally {
+      setRecipeLoading(false)
+    }
   }, [selectedScenario])
 
   const fetchAvailableAssets = useCallback(async () => {
@@ -60,8 +91,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       const catalogKey = SCENARIO_CATALOG_KEY[selectedScenario]
       let versions = catalogKey ? (catalog[catalogKey] || []) : []
 
-      // Filter to only versions that have required files
-      const validVersions = versions.filter(v => v.kernel && v.initrd)
+      // Filter to only versions that have at least kernel+initrd or squashfs/iso to boot from
+      const validVersions = versions.filter(v => (v.kernel && v.initrd) || v.squashfs || v.iso)
       setAvailableVersions(validVersions)
 
       // Auto-select if only one version available
@@ -135,6 +166,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setKernel('')
     setInitrd('')
     setCmdline('')
+    setBootOptions([])
+    setSelectedBootOption(null)
+    setRecipeLoading(false)
+    setRecipeError(null)
     onClose()
   }
 
@@ -269,6 +304,37 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             </div>
           )}
 
+          {/* Boot mode selector — shown once recipe loads */}
+          {recipeLoading && <p className="form-hint">Loading boot options…</p>}
+          {recipeError && <p className="form-hint form-hint-error">{recipeError}</p>}
+          {bootOptions.length > 1 && (
+            <div className="form-group">
+              <label>Boot Mode</label>
+              <div className="boot-option-list">
+                {bootOptions.map(opt => (
+                  <label
+                    key={opt.mode}
+                    className={`boot-option-item ${selectedBootOption?.mode === opt.mode ? 'selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="bootMode"
+                      checked={selectedBootOption?.mode === opt.mode}
+                      onChange={() => {
+                        setSelectedBootOption(opt)
+                        setKernel(opt.kernel)
+                        setInitrd(opt.initrd)
+                        setCmdline(opt.cmdline)
+                      }}
+                    />
+                    <span>{opt.label}</span>
+                    {opt.recommended && <span className="badge-recommended">Recommended</span>}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="form-group">
             <label>Name *</label>
             <input
@@ -329,6 +395,25 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               <small className="form-hint">
                 {selectedVersion ? 'Auto-populated from selected version' : 'Path to initrd file'}
               </small>
+            </div>
+          )}
+
+          {/* Cmdline — auto-filled by recipe, user can override */}
+          {!scenario.fields.forbidden?.includes('cmdline') && (
+            <div className="form-group">
+              <label>Kernel parameters {selectedBootOption ? '✅' : ''}</label>
+              <input
+                type="text"
+                value={cmdline}
+                onChange={(e) => setCmdline(e.target.value)}
+                className="form-control"
+                placeholder="ip=dhcp boot=casper fetch=..."
+              />
+              {selectedBootOption ? (
+                <small className="form-hint">Auto-generated — you can edit if needed</small>
+              ) : (
+                <small className="form-hint">Optional kernel command-line parameters</small>
+              )}
             </div>
           )}
 

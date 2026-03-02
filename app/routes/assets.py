@@ -86,6 +86,32 @@ def assets_catalog():
     }
 
 
+@assets_router.get("/boot-recipe")
+def assets_boot_recipe(version_path: str, scenario: str):
+    """Return boot options (kernel/initrd/cmdline) for a distro version + scenario.
+
+    - **version_path**: directory name, e.g. ``ubuntu-22.04``
+    - **scenario**: wizard scenario ID, e.g. ``ubuntu_live``
+    """
+    from app.backend.boot_recipes import get_recipe
+    from app.backend.config import settings
+
+    # Derive catalog prefix from the directory name (e.g. "ubuntu-22.04" → "ubuntu")
+    prefix = version_path.split("-")[0]
+
+    versions = _scan_distro_versions(prefix, HTTP_ROOT)
+    # version ID is everything after "prefix-"
+    version_id = version_path[len(prefix) + 1 :]
+    entry = next((v for v in versions if v["version"] == version_id), None)
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404, detail=f"Version '{version_path}' not found in catalog"
+        )
+
+    return get_recipe(scenario, entry, settings.pxe_server_ip, settings.http_port)
+
+
 @assets_router.post("/download")
 def download_asset(request: DownloadRequest):
     """Download a remote asset into /srv/http/<dest> (relative) with progress tracking."""

@@ -332,6 +332,59 @@
   white-space: pre-line;
 }
 
+/* Form hint variants */
+.form-hint-error {
+  color: var(--color-danger, #ef4444) !important;
+}
+
+/* Boot mode radio list */
+.boot-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.boot-option-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.boot-option-item:hover {
+  border-color: var(--color-primary);
+  background: var(--color-bg-secondary);
+}
+
+.boot-option-item.selected {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.boot-option-item input[type="radio"] {
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.badge-recommended {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Wizard Footer */
 .wizard-footer {
   display: flex;

@@ -40,8 +40,8 @@ choose --default ubuntu --timeout 5000 target && goto ${target}
 
 :ubuntu
 echo Booting Ubuntu Netboot...
-kernel http://10.0.0.1:8080/ubuntu/vmlinuz ip=dhcp
-initrd http://10.0.0.1:8080/ubuntu/initrd
+kernel http://10.0.0.1:8080/http/ubuntu/vmlinuz ip=dhcp
+initrd http://10.0.0.1:8080/http/ubuntu/initrd
 boot
 goto start
 

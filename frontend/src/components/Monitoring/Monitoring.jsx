@@ -175,6 +175,7 @@ export default function Monitoring() {
               className="log-filter"
             >
               <option value="all">All Types</option>
+              <option value="boot">Boot Flow</option>
               <option value="tftp">TFTP</option>
               <option value="http">HTTP</option>
               <option value="dhcp">DHCP</option>

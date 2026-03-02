@@ -295,7 +295,9 @@ class iPXEValidator:
                 continue
 
             if entry.entry_type == "boot":
-                if entry.boot_mode == "live" and not entry.requires_iso:
+                cmdline = entry.cmdline or ""
+                has_fetch_url = "fetch=" in cmdline or "url=" in cmdline
+                if entry.boot_mode == "live" and not entry.requires_iso and not has_fetch_url:
                     warnings.append(
                         f"{entry.name}: live boot usually requires ISO (set requires_iso=True)"
                     )
@@ -304,7 +306,7 @@ class iPXEValidator:
                         f"{entry.name}: preseed typically needs internet access "
                         "(set requires_internet=True)"
                     )
-                if entry.requires_iso and entry.boot_mode not in {"live", "tool"}:
+                if entry.requires_iso and entry.boot_mode not in {"live", "tool", "rescue"}:
                     warnings.append(
                         f"{entry.name}: requires_iso=True but boot_mode is '{entry.boot_mode}'"
                     )
@@ -341,8 +343,13 @@ class iPXEValidator:
         if initrd_path and not initrd_path.exists():
             warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
 
-        # ISO check for live boots
-        if entry.requires_iso or entry.boot_mode == "live":
+        # ISO check for live boots — skip if recipe already set a fetch= or url= in cmdline
+        cmdline = entry.cmdline or ""
+        if (
+            (entry.requires_iso or entry.boot_mode == "live")
+            and "fetch=" not in cmdline
+            and "url=" not in cmdline
+        ):
             version = None
             if entry.kernel:
                 m = re.search(r"ubuntu[-_](\d{2}\.\d{2})", entry.kernel)
@@ -732,8 +739,8 @@ class iPXEGenerator:
             # Absolute path - convert to HTTP URL
             return f"http://{server_ip}:{port}{path}"
         else:
-            # Relative path - convert to HTTP URL
-            return f"http://{server_ip}:{port}/{path.lstrip('/')}"
+            # Relative path - assets are served under /http/ mount point
+            return f"http://{server_ip}:{port}/http/{path.lstrip('/')}"
 
     @staticmethod
     def _escape_echo_text(text: str) -> str:

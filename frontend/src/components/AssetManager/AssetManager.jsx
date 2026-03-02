@@ -318,7 +318,7 @@ function AssetManager() {
 
     try {
       setDownloadStatus(prev => ({ ...prev, [distroId]: 'Downloading ISO... (this may take a while)' }))
-      const isoDest = `${SYSTEMRESCUE_CONFIG.dest_folder}/${selectedSysrescueVersion.iso_name}`
+      const isoDest = `rescue-${selectedSysrescueVersion.version}/${selectedSysrescueVersion.iso_name}`
 
       const isoResponse = await fetch('/api/assets/download', {
         method: 'POST',
@@ -376,7 +376,7 @@ function AssetManager() {
         throw new Error(error.detail || 'Failed to download ISO')
       }
 
-      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded! Remember to extract ISO.' }))
+      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded and extracted!' }))
 
       setTimeout(() => {
         fetchCatalog()

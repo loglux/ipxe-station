@@ -7,7 +7,7 @@ from fastapi import APIRouter, Response
 from app.backend.ipxe_manager import iPXEManager
 from app.backend.ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
 
-from .state import IPXE_ROOT, add_log, load_settings
+from .state import IPXE_ROOT, TFTP_ROOT, add_log, load_settings
 
 ipxe_router = APIRouter(prefix="/api/ipxe", tags=["ipxe"])
 ipxe_manager = iPXEManager(config_path=IPXE_ROOT / "boot.ipxe")
@@ -99,12 +99,39 @@ def _parse_boot_ipxe(script_content: str) -> dict:
                 if is_submenu:
                     title = title[:-3].strip()
 
+                # Skip auto-generated entries — the menu generator always adds these
+                if name.startswith("back_") or name in ["shell", "reboot", "exit"]:
+                    continue
+
                 if is_submenu:
                     entry_type = "submenu"
-                elif name.startswith("back_") or name in ["shell", "reboot", "exit"]:
-                    entry_type = "action"
+                    detected_mode = "netboot"
                 else:
                     entry_type = "boot"
+                    # Detect boot_mode from auto-generated prefix, then strip it from title
+                    _prefix_map = {
+                        "[NET]": "netboot",
+                        "[LIVE]": "live",
+                        "[RESCUE]": "rescue",
+                        "[BOOT]": "custom",
+                        "[SHELL]": "custom",
+                        "[REBOOT]": "custom",
+                        "[EXIT]": "custom",
+                    }
+                    detected_mode = None
+                    # Strip ALL known prefixes; last one wins for boot_mode
+                    while True:
+                        matched = False
+                        for _prefix, _mode in _prefix_map.items():
+                            if title.startswith(_prefix):
+                                title = title[len(_prefix) :].strip()
+                                detected_mode = _mode
+                                matched = True
+                                break
+                        if not matched:
+                            break
+                    if detected_mode is None:
+                        detected_mode = "rescue"  # no label prefix → rescue (neutral)
 
                 entry = {
                     "name": name,
@@ -113,6 +140,7 @@ def _parse_boot_ipxe(script_content: str) -> dict:
                     "enabled": True,
                     "order": len(entries),
                     "parent": in_submenu.replace("submenu_", "") if in_submenu else None,
+                    "boot_mode": detected_mode,
                 }
                 entries.append(entry)
 
@@ -159,7 +187,7 @@ def _parse_boot_ipxe(script_content: str) -> dict:
                     entry.setdefault("cmdline", "")
                     entry.setdefault("description", "")
                     entry.setdefault("url", "")
-                    entry.setdefault("boot_mode", "netboot")
+                    entry.setdefault("boot_mode", "rescue")
                     entry.setdefault("requires_iso", False)
                     entry.setdefault("requires_internet", False)
 
@@ -246,12 +274,15 @@ def load_menu_structure():
         try:
             with open(menu_json_path, "r") as f:
                 menu_data = json.load(f)
-            return {
-                "success": True,
-                "message": "Menu structure loaded from menu.json",
-                "menu": menu_data,
-                "source": "json",
-            }
+            # Only trust menu.json if it has actual entries; otherwise fall through to boot.ipxe
+            if menu_data.get("entries"):
+                return {
+                    "success": True,
+                    "message": "Menu structure loaded from menu.json",
+                    "menu": menu_data,
+                    "source": "json",
+                }
+            add_log("system", "info", "menu.json has no entries, falling back to boot.ipxe")
         except Exception as e:
             add_log(
                 "system",
@@ -348,6 +379,24 @@ def save_menu(menu: IpxeMenuModel):
         except Exception as e:
             save_msg += f" (Warning: Failed to save menu.json: {str(e)})"
             add_log("system", "warning", f"Failed to save menu.json: {str(e)}")
+
+        # Keep TFTP boot.ipxe as a chain script so TFTP clients always load the HTTP menu.
+        # This guards against stale TFTP copies when the proxy DHCP is temporarily offline.
+        tftp_boot_ipxe = TFTP_ROOT / "boot.ipxe"
+        _s = load_settings()
+        chain_script = (
+            "#!ipxe\n"
+            "dhcp\n"
+            "echo Booting iPXE Station...\n"
+            f"chain http://{_s.server_ip}:{_s.http_port}/ipxe/boot.ipxe"
+            " || echo Chain failed: ${{errno}}\n"
+            "shell\n"
+        )
+        try:
+            with open(tftp_boot_ipxe, "w") as f:
+                f.write(chain_script)
+        except Exception as e:
+            add_log("system", "warning", f"Failed to update TFTP boot.ipxe: {str(e)}")
     else:
         add_log("system", "error", f"Menu save failed: {message}")
 

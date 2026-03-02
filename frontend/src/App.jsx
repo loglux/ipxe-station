@@ -14,7 +14,7 @@ import BootFiles from './components/BootFiles/BootFiles'
 
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
-  const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'preview', 'export', 'monitoring']
+  const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
   const [activeTab, setActiveTab] = useState(() => {
     const saved = window.location.hash.slice(1)
     return VALID_TABS.includes(saved) ? saved : 'builder'
@@ -201,12 +201,6 @@ function App() {
     }
   }
 
-  // Auto-generate script when switching to preview tab
-  useEffect(() => {
-    if (activeTab === 'preview') {
-      generateScript()
-    }
-  }, [activeTab, generateScript])
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
@@ -267,6 +261,8 @@ function App() {
                 selectedEntryId={selectedEntryId}
                 onSelectEntry={setSelectedEntryId}
                 onOpenWizard={openWizard}
+                onUpdateEntry={updateEntry}
+                onDeleteEntry={deleteEntry}
               />
             </div>
           </aside>
@@ -278,7 +274,7 @@ function App() {
           <div className="tabs">
             <button
               className={`tab ${activeTab === 'builder' ? 'active' : ''}`}
-              onClick={() => switchTab('builder')}
+              onClick={() => { switchTab('builder'); setSelectedEntryId(null) }}
             >
               🏗️ Builder
             </button>
@@ -298,19 +294,7 @@ function App() {
               className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
               onClick={() => switchTab('boot')}
             >
-              🚀 Boot Files
-            </button>
-            <button
-              className={`tab ${activeTab === 'preview' ? 'active' : ''}`}
-              onClick={() => switchTab('preview')}
-            >
-              👁️ Preview
-            </button>
-            <button
-              className={`tab ${activeTab === 'export' ? 'active' : ''}`}
-              onClick={() => switchTab('export')}
-            >
-              💾 Export
+              🚀 autoexec
             </button>
             <button
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
@@ -357,6 +341,91 @@ function App() {
                     </div>
                   </div>
                 )}
+
+                {/* Inline iPXE script preview */}
+                <details
+                  className="script-preview-drawer"
+                  onToggle={(e) => { if (e.target.open) generateScript() }}
+                >
+                  <summary className="script-preview-toggle">
+                    📜 iPXE Script Preview
+                    {scriptWarnings.length > 0 && (
+                      <span className="preview-warning-badge">{scriptWarnings.length} warning{scriptWarnings.length !== 1 ? 's' : ''}</span>
+                    )}
+                  </summary>
+                  <div className="script-preview-body">
+                    <div className="preview-actions">
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={generateScript}
+                        disabled={generatingScript}
+                      >
+                        {generatingScript ? '⏳' : '🔄 Refresh'}
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={async () => {
+                          const result = await fetch('/api/ipxe/generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(buildMenuPayload()),
+                          }).then(r => r.json()).catch(() => null)
+                          if (result?.script) await navigator.clipboard.writeText(result.script)
+                        }}
+                      >
+                        📋 Copy
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={async () => {
+                          const result = await fetch('/api/ipxe/generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(buildMenuPayload()),
+                          }).then(r => r.json()).catch(() => null)
+                          if (result?.script) {
+                            const blob = new Blob([result.script], { type: 'text/plain' })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = 'boot.ipxe'
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }
+                        }}
+                      >
+                        💾 Download .ipxe
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => {
+                          const blob = new Blob([JSON.stringify(buildMenuPayload(), null, 2)], { type: 'application/json' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = 'menu.json'
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                      >
+                        📄 Export JSON
+                      </button>
+                    </div>
+                    {scriptWarnings.length > 0 && (
+                      <div className="warnings-panel">
+                        <h4>⚠️ Warnings</h4>
+                        <ul>
+                          {scriptWarnings.map((warning, i) => (
+                            <li key={i}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <pre className="code-preview">
+                      {generatingScript ? '# Generating script...' : (generatedScript || '# No script generated yet')}
+                    </pre>
+                  </div>
+                </details>
               </div>
             )}
 
@@ -372,118 +441,12 @@ function App() {
               <BootFiles />
             )}
 
-            {activeTab === 'preview' && (
-              <div className="preview-view">
-                <div className="preview-header">
-                  <h2>iPXE Script Preview</h2>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={generateScript}
-                    disabled={generatingScript}
-                  >
-                    {generatingScript ? '⏳ Generating...' : '🔄 Refresh'}
-                  </button>
-                </div>
-
-                {scriptWarnings.length > 0 && (
-                  <div className="warnings-panel">
-                    <h4>⚠️ Warnings</h4>
-                    <ul>
-                      {scriptWarnings.map((warning, i) => (
-                        <li key={i}>{warning}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <pre className="code-preview">
-                  {generatingScript ? '# Generating script...' : (generatedScript || '# No script generated yet')}
-                </pre>
-              </div>
-            )}
-
-            {activeTab === 'export' && (
-              <div className="export-view">
-                <h2>Export Menu</h2>
-                <p>Export your menu configuration in various formats</p>
-                <div className="export-options">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => {
-                      const payload = buildMenuPayload()
-                      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = 'menu.json'
-                      a.click()
-                      URL.revokeObjectURL(url)
-                    }}
-                  >
-                    Download as JSON
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      const result = await fetch('/api/ipxe/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(buildMenuPayload()),
-                      }).then(r => r.json()).catch(() => null)
-                      if (result?.script) {
-                        const blob = new Blob([result.script], { type: 'text/plain' })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = 'boot.ipxe'
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }
-                    }}
-                  >
-                    Download iPXE Script
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={async () => {
-                      const result = await fetch('/api/ipxe/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(buildMenuPayload()),
-                      }).then(r => r.json()).catch(() => null)
-                      if (result?.script) {
-                        await navigator.clipboard.writeText(result.script)
-                      }
-                    }}
-                  >
-                    Copy to Clipboard
-                  </button>
-                </div>
-              </div>
-            )}
-
             {activeTab === 'monitoring' && (
               <Monitoring />
             )}
           </div>
         </main>
 
-        {/* Right Sidebar - Properties (builder only) */}
-        {activeTab === 'builder' && (
-          <aside className="sidebar-right">
-            <div className="sidebar-header">
-              <h2>Properties</h2>
-            </div>
-            <div className="sidebar-content">
-              <PropertyPanel
-                entry={selectedEntry}
-                onUpdateEntry={updateEntry}
-                onDeleteEntry={deleteEntry}
-                entries={entries}
-              />
-            </div>
-          </aside>
-        )}
       </div>
 
       {/* Footer */}

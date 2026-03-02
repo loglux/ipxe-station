@@ -53,7 +53,7 @@ def test_generate_endpoint():
     assert resp.status_code == 200
     data = resp.json()
     assert data["valid"] is True
-    assert "kernel http://10.0.0.1:8080/ubuntu/vmlinuz" in data["script"]
+    assert "kernel http://10.0.0.1:8080/http/ubuntu/vmlinuz" in data["script"]
     assert isinstance(data["warnings"], list)
 
 
