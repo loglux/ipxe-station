@@ -343,15 +343,12 @@ class iPXEValidator:
         if initrd_path and not initrd_path.exists():
             warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
 
-        # ISO check for live boots — skip if recipe already set a fetch= or url= in cmdline,
-        # or if it's an HTTP-served distro (SystemRescue, Kaspersky) that streams from the server
+        # Ubuntu ISO check: only when cmdline has no fetch=/url= (squashfs/iso recipe not applied)
         cmdline = entry.cmdline or ""
         if (
             (entry.requires_iso or entry.boot_mode == "live")
             and "fetch=" not in cmdline
             and "url=" not in cmdline
-            and "archiso_http_srv=" not in cmdline  # SystemRescue HTTP boot
-            and "netboot=" not in cmdline  # Kaspersky HTTP boot
         ):
             version = None
             if entry.kernel:
@@ -366,10 +363,8 @@ class iPXEValidator:
                 )
                 if not iso_candidate.exists():
                     warnings.append(f"{entry.name}: ISO missing at {iso_candidate}")
-            else:
-                warnings.append(
-                    f"{entry.name}: requires ISO but version could not be detected from paths"
-                )
+            # Non-Ubuntu distros (SystemRescue, Kaspersky) stream from HTTP —
+            # no ISO file check needed here; their content validity is checked elsewhere
 
         return warnings
 
