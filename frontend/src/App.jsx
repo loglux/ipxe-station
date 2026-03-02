@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 import { CATEGORIES } from './data/scenarios'
 
@@ -35,6 +35,7 @@ function App() {
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
   const [entries, setEntries] = useState([])
+  const generateAbortRef = useRef(null)
 
   const applyMenuFromResponse = (menu) => {
     setEntries(menu?.entries || [])
@@ -47,6 +48,13 @@ function App() {
     timeout: menuTimeout,
     entries,
   }), [entries, menuTimeout, menuTitle])
+
+  // Auto-clear save messages after 5 s
+  useEffect(() => {
+    if (!saveMessage) return
+    const timer = setTimeout(() => setSaveMessage(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveMessage])
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -109,15 +117,21 @@ function App() {
   }
 
   const generateScript = useCallback(async () => {
+    // Cancel any in-flight request before starting a new one
+    if (generateAbortRef.current) {
+      generateAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    generateAbortRef.current = controller
+
     setGeneratingScript(true)
 
     try {
       const response = await fetch('/api/ipxe/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildMenuPayload()),
+        signal: controller.signal,
       })
 
       const result = await response.json()
@@ -130,6 +144,7 @@ function App() {
         setScriptWarnings([])
       }
     } catch (error) {
+      if (error.name === 'AbortError') return
       setGeneratedScript(`# Failed to generate: ${error.message}`)
       setScriptWarnings([])
     } finally {
@@ -164,8 +179,6 @@ function App() {
       setSaveMessage({ type: 'error', text: `❌ Failed to save: ${error.message}` })
     } finally {
       setSaving(false)
-      // Clear message after 5 seconds
-      setTimeout(() => setSaveMessage(null), 5000)
     }
   }
 
@@ -197,10 +210,8 @@ function App() {
       setSaveMessage({ type: 'error', text: `❌ Failed to delete: ${error.message}` })
     } finally {
       setSaving(false)
-      setTimeout(() => setSaveMessage(null), 5000)
     }
   }
-
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
