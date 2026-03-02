@@ -55,8 +55,8 @@ export const SCENARIOS = {
         size: '2.8 GB',
       },
       '24.04': {
-        name: 'Ubuntu 24.04.1 LTS',
-        iso: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso',
+        name: 'Ubuntu 24.04.4 LTS',
+        iso: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso',
         extractFiles: {
           kernel: 'casper/vmlinuz',
           initrd: 'casper/initrd',
@@ -118,8 +118,8 @@ export const SCENARIOS = {
         size: '4.7 GB',
       },
       '24.04': {
-        name: 'Ubuntu 24.04.1 LTS Desktop',
-        iso: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-desktop-amd64.iso',
+        name: 'Ubuntu 24.04.4 LTS Desktop',
+        iso: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.4-desktop-amd64.iso',
         extractFiles: {
           kernel: 'casper/vmlinuz',
           initrd: 'casper/initrd',

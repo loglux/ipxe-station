@@ -7,7 +7,7 @@ const DOWNLOADABLE_DISTROS = [
     id: 'ubuntu-24.04',
     name: 'Ubuntu 24.04 LTS (Noble)',
     // No netboot images available for 24.04 - use ISO only
-    iso_url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso',
+    iso_url: 'https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso',
     dest_folder: 'ubuntu-24.04',
     files: { kernel: 'vmlinuz', initrd: 'initrd', iso: 'ubuntu-24.04-live-server-amd64.iso' },
     size: 'ISO only',
