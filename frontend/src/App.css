@@ -6,6 +6,11 @@
   padding: 0;
 }
 
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 :root {
   color-scheme: light;
 
@@ -35,6 +40,11 @@
   /* Code / terminal blocks */
   --color-code-bg: #1e293b;
   --color-code-text: #e2e8f0;
+
+  /* Overlay, focus ring, subtle tints */
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  --color-primary-tint: rgba(59, 130, 246, 0.06);
 
   --color-bg: #ffffff;
   --color-bg-secondary: #f9fafb;

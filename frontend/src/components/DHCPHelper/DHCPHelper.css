@@ -238,7 +238,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--color-success);
   flex-shrink: 0;
 }
 
@@ -257,14 +257,6 @@
 /* Settings inner (inside Option 2 panel, no extra card) */
 .dhcp-settings-inner {
   margin-top: 4px;
-}
-
-/* Settings Panel — keep for backwards compat / standalone use */
-.dhcp-settings {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 24px;
 }
 
 .setting-group {
@@ -473,13 +465,6 @@ details.config-output[open] .config-summary::before {
   margin-top: 8px;
   font-size: 13px;
   opacity: 0.9;
-}
-
-.validation-issues,
-.validation-warnings {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-  font-size: 13px;
 }
 
 /* ── Probe table ── */

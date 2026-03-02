@@ -103,7 +103,7 @@
 .form-control:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 textarea.form-control {
@@ -132,27 +132,10 @@ textarea.form-control {
   cursor: pointer;
 }
 
-.property-section {
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.property-section h4 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: var(--spacing-sm);
-}
-
 .requirement-badges {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-}
-
-.badge-info {
-  background: var(--color-primary);
-  color: white;
 }
 
 .property-actions {
