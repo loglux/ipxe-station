@@ -64,8 +64,8 @@ class iPXEMenu:
     entries: List[iPXEEntry] = field(default_factory=list)
     header_text: str = ""
     footer_text: str = ""
-    server_ip: str = settings.pxe_server_ip
-    http_port: int = settings.http_port
+    server_ip: str = ""  # filled by _apply_runtime_network_defaults from settings.json
+    http_port: int = 0  # filled by _apply_runtime_network_defaults from settings.json
 
     def __post_init__(self):
         """Sort entries by order after initialization"""

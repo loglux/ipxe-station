@@ -4,8 +4,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from .config import settings
-
 
 class IpxeEntryModel(BaseModel):
     name: str = Field(..., min_length=1, max_length=32, pattern=r"^[a-zA-Z0-9_-]+$")
@@ -36,8 +34,8 @@ class IpxeMenuModel(BaseModel):
     entries: List[IpxeEntryModel] = Field(default_factory=list)
     header_text: str = ""
     footer_text: str = ""
-    server_ip: str = settings.pxe_server_ip
-    http_port: int = settings.http_port
+    server_ip: str = ""  # filled by _apply_runtime_network_defaults from settings.json
+    http_port: int = 0  # filled by _apply_runtime_network_defaults from settings.json
 
     model_config = {
         "extra": "forbid",
