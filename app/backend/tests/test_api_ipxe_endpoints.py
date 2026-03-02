@@ -53,7 +53,9 @@ def test_generate_endpoint():
     assert resp.status_code == 200
     data = resp.json()
     assert data["valid"] is True
-    assert "kernel http://10.0.0.1:8080/http/ubuntu/vmlinuz" in data["script"]
+    # server_ip/http_port from payload are always overridden by live settings
+    assert "/http/ubuntu/vmlinuz" in data["script"]
+    assert "10.0.0.1" not in data["script"]
     assert isinstance(data["warnings"], list)
 
 

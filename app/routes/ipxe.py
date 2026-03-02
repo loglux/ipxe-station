@@ -54,17 +54,9 @@ def _default_menu_structure() -> dict:
 
 
 def _apply_runtime_network_defaults(menu: IpxeMenuModel) -> IpxeMenuModel:
-    """Apply backend settings when client did not provide explicit network values."""
-    settings = load_settings()
-    updates = {}
-
-    if menu.server_ip in {"", "localhost", "127.0.0.1"}:
-        updates["server_ip"] = settings.server_ip
-
-    if menu.http_port in {0, 8000}:
-        updates["http_port"] = settings.http_port
-
-    return menu.model_copy(update=updates) if updates else menu
+    """Always apply server_ip/http_port from live settings.json — these are server-side values."""
+    s = load_settings()
+    return menu.model_copy(update={"server_ip": s.server_ip, "http_port": s.http_port})
 
 
 def _parse_boot_ipxe(script_content: str) -> dict:
