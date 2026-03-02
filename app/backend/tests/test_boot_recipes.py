@@ -28,23 +28,36 @@ class TestUbuntuLiveRecipe:
             "iso": iso,
         }
 
-    def test_squashfs_present_produces_recommended_option(self):
+    def test_squashfs_present_produces_non_recommended_option_for_server_iso(self):
+        # Server squashfs (layered) — fetch= does NOT work, so not recommended
         entry = self._entry(squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs")
         opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
         assert len(opts) == 1
         opt = opts[0]
         assert opt.mode == "squashfs"
-        assert opt.recommended is True
+        assert opt.recommended is False
+        assert "Desktop only" in opt.label
         assert f"fetch={BASE}/ubuntu-22.04/casper/ubuntu-server-minimal.squashfs" in opt.cmdline
         assert "ip=dhcp" in opt.cmdline
 
-    def test_iso_present_produces_iso_option(self):
+    def test_squashfs_present_produces_recommended_option_for_desktop_iso(self):
+        # Desktop squashfs (single layer) — fetch= works fine, recommended
+        entry = self._entry(squashfs="ubuntu-22.04/casper/filesystem.squashfs")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
+        assert len(opts) == 1
+        opt = opts[0]
+        assert opt.mode == "squashfs"
+        assert opt.recommended is True
+        assert f"fetch={BASE}/ubuntu-22.04/casper/filesystem.squashfs" in opt.cmdline
+
+    def test_iso_present_produces_recommended_option_for_server_iso(self):
+        # Server ISO — url= is the only working option → recommended
         entry = self._entry(iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso")
         opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
         assert len(opts) == 1
         opt = opts[0]
         assert opt.mode == "iso"
-        assert opt.recommended is False
+        assert opt.recommended is True
         assert f"url={BASE}/ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso" in opt.cmdline
 
     def test_both_squashfs_and_iso_produces_two_options(self):

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import './BootFiles.css'
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 function BootFiles() {
   const [autoexec, setAutoexec] = useState('')
+  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false)
   const [templates, setTemplates] = useState({})
   const [selectedTemplate, setSelectedTemplate] = useState('direct')
   const [loading, setLoading] = useState(true)
@@ -94,10 +96,6 @@ function BootFiles() {
   }
 
   const disableAutoexec = async () => {
-    if (!confirm('Disable autoexec.ipxe bootstrap script? iPXE clients will need to boot directly to boot.ipxe via DHCP/chainloading.')) {
-      return
-    }
-
     setSaving(true)
     try {
       const response = await fetch('/api/boot/autoexec', {
@@ -193,13 +191,23 @@ function BootFiles() {
           </button>
           <button
             className="btn btn-danger"
-            onClick={disableAutoexec}
+            onClick={() => setDisableConfirmOpen(true)}
             disabled={saving}
           >
             🗑️ Delete
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={disableConfirmOpen}
+        title="Delete autoexec.ipxe?"
+        message="iPXE clients will need to boot directly to boot.ipxe via DHCP/chainloading."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => { setDisableConfirmOpen(false); disableAutoexec() }}
+        onCancel={() => setDisableConfirmOpen(false)}
+      />
     </div>
   )
 }

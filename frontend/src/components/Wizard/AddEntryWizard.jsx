@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import './AddEntryWizard.css'
+import LoadingSpinner from '../LoadingSpinner/LoadingSpinner'
 import { CATEGORIES, getScenariosByCategory, getScenario, createEntryFromScenario } from '../../data/scenarios'
 
 // Maps scenario ID → catalog key returned by /api/assets/catalog
@@ -305,7 +306,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
           )}
 
           {/* Boot mode selector — shown once recipe loads */}
-          {recipeLoading && <p className="form-hint">Loading boot options…</p>}
+          {recipeLoading && <LoadingSpinner size="sm" label="Loading boot options…" inline />}
           {recipeError && <p className="form-hint form-hint-error">{recipeError}</p>}
           {bootOptions.length > 1 && (
             <div className="form-group">

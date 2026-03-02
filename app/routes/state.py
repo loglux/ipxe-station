@@ -68,6 +68,9 @@ class SettingsModel(BaseModel):
     theme: str = "light"
     show_file_sizes: bool = True
     show_timestamps: bool = True
+    # Host-side path that the NAS exports via NFS (not the Docker-internal path).
+    # Used when generating NFS boot entries for Ubuntu Server ISOs.
+    nfs_root: str = os.getenv("NFS_ROOT", "")
 
 
 def load_settings() -> SettingsModel:
@@ -436,12 +439,28 @@ def _scan_distro_versions(prefix: str, base: Path):
                     if candidate.exists():
                         initrd = f"{path.name}/casper/{name}"
                         break
-            # Detect squashfs for Ubuntu casper boot
-            for sqname in ["ubuntu-server-minimal.squashfs", "filesystem.squashfs"]:
-                candidate = path / "casper" / sqname
-                if candidate.exists():
-                    squashfs = f"{path.name}/casper/{sqname}"
-                    break
+            # Detect squashfs for Ubuntu casper boot.
+            # merged.squashfs takes priority — it's a pre-merged single-layer squashfs
+            # that works with fetch= without needing NFS or full ISO in RAM.
+            casper = path / "casper"
+            merged_candidate = casper / "merged.squashfs"
+            if merged_candidate.exists():
+                squashfs = f"{path.name}/casper/merged.squashfs"
+            else:
+                for sqname in ["ubuntu-server-minimal.squashfs", "filesystem.squashfs"]:
+                    candidate = casper / sqname
+                    if candidate.exists():
+                        squashfs = f"{path.name}/casper/{sqname}"
+                        break
+
+        # needs_merge: Ubuntu Server layers present but merged.squashfs not yet built
+        needs_merge = False
+        if prefix not in ("rescue", "systemrescue", "kaspersky"):
+            casper = path / "casper"
+            server_layer = casper / "ubuntu-server-minimal.squashfs"
+            merged = casper / "merged.squashfs"
+            if server_layer.exists() and not merged.exists():
+                needs_merge = True
 
         for item in path.glob("*.iso"):
             iso = f"{path.name}/{item.name}"
@@ -458,6 +477,7 @@ def _scan_distro_versions(prefix: str, base: Path):
                 "iso": iso,
                 "wim": wim,
                 "squashfs": squashfs,
+                "needs_merge": needs_merge,
             }
         )
     return results

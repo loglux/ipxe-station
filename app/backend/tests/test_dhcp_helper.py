@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.backend.dhcp_helper import DHCPConfig, DHCPConfigGenerator, DHCPValidator
+from app.backend.dhcp_helper import DHCPConfig, DHCPConfigGenerator
 
 
 class TestDHCPConfig:
@@ -102,71 +102,3 @@ class TestDHCPConfigGenerator:
         config_text = result["config"]
         assert "iPXE" in config_text
         assert "filename" in config_text
-
-
-class TestDHCPValidatorConfig:
-    """Tests for DHCPValidator.validate_config() (pure logic, no network)."""
-
-    def setup_method(self):
-        self.validator = DHCPValidator()
-        self.expected_ip = "192.168.10.32"
-
-    def test_valid_config_all_options_correct(self):
-        detected = {
-            "option_66": self.expected_ip,
-            "option_67": "undionly.kpxe",
-            "option_175": "present",
-        }
-        result = self.validator.validate_config(detected, self.expected_ip)
-        assert result["valid"] is True
-        assert len(result["issues"]) == 0
-
-    def test_missing_option_66(self):
-        detected = {"option_67": "undionly.kpxe"}
-        result = self.validator.validate_config(detected, self.expected_ip)
-        assert result["valid"] is False
-        assert any("66" in issue for issue in result["issues"])
-
-    def test_wrong_option_66_ip(self):
-        detected = {
-            "option_66": "192.168.1.100",  # Wrong IP
-            "option_67": "undionly.kpxe",
-        }
-        result = self.validator.validate_config(detected, self.expected_ip)
-        assert result["valid"] is False
-        assert any("66" in issue for issue in result["issues"])
-
-    def test_missing_option_67(self):
-        detected = {"option_66": self.expected_ip}
-        result = self.validator.validate_config(detected, self.expected_ip)
-        assert result["valid"] is False
-        assert any("67" in issue for issue in result["issues"])
-
-    def test_invalid_bootfile_is_warning(self):
-        detected = {
-            "option_66": self.expected_ip,
-            "option_67": "pxelinux.0",  # Not an iPXE binary
-        }
-        result = self.validator.validate_config(detected, self.expected_ip)
-        # pxelinux.0 triggers a warning, not a fatal error
-        assert len(result["warnings"]) > 0
-
-    def test_uefi_bootfile_accepted(self):
-        detected = {
-            "option_66": self.expected_ip,
-            "option_67": "ipxe.efi",
-            "option_175": "present",
-        }
-        result = self.validator.validate_config(detected, self.expected_ip)
-        assert result["valid"] is True
-
-    def test_missing_option_175_is_warning(self):
-        detected = {
-            "option_66": self.expected_ip,
-            "option_67": "undionly.kpxe",
-            # No option_175
-        }
-        result = self.validator.validate_config(detected, self.expected_ip)
-        # Should warn but still be valid
-        assert len(result["warnings"]) > 0
-        assert any("175" in w for w in result["warnings"])

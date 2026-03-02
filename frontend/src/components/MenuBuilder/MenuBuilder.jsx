@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import './MenuBuilder.css'
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, onUpdateEntry, onDeleteEntry }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
+  const [pendingDelete, setPendingDelete] = useState(null) // entry object
 
   const toggleNode = (nodeName, e) => {
     e.stopPropagation()
@@ -68,9 +70,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
   const handleDelete = (entry, e) => {
     e.stopPropagation()
-    if (window.confirm(`Delete "${entry.title || entry.name}"?`)) {
-      onDeleteEntry(entry.name)
-    }
+    setPendingDelete(entry)
   }
 
   const renderEntry = (entry, level = 0) => {
@@ -162,6 +162,19 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
           ➕ Add Entry
         </button>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        title="Delete entry?"
+        message={pendingDelete ? `"${pendingDelete.title || pendingDelete.name}" will be removed from the menu.` : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => {
+          onDeleteEntry(pendingDelete.name)
+          setPendingDelete(null)
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './AssetManager.css'
 
 // Downloadable distros with URLs and menu configurations
@@ -123,6 +123,8 @@ const KASPERSKY_CONFIG = {
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
+  const [merging, setMerging] = useState({})       // version_dir → true/false
+  const [mergeStatus, setMergeStatus] = useState({}) // version_dir → step string
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
   const [downloadProgress, setDownloadProgress] = useState({}) // Track download progress percentages
@@ -131,6 +133,10 @@ function AssetManager() {
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
   const [kasperskyVersions, setKasperskyVersions] = useState([])
   const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
+  const [uploadDest, setUploadDest] = useState('')
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const uploadInputRef = useRef(null)
 
   const pollProgress = useCallback(async () => {
     try {
@@ -198,6 +204,53 @@ function AssetManager() {
       setCatalog(data)
     } catch (error) {
       console.error('Failed to fetch catalog:', error)
+    }
+  }
+
+  const mergeSquashfs = async (versionDir) => {
+    setMerging(prev => ({ ...prev, [versionDir]: true }))
+    setMergeStatus(prev => ({ ...prev, [versionDir]: 'Starting…' }))
+    try {
+      await fetch(`/api/assets/merge-squashfs?version_dir=${encodeURIComponent(versionDir)}`, { method: 'POST' })
+      // Poll for progress
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/assets/merge-progress?version_dir=${encodeURIComponent(versionDir)}`)
+          const data = await r.json()
+          setMergeStatus(prev => ({ ...prev, [versionDir]: data.step || '' }))
+          if (data.status === 'done' || data.status === 'error') {
+            clearInterval(poll)
+            setMerging(prev => ({ ...prev, [versionDir]: false }))
+            if (data.status === 'done') fetchCatalog()
+          }
+        } catch { clearInterval(poll) }
+      }, 3000)
+    } catch (e) {
+      setMergeStatus(prev => ({ ...prev, [versionDir]: `Error: ${e.message}` }))
+      setMerging(prev => ({ ...prev, [versionDir]: false }))
+    }
+  }
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadStatus(`Uploading ${file.name}…`)
+    const form = new FormData()
+    form.append('file', file)
+    if (uploadDest) form.append('dest', uploadDest)
+    try {
+      const resp = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.detail || 'Upload failed')
+      setUploadStatus(`✅ Saved: ${data.saved}`)
+      fetchAssets()
+      fetchCatalog()
+    } catch (err) {
+      setUploadStatus(`❌ ${err.message}`)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -398,13 +451,32 @@ function AssetManager() {
       <div className="asset-header">
         <h2>Asset Manager</h2>
         <div className="asset-actions">
-          <button className="btn btn-secondary" onClick={fetchCatalog}>
+          <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog() }}>
             🔄 Scan
           </button>
-          <button className="btn btn-primary">
-            📁 Upload Files
+          <input
+            type="text"
+            className="form-control"
+            style={{ width: '160px', fontSize: '13px' }}
+            placeholder="subfolder (optional)"
+            value={uploadDest}
+            onChange={(e) => setUploadDest(e.target.value)}
+            title="Destination subfolder inside /srv/http/ — leave empty for root"
+          />
+          <button
+            className="btn btn-primary"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={uploading}
+          >
+            📁 Upload File
           </button>
+          <input ref={uploadInputRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
         </div>
+        {uploadStatus && (
+          <div style={{ fontSize: '13px', marginTop: '6px', color: uploadStatus.startsWith('✅') ? 'var(--color-success)' : uploadStatus.startsWith('❌') ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+            {uploadStatus}
+          </div>
+        )}
       </div>
 
       <div className="asset-content">
@@ -416,23 +488,48 @@ function AssetManager() {
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group">
               <h4>🐧 Ubuntu</h4>
-              {catalog.ubuntu.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">
-                      ✅ Ubuntu {dist.version}
+              {catalog.ubuntu.map((dist, idx) => {
+                const versionDir = `ubuntu-${dist.version}`
+                const isMerging = merging[versionDir]
+                const squashfsLabel = dist.squashfs
+                  ? dist.squashfs.includes('merged') ? '✓ merged.squashfs ✅' : '⚠️ layered squashfs'
+                  : null
+                return (
+                  <div key={idx} className="distro-item">
+                    <div className="distro-info">
+                      <div className="distro-name">✅ Ubuntu {dist.version}</div>
+                      <div className="distro-files">
+                        {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                        {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                        {dist.iso && <span className="file-badge">✓ ISO</span>}
+                        {squashfsLabel && <span className="file-badge">{squashfsLabel}</span>}
+                      </div>
+                      {isMerging && (
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                          ⏳ {mergeStatus[versionDir]}
+                        </div>
+                      )}
+                      {!isMerging && mergeStatus[versionDir] && !dist.needs_merge && (
+                        <div style={{ fontSize: '12px', color: 'var(--color-success)', marginTop: '4px' }}>
+                          ✅ {mergeStatus[versionDir]}
+                        </div>
+                      )}
                     </div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                    <div className="distro-actions">
+                      {dist.needs_merge && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => mergeSquashfs(versionDir)}
+                          disabled={isMerging}
+                          title="Merge squashfs layers into one file — enables fast HTTP boot without NFS or full ISO in RAM"
+                        >
+                          {isMerging ? '⏳ Merging…' : '🔀 Merge layers'}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="distro-actions">
-                    <button className="btn btn-secondary btn-sm">Use in Menu</button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -451,9 +548,7 @@ function AssetManager() {
                       {dist.initrd && <span className="file-badge">✓ initrd</span>}
                     </div>
                   </div>
-                  <div className="distro-actions">
-                    <button className="btn btn-secondary btn-sm">Use in Menu</button>
-                  </div>
+                  <div className="distro-actions"></div>
                 </div>
               ))}
             </div>

@@ -11,6 +11,8 @@ RUN apt-get update && \
         wget curl \
         # ISO/Archive tools
         p7zip-full unzip gzip cpio \
+        # SquashFS tools (merge layers for Ubuntu Server netboot)
+        squashfs-tools \
         # Mount tools
         mount util-linux \
         # File system tools

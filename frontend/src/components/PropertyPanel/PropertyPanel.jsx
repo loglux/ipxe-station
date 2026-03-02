@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import './PropertyPanel.css'
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   if (!entry) {
     return (
@@ -297,17 +299,21 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
         </button>
         <button
           className="btn btn-danger btn-sm"
-          onClick={() => {
-            if (window.confirm(`Are you sure you want to delete "${entry.title || entry.name}"?`)) {
-              if (onDeleteEntry) {
-                onDeleteEntry(entry.name)
-              }
-            }
-          }}
+          onClick={() => setDeleteConfirmOpen(true)}
         >
           🗑️ Delete
         </button>
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        title="Delete entry?"
+        message={`"${entry.title || entry.name}" will be removed from the menu.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => { setDeleteConfirmOpen(false); onDeleteEntry?.(entry.name) }}
+        onCancel={() => setDeleteConfirmOpen(false)}
+      />
     </div>
   )
 }

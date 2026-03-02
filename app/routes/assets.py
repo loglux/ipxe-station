@@ -1,6 +1,8 @@
 """Asset management routes (download, upload, extract, catalog)."""
 
+import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -115,7 +117,122 @@ def assets_boot_recipe(version_path: str, scenario: str):
             status_code=404, detail=f"Version '{version_path}' not found in catalog"
         )
 
-    return get_recipe(scenario, entry, s.server_ip, s.http_port)
+    return get_recipe(scenario, entry, s.server_ip, s.http_port, nfs_root=s.nfs_root)
+
+
+@assets_router.post("/merge-squashfs")
+def merge_squashfs(version_dir: str):
+    """Merge all squashfs layers for a Ubuntu Server version into a single merged.squashfs.
+
+    Allows fetching via HTTP (fetch=) without NFS or downloading the full ISO to RAM.
+    The merge runs in a background thread; poll /api/assets/merge-progress for status.
+    """
+    version_path = _resolve_within_root(HTTP_ROOT, version_dir, path_label="version_dir")
+    casper_dir = version_path / "casper"
+
+    if not casper_dir.exists():
+        raise HTTPException(status_code=404, detail=f"No casper/ directory in {version_dir}")
+
+    # Collect non-hwe squashfs files sorted by layer depth (segment count in name)
+    # e.g. ubuntu-server-minimal.squashfs (1) → .ubuntu-server (2) → .installer (3) → .generic (4)  # noqa: E501
+    squashfs_files = sorted(
+        (
+            f
+            for f in casper_dir.glob("*.squashfs")
+            if "hwe" not in f.name and f.name != "merged.squashfs"
+        ),
+        key=lambda f: len(f.stem.split(".")),
+    )
+    if not squashfs_files:
+        raise HTTPException(status_code=404, detail="No squashfs layers found in casper/")
+
+    output = casper_dir / "merged.squashfs"
+    progress_key = f"merge_{version_dir}"
+
+    def _do_merge():
+        tmp_dir = Path(f"/tmp/merge_{version_dir}")
+        try:
+            with download_progress_lock:
+                download_progress[progress_key] = {
+                    "status": "running",
+                    "step": "Preparing…",
+                    "progress": 0,
+                }
+
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir)
+            tmp_dir.mkdir(parents=True)
+
+            total = len(squashfs_files)
+            for i, sqf in enumerate(squashfs_files):
+                with download_progress_lock:
+                    download_progress[progress_key][
+                        "step"
+                    ] = f"Extracting layer {i + 1}/{total}: {sqf.name}"
+                    download_progress[progress_key]["progress"] = int(i / (total + 1) * 75)
+                result = subprocess.run(
+                    ["unsquashfs", "-f", "-no-xattrs", "-d", str(tmp_dir), str(sqf)],
+                    capture_output=True,
+                )
+                # 0 = ok, 1/2 = partial errors (device nodes or hardlinks skipped in
+                # containers — normal because overlayfs whiteouts require CAP_MKNOD)
+                if result.returncode > 2:
+                    result.check_returncode()
+
+            # Strip device files (overlayfs whiteouts) — they can't be created in
+            # containers and would cause mksquashfs to fail or produce an invalid image
+            with download_progress_lock:
+                download_progress[progress_key]["step"] = "Removing device nodes…"
+            subprocess.run(
+                ["find", str(tmp_dir), "(", "-type", "c", "-o", "-type", "b", ")", "-delete"],
+                capture_output=True,
+            )
+
+            with download_progress_lock:
+                download_progress[progress_key][
+                    "step"
+                ] = "Compressing merged.squashfs (this takes a few minutes)…"
+                download_progress[progress_key]["progress"] = 80
+
+            if output.exists():
+                output.unlink()
+            subprocess.run(
+                ["mksquashfs", str(tmp_dir), str(output), "-noappend", "-comp", "xz"],
+                check=True,
+                capture_output=True,
+            )
+
+            size_mb = round(output.stat().st_size / 1024 / 1024)
+            add_log("system", "info", f"merged.squashfs created for {version_dir} ({size_mb} MB)")
+            with download_progress_lock:
+                download_progress[progress_key] = {
+                    "status": "done",
+                    "step": f"Done — {size_mb} MB",
+                    "progress": 100,
+                    "completed_at": time.time(),
+                }
+        except Exception as e:
+            add_log("system", "error", f"merge-squashfs failed for {version_dir}: {e}")
+            with download_progress_lock:
+                download_progress[progress_key] = {
+                    "status": "error",
+                    "step": str(e),
+                    "progress": 0,
+                    "completed_at": time.time(),
+                }
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    threading.Thread(target=_do_merge, daemon=True).start()
+    return {"status": "started", "progress_key": progress_key}
+
+
+@assets_router.get("/merge-progress")
+def get_merge_progress(version_dir: str):
+    """Poll progress of a running or completed merge-squashfs operation."""
+    progress_key = f"merge_{version_dir}"
+    with download_progress_lock:
+        return download_progress.get(progress_key, {"status": "not_started"})
 
 
 @assets_router.post("/download")

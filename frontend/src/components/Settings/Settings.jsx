@@ -12,7 +12,8 @@ export default function Settings({ isOpen, onClose }) {
     poll_interval: 2000,
     theme: 'light',
     show_file_sizes: true,
-    show_timestamps: true
+    show_timestamps: true,
+    nfs_root: ''
   })
 
   const [detecting, setDetecting] = useState(false)
@@ -150,6 +151,23 @@ export default function Settings({ isOpen, onClose }) {
                   min="1"
                   max="65535"
                 />
+              </label>
+            </div>
+          </section>
+
+          {/* NFS Settings */}
+          <section className="settings-section">
+            <h3>📂 NFS Boot</h3>
+            <div className="setting-group">
+              <label>
+                NFS Root Path:
+                <input
+                  type="text"
+                  value={settings.nfs_root}
+                  onChange={e => handleChange('nfs_root', e.target.value)}
+                  placeholder="/volume1/ipxe-station/data/srv/http"
+                />
+                <small>Host path exported by your NAS via NFS — used for Ubuntu Server network boot without downloading the full ISO. Leave empty to hide NFS option.</small>
               </label>
             </div>
           </section>

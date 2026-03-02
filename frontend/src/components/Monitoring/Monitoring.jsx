@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './Monitoring.css'
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 export default function Monitoring() {
   const [logs, setLogs] = useState([])
+  const [clearLogsConfirmOpen, setClearLogsConfirmOpen] = useState(false)
   const [logType, setLogType] = useState('all')
   const [logLevel, setLogLevel] = useState('all')
   const [isPaused, setIsPaused] = useState(false)
@@ -113,13 +115,11 @@ export default function Monitoring() {
   }
 
   const clearLogs = async () => {
-    if (confirm('Clear all logs? This cannot be undone.')) {
-      try {
-        await fetch('/api/monitoring/logs/clear', { method: 'POST' })
-        setLogs([])
-      } catch (error) {
-        console.error('Failed to clear logs:', error)
-      }
+    try {
+      await fetch('/api/monitoring/logs/clear', { method: 'POST' })
+      setLogs([])
+    } catch (error) {
+      console.error('Failed to clear logs:', error)
     }
   }
 
@@ -213,7 +213,7 @@ export default function Monitoring() {
 
             <button
               className="btn btn-sm btn-danger"
-              onClick={clearLogs}
+              onClick={() => setClearLogsConfirmOpen(true)}
               title="Clear all logs"
             >
               🗑️ Clear
@@ -351,6 +351,16 @@ export default function Monitoring() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={clearLogsConfirmOpen}
+        title="Clear all logs?"
+        message="This will permanently remove all log entries and cannot be undone."
+        confirmLabel="Clear"
+        danger
+        onConfirm={() => { setClearLogsConfirmOpen(false); clearLogs() }}
+        onCancel={() => setClearLogsConfirmOpen(false)}
+      />
     </div>
   )
 }

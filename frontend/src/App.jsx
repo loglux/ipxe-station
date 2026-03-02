@@ -11,6 +11,7 @@ import AddEntryWizard from './components/Wizard/AddEntryWizard'
 import Settings from './components/Settings/Settings'
 import Monitoring from './components/Monitoring/Monitoring'
 import BootFiles from './components/BootFiles/BootFiles'
+import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
@@ -29,6 +30,7 @@ function App() {
   const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
   const [menuTitle, setMenuTitle] = useState('PXE Boot Menu')
   const [menuTimeout, setMenuTimeout] = useState(30000)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
   const [generatedScript, setGeneratedScript] = useState('')
@@ -183,10 +185,6 @@ function App() {
   }
 
   const deleteMenu = async () => {
-    if (!confirm('Are you sure you want to delete the entire menu? This will remove both boot.ipxe and menu.json files. This action cannot be undone.')) {
-      return
-    }
-
     setSaving(true)
     try {
       const response = await fetch('/api/ipxe/menu', {
@@ -242,7 +240,7 @@ function App() {
           <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>⚙️ Settings</button>
           <button
             className="btn btn-danger"
-            onClick={deleteMenu}
+            onClick={() => setDeleteConfirmOpen(true)}
             disabled={saving}
             title="Delete entire menu (boot.ipxe and menu.json)"
           >
@@ -496,6 +494,16 @@ function App() {
       <Settings
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        title="Delete entire menu?"
+        message="This will remove both boot.ipxe and menu.json. This action cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => { setDeleteConfirmOpen(false); deleteMenu() }}
+        onCancel={() => setDeleteConfirmOpen(false)}
       />
     </div>
   )
