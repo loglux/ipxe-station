@@ -19,6 +19,8 @@ RUN apt-get update && \
         file tree \
         # System tools
         sudo procps \
+        # NFS client tools (showmount for NFS status check)
+        nfs-common \
         # Proxy DHCP
         dnsmasq \
         # Debug tools (optional)
