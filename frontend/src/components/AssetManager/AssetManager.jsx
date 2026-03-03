@@ -47,7 +47,7 @@ function SummaryCard({ title, icon, count, note, actionLabel, onAction }) {
 }
 
 function AssetManager() {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('ubuntu')
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
   const [downloading, setDownloading] = useState({})
@@ -531,221 +531,45 @@ function AssetManager() {
       </div>
 
       <div className="asset-tabs">
-        {[
-          ['overview', 'Overview'],
-          ['ubuntu', 'Ubuntu'],
-          ['debian', 'Debian'],
-          ['rescue', 'Rescue'],
-          ['files', 'Files'],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            className={`asset-tab ${activeTab === id ? 'active' : ''}`}
-            onClick={() => setActiveTab(id)}
-          >
-            {label}
-          </button>
-        ))}
+        <SummaryCard
+          title="Ubuntu"
+          icon="🐧"
+          count={`${ubuntuCount} version${ubuntuCount === 1 ? '' : 's'}`}
+          note={ubuntuCount > 0 ? 'Server/Desktop assets found in catalog.' : 'No Ubuntu assets found yet.'}
+          actionLabel="Open Ubuntu"
+          onAction={() => setActiveTab('ubuntu')}
+        />
+        <SummaryCard
+          title="Debian"
+          icon="🌀"
+          count={`${debianCount} version${debianCount === 1 ? '' : 's'}`}
+          note={debianCount > 0 ? 'Installer and/or Live assets found in catalog.' : 'No Debian assets found yet.'}
+          actionLabel="Open Debian"
+          onAction={() => setActiveTab('debian')}
+        />
+        <SummaryCard
+          title="Rescue"
+          icon="🛟"
+          count={`${rescueCount} product${rescueCount === 1 ? '' : 's'}`}
+          note={rescueCount > 0 ? 'SystemRescue or Kaspersky assets are present.' : 'No rescue assets found yet.'}
+          actionLabel="Open Rescue"
+          onAction={() => setActiveTab('rescue')}
+        />
+        <SummaryCard
+          title="Files"
+          icon="📁"
+          count={`${totalHttpFiles} file${totalHttpFiles === 1 ? '' : 's'}`}
+          note="Current /srv/http inventory."
+          actionLabel="Browse Files"
+          onAction={() => setActiveTab('files')}
+        />
       </div>
 
       <div className="asset-content">
-        {/* Discovered Distributions */}
-        <section
-          className="asset-section"
-          style={{ display: activeTab === 'files' ? 'none' : 'block' }}
-        >
-          <h3>{activeTab === 'overview' ? '📊 Overview' : '⬇️ Downloads'}</h3>
-
-          <div
-            className="summary-grid"
-            style={{ display: activeTab === 'overview' ? 'grid' : 'none' }}
-          >
-            <SummaryCard
-              title="Ubuntu"
-              icon="🐧"
-              count={`${ubuntuCount} version${ubuntuCount === 1 ? '' : 's'}`}
-              note={ubuntuCount > 0 ? 'Server/Desktop assets found in catalog.' : 'No Ubuntu assets found yet.'}
-              actionLabel="Open Ubuntu"
-              onAction={() => setActiveTab('ubuntu')}
-            />
-            <SummaryCard
-              title="Debian"
-              icon="🌀"
-              count={`${debianCount} version${debianCount === 1 ? '' : 's'}`}
-              note={debianCount > 0 ? 'Installer and/or Live assets found in catalog.' : 'No Debian assets found yet.'}
-              actionLabel="Open Debian"
-              onAction={() => setActiveTab('debian')}
-            />
-            <SummaryCard
-              title="Rescue"
-              icon="🛟"
-              count={`${rescueCount} product${rescueCount === 1 ? '' : 's'}`}
-              note={rescueCount > 0 ? 'SystemRescue or Kaspersky assets are present.' : 'No rescue assets found yet.'}
-              actionLabel="Open Rescue"
-              onAction={() => setActiveTab('rescue')}
-            />
-            <SummaryCard
-              title="Files"
-              icon="📁"
-              count={`${totalHttpFiles} file${totalHttpFiles === 1 ? '' : 's'}`}
-              note="Current /srv/http inventory."
-              actionLabel="Browse Files"
-              onAction={() => setActiveTab('files')}
-            />
-          </div>
-
-          <div
-            className="overview-alerts"
-            style={{ display: activeTab === 'overview' ? 'flex' : 'none' }}
-          >
-            <div className={`overview-alert ${nfsReady ? 'ok' : 'warn'}`}>
-              {nfsReady ? '✅ NFS looks available for Ubuntu Server boot.' : '⚠️ NFS is not confirmed. Ubuntu Server NFS boot may be unavailable.'}
-            </div>
-            <div className={`overview-alert ${debianCount > 0 ? 'ok' : 'warn'}`}>
-              {debianCount > 0 ? '✅ Debian assets are present and should be selectable in Builder.' : '⚠️ No Debian assets in catalog yet. Go to the Debian tab to download them.'}
-            </div>
-            <div className={`overview-alert ${ubuntuCount > 0 ? 'ok' : 'warn'}`}>
-              {ubuntuCount > 0 ? '✅ Ubuntu assets are present and ready for Builder flows.' : '⚠️ No Ubuntu assets in catalog yet. Go to the Ubuntu tab to download them.'}
-            </div>
-          </div>
-
-          {/* Ubuntu */}
-          {activeTab === 'overview' && catalog.ubuntu && catalog.ubuntu.length > 0 && (
-            <div className="distro-group">
-              <h4>🐧 Ubuntu</h4>
-              {catalog.ubuntu.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ Ubuntu {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* NFS Boot Status */}
-          {activeTab === 'overview' && catalog.ubuntu && catalog.ubuntu.length > 0 && (
-            <div className="distro-group" style={{ marginTop: '12px' }}>
-              <h4>
-                📡 NFS Boot (Ubuntu Server)
-                <button
-                  className="btn btn-sm btn-secondary"
-                  style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
-                  onClick={fetchNfsStatus}
-                  title="Refresh NFS status"
-                >↻ Check</button>
-              </h4>
-              {!nfsStatus || nfsStatus.loading ? (
-                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Checking NFS…</p>
-              ) : !nfsStatus.running ? (
-                <div style={{ fontSize: '13px' }}>
-                  <span style={{ color: 'var(--color-danger)' }}>❌ NFS not running on host</span>
-                  <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
-                    — needed for Ubuntu Server PXE boot
-                  </span>
-                  <div style={{ marginTop: '6px', color: 'var(--color-text-secondary)', fontFamily: 'monospace', fontSize: '12px' }}>
-                    sudo bash scripts/setup-nfs.sh
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: '13px' }}>
-                  <div style={{ marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--color-success)' }}>✅ NFS running</span>
-                    {nfsStatus.exports?.length > 0 && (
-                      <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
-                        exports: {nfsStatus.exports.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  {catalog.ubuntu.map((dist) => {
-                    const dir = `ubuntu-${dist.version}`
-                    const covered = nfsStatus.covered?.includes(dir)
-                    const serverIp = window.location.hostname
-                    // Use showmount export, or nfs_root from Settings, or placeholder
-                    const exportBase = nfsStatus.exports?.[0] || nfsStatus.nfs_root || null
-                    const nfsroot = exportBase
-                      ? `${serverIp}:${exportBase.replace(/\/$/, '')}/${dir}`
-                      : null
-                    const cmdline = nfsroot
-                      ? `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
-                      : null
-                    return (
-                      <div key={dir} style={{ marginBottom: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-                        <div style={{ marginBottom: '4px' }}>
-                          {covered
-                            ? <span style={{ color: 'var(--color-success)' }}>✅ Ubuntu {dist.version} — export confirmed</span>
-                            : cmdline
-                              ? <span style={{ color: 'var(--color-warning)' }}>⚠️ Ubuntu {dist.version} — path from Settings, verify manually</span>
-                              : <span style={{ color: 'var(--color-danger)' }}>❌ Ubuntu {dist.version} — set NFS Root Path in Settings first</span>
-                          }
-                        </div>
-                        {cmdline ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <code style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flex: 1, wordBreak: 'break-all' }}>
-                              {cmdline}
-                            </code>
-                            <button
-                              className="btn btn-sm btn-secondary"
-                              style={{ flexShrink: 0, fontSize: '11px', padding: '2px 8px' }}
-                              onClick={() => {
-                                try { navigator.clipboard.writeText(cmdline) } catch {
-                                  const ta = document.createElement('textarea')
-                                  ta.value = cmdline
-                                  document.body.appendChild(ta)
-                                  ta.select()
-                                  document.execCommand('copy')
-                                  document.body.removeChild(ta)
-                                }
-                              }}
-                            >📋 Copy</button>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                            Go to <strong>Settings → NFS Boot</strong> and set the host export path
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Debian */}
-          {activeTab === 'overview' && catalog.debian && catalog.debian.length > 0 && (
-            <div className="distro-group">
-              <h4>🌀 Debian</h4>
-              {catalog.debian.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">
-                      ✅ Debian {dist.version}
-                    </div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                  <div className="distro-actions"></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Quick Download Section */}
-          <div
-            className="download-section"
-            style={{ display: ['ubuntu', 'debian', 'rescue'].includes(activeTab) ? 'block' : 'none' }}
-          >
+        {activeTab !== 'files' && (
+        <section className="asset-section">
+          <h3>⬇️ Downloads</h3>
+          <div className="download-section">
             <h4>⬇️ Quick Download</h4>
             <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
               Download boot assets directly into the catalog. Debian netboot downloads only the installer bootstrap, not a full Live ISO.
@@ -1269,6 +1093,7 @@ function AssetManager() {
             </div>
           </div>
         </section>
+        )}
 
         {/* All Files */}
         <section className="asset-section" style={{ display: activeTab === 'files' ? 'block' : 'none' }}>
