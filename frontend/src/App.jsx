@@ -450,21 +450,19 @@ function App() {
               </div>
             )}
 
-            {activeTab === 'assets' && (
+            {/* Keep components mounted to preserve state (download progress, etc.) */}
+            <div style={{ display: activeTab === 'assets' ? '' : 'none' }}>
               <AssetManager />
-            )}
-
-            {activeTab === 'dhcp' && (
+            </div>
+            <div style={{ display: activeTab === 'dhcp' ? '' : 'none' }}>
               <DHCPHelper settingsVersion={settingsVersion} />
-            )}
-
-            {activeTab === 'boot' && (
+            </div>
+            <div style={{ display: activeTab === 'boot' ? '' : 'none' }}>
               <BootFiles />
-            )}
-
-            {activeTab === 'monitoring' && (
+            </div>
+            <div style={{ display: activeTab === 'monitoring' ? '' : 'none' }}>
               <Monitoring />
-            )}
+            </div>
           </div>
         </main>
 
