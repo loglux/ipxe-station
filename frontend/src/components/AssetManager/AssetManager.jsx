@@ -50,6 +50,7 @@ function AssetManager() {
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const uploadInputRef = useRef(null)
+  const debianProductsRef = useRef([])
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
 
@@ -74,16 +75,17 @@ function AssetManager() {
 
         const activeDownloads = {}
         const completedDownloads = {}
+        const currentDebianProducts = debianProductsRef.current
         Object.keys(data.downloads).forEach(key => {
           const status = data.downloads[key].status
           if (status === 'downloading' || status === 'extracting') {
-            debianProducts.forEach(distro => {
+            currentDebianProducts.forEach(distro => {
               if (key.includes(distro.dest_folder)) {
                 activeDownloads[distro.id] = true
               }
             })
           } else if (status === 'extracted' || status === 'complete') {
-            debianProducts.forEach(distro => {
+            currentDebianProducts.forEach(distro => {
               if (key.includes(distro.dest_folder)) {
                 completedDownloads[distro.id] = false
               }
@@ -101,7 +103,7 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch progress:', error)
     }
-  }, [debianProducts])
+  }, [])
 
   const fetchNfsStatus = useCallback(async () => {
     setNfsStatus(prev => ({ ...prev, loading: true }))
@@ -155,12 +157,14 @@ function AssetManager() {
       const data = await response.json()
       const products = data.products || []
       setDebianProducts(products)
+      debianProductsRef.current = products
       products.forEach((product) => {
         if (product.iso_url) checkUrl(product.iso_url)
       })
     } catch (error) {
       console.error('Failed to fetch Debian products:', error)
       setDebianProducts([])
+      debianProductsRef.current = []
     }
   }
 
