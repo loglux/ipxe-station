@@ -751,6 +751,99 @@ function AssetManager() {
               Download boot assets directly into the catalog. Debian netboot downloads only the installer bootstrap, not a full Live ISO.
             </p>
 
+            {activeTab === 'ubuntu' && catalog.ubuntu && catalog.ubuntu.length > 0 && (
+              <div className="distro-group">
+                <h4>✅ Existing Ubuntu Assets</h4>
+                {catalog.ubuntu.map((dist, idx) => (
+                  <div key={idx} className="distro-item">
+                    <div className="distro-info">
+                      <div className="distro-name">Ubuntu {dist.version}</div>
+                      <div className="distro-files">
+                        {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                        {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                        {dist.iso && <span className="file-badge">✓ ISO</span>}
+                        {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === 'ubuntu' && (
+              <div className="distro-group" style={{ marginTop: '12px' }}>
+                <h4>
+                  📡 NFS Boot (Ubuntu Server)
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
+                    onClick={fetchNfsStatus}
+                    title="Refresh NFS status"
+                  >↻ Check</button>
+                </h4>
+                {!nfsStatus || nfsStatus.loading ? (
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Checking NFS…</p>
+                ) : !nfsStatus.running ? (
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: 'var(--color-danger)' }}>❌ NFS not running on host</span>
+                    <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                      — needed for Ubuntu Server PXE boot
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: 'var(--color-success)' }}>✅ NFS running</span>
+                    {nfsStatus.exports?.length > 0 && (
+                      <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                        exports: {nfsStatus.exports.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'debian' && catalog.debian && catalog.debian.length > 0 && (
+              <div className="distro-group">
+                <h4>✅ Existing Debian Assets</h4>
+                {catalog.debian.map((dist, idx) => (
+                  <div key={idx} className="distro-item">
+                    <div className="distro-info">
+                      <div className="distro-name">Debian {dist.version}</div>
+                      <div className="distro-files">
+                        {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                        {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                        {dist.iso && <span className="file-badge">✓ ISO</span>}
+                        {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === 'rescue' && (
+              <div className="distro-group">
+                <h4>✅ Existing Rescue Assets</h4>
+                {catalog.rescue && catalog.rescue.length > 0 ? (
+                  catalog.rescue.map((dist, idx) => (
+                    <div key={`rescue-${idx}`} className="distro-item">
+                      <div className="distro-info">
+                        <div className="distro-name">SystemRescue {dist.version}</div>
+                        <div className="distro-files">
+                          {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                          {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                          {dist.iso && <span className="file-badge">✓ ISO</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted">No rescue assets found yet.</p>
+                )}
+              </div>
+            )}
+
             {/* Ubuntu — dynamic version picker */}
             <div style={{ display: activeTab === 'ubuntu' ? 'block' : 'none', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
               <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
