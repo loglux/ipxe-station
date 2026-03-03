@@ -380,7 +380,18 @@ function App() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(buildMenuPayload()),
                           }).then(r => r.json()).catch(() => null)
-                          if (result?.script) await navigator.clipboard.writeText(result.script)
+                          if (result?.script) {
+                            try {
+                              await navigator.clipboard.writeText(result.script)
+                            } catch {
+                              const ta = document.createElement('textarea')
+                              ta.value = result.script
+                              document.body.appendChild(ta)
+                              ta.select()
+                              document.execCommand('copy')
+                              document.body.removeChild(ta)
+                            }
+                          }
                         }}
                       >
                         📋 Copy
