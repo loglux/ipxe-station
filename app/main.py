@@ -167,6 +167,30 @@ def _autostart_proxy_dhcp():
 _autostart_proxy_dhcp()
 
 
+def _proxy_dhcp_watchdog():
+    """Restart dnsmasq if it should be running but has died."""
+    import time
+
+    from app.routes.proxy_dhcp import _manager as _proxy_manager
+
+    while True:
+        time.sleep(30)
+        try:
+            s = _proxy_manager.load_settings()
+            if s.enabled and not _proxy_manager.is_running():
+                add_log("dhcp", "warning", "Proxy DHCP died — restarting automatically")
+                result = _proxy_manager.start(s)
+                if result.get("success"):
+                    add_log("dhcp", "info", f"Proxy DHCP restarted (pid {result.get('pid')})")
+                else:
+                    add_log("dhcp", "error", f"Proxy DHCP restart failed: {result.get('error')}")
+        except Exception as exc:
+            add_log("dhcp", "warning", f"Proxy DHCP watchdog error: {exc}")
+
+
+threading.Thread(target=_proxy_dhcp_watchdog, daemon=True, name="proxy-dhcp-watchdog").start()
+
+
 # ---------------------------------------------------------------------------
 # Frontend (Vite SPA)
 # ---------------------------------------------------------------------------

@@ -116,14 +116,25 @@ class ProxyDHCPManager:
         return {"success": True, "pid": pid}
 
     def stop(self) -> dict:
-        """Send SIGTERM to the dnsmasq process and clean up."""
+        """Send SIGTERM to the dnsmasq process; SIGKILL if it lingers."""
         pid = self.get_pid()
         if pid is None:
             return {"success": True, "message": "Not running"}
 
         try:
             os.kill(pid, 15)  # SIGTERM
-            time.sleep(0.3)
+            # Wait up to 2 s for graceful exit
+            for _ in range(20):
+                time.sleep(0.1)
+                if not Path(f"/proc/{pid}").exists():
+                    break
+            else:
+                # Process still alive — force-kill
+                try:
+                    os.kill(pid, 9)  # SIGKILL
+                    time.sleep(0.1)
+                except ProcessLookupError:
+                    pass
         except ProcessLookupError:
             pass  # Already gone
         except PermissionError as exc:
