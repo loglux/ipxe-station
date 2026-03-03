@@ -98,7 +98,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `boot=casper iso-scan/filename=/ubuntu-\${version}.iso quiet splash`,
+      cmdline: `ip=dhcp boot=casper url=http://\${server_ip}:\${port}/http/ubuntu-\${version}/ubuntu-\${version}-live-server-amd64.iso`,
     }),
 
     assetDiscovery: {
@@ -160,7 +160,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `auto=true priority=critical url=http://\${server_ip}:\${port}/preseed.cfg`,
+      cmdline: `ip=dhcp auto=true priority=critical url=http://\${server_ip}:\${port}/preseed.cfg`,
     }),
 
     help: `
@@ -239,7 +239,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `archisobasedir=sysresccd checksum`,
+      cmdline: `ip=dhcp archisobasedir=sysresccd`,
     }),
 
     assetDiscovery: {

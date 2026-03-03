@@ -119,7 +119,7 @@ def systemrescue_recipe(
             label="SystemRescue via HTTP",
             kernel=entry.get("kernel") or "",
             initrd=entry.get("initrd") or "",
-            cmdline=f"archisobasedir=sysresccd archiso_http_srv={base_url}",
+            cmdline=f"ip=dhcp archisobasedir=sysresccd archiso_http_srv={base_url}",
             recommended=True,
         )
     ]
