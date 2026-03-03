@@ -91,6 +91,9 @@ function AssetManager() {
   const [ubuntuVersions, setUbuntuVersions] = useState([])
   const [selectedUbuntuVersion, setSelectedUbuntuVersion] = useState(null)
   const [ubuntuLoading, setUbuntuLoading] = useState(false)
+  const [ubuntuDesktopVersions, setUbuntuDesktopVersions] = useState([])
+  const [selectedUbuntuDesktopVersion, setSelectedUbuntuDesktopVersion] = useState(null)
+  const [ubuntuDesktopLoading, setUbuntuDesktopLoading] = useState(false)
   const [uploadDest, setUploadDest] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -163,6 +166,7 @@ function AssetManager() {
     fetchAssets()
     fetchCatalog()
     fetchUbuntuVersions()
+    fetchUbuntuDesktopVersions()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
     fetchNfsStatus()
@@ -258,6 +262,49 @@ function AssetManager() {
       console.error('Failed to fetch Ubuntu versions:', error)
     } finally {
       setUbuntuLoading(false)
+    }
+  }
+
+  const fetchUbuntuDesktopVersions = async () => {
+    setUbuntuDesktopLoading(true)
+    try {
+      const response = await fetch('/api/assets/versions/ubuntu/desktop')
+      const data = await response.json()
+      setUbuntuDesktopVersions(data.versions || [])
+      if (data.versions && data.versions.length > 0) {
+        setSelectedUbuntuDesktopVersion(data.versions[0])
+        checkUrl(data.versions[0].iso_url)
+      }
+    } catch (error) {
+      console.error('Failed to fetch Ubuntu Desktop versions:', error)
+    } finally {
+      setUbuntuDesktopLoading(false)
+    }
+  }
+
+  const downloadUbuntuDesktop = async () => {
+    if (!selectedUbuntuDesktopVersion) return
+    const distroId = 'ubuntu-desktop-' + selectedUbuntuDesktopVersion.version
+    setDownloading(prev => ({ ...prev, [distroId]: true }))
+    try {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: 'Downloading ISO... (~5–6 GB, may take a while)' }))
+      const isoDest = `${selectedUbuntuDesktopVersion.dest_folder}/${selectedUbuntuDesktopVersion.iso_name}`
+      const resp = await fetch('/api/assets/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: selectedUbuntuDesktopVersion.iso_url, dest: isoDest })
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.detail || 'Failed to download ISO')
+      }
+      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded!' }))
+      setTimeout(() => { fetchCatalog(); setDownloadStatus(prev => ({ ...prev, [distroId]: '' })) }, 2000)
+    } catch (error) {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
+      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [distroId]: '' })), 5000)
+    } finally {
+      setDownloading(prev => ({ ...prev, [distroId]: false }))
     }
   }
 
@@ -694,6 +741,86 @@ function AssetManager() {
                 </div>
               )}
             </div>
+            {/* Ubuntu Desktop — dynamic version picker */}
+            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+              <h4 style={{ marginBottom: '4px' }}>🖥️ Ubuntu Desktop (LTS)</h4>
+              <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
+                Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
+              </p>
+              {ubuntuDesktopLoading ? (
+                <p className="text-sm text-muted">Loading available versions...</p>
+              ) : ubuntuDesktopVersions.length > 0 ? (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
+                    <select
+                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      value={selectedUbuntuDesktopVersion?.version || ''}
+                      onChange={(e) => {
+                        const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
+                        setSelectedUbuntuDesktopVersion(v)
+                        if (v?.iso_url) checkUrl(v.iso_url)
+                      }}
+                    >
+                      {ubuntuDesktopVersions.map(v => (
+                        <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                      ))}
+                    </select>
+                    {selectedUbuntuDesktopVersion?.iso_url && (
+                      <div style={{ marginTop: '4px' }}>
+                        <UrlBadge url={selectedUbuntuDesktopVersion.iso_url} urlStatus={urlStatus} />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ minWidth: '300px' }}>
+                    {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
+                      downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                          Ubuntu Desktop ISO
+                          {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracting' &&
+                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
+                          }
+                          {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracted' &&
+                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
+                              ✓ Extracted ({downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].file_count} files)
+                            </span>
+                          }
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                          <span>{downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%</span>
+                          <span>
+                            {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                            {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                        </div>
+                      </div>
+                    )}
+                    {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] && (
+                      <div className="download-status" style={{ marginBottom: '8px' }}>
+                        {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
+                      </div>
+                    )}
+                    <button
+                      className="btn btn-primary"
+                      onClick={downloadUbuntuDesktop}
+                      disabled={!selectedUbuntuDesktopVersion || downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
+                    >
+                      {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>Could not load versions from releases.ubuntu.com</p>
+                  <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuDesktopVersions}>🔄 Retry</button>
+                </div>
+              )}
+            </div>
+
             <div className="download-grid">
               {DOWNLOADABLE_DISTROS.map(distro => (
                 <div key={distro.id} className="download-card">

@@ -517,6 +517,58 @@ def get_ubuntu_versions():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Ubuntu versions: {exc}")
 
 
+@assets_router.get("/versions/ubuntu/desktop")
+def get_ubuntu_desktop_versions():
+    """Fetch available Ubuntu Desktop ISO versions from releases.ubuntu.com."""
+    import re
+
+    try:
+        main_url = "https://releases.ubuntu.com/"
+        resp = requests.get(main_url, timeout=10)
+        resp.raise_for_status()
+
+        major_versions = re.findall(r'href="(\d+\.04)/"', resp.text)
+        active = sorted({v for v in major_versions if float(v) >= 20.04}, reverse=True)
+
+        result = []
+        for major_ver in active[:6]:
+            try:
+                dir_resp = requests.get(f"{main_url}{major_ver}/", timeout=10)
+                dir_resp.raise_for_status()
+
+                desktop_isos = sorted(
+                    set(re.findall(r"ubuntu-[\d.]+-desktop-amd64\.iso", dir_resp.text)),
+                    key=lambda x: [int(n) for n in re.findall(r"\d+", x)],
+                    reverse=True,
+                )
+                if not desktop_isos:
+                    continue
+
+                latest = desktop_isos[0]
+                m = re.search(r"ubuntu-([\d.]+)-desktop", latest)
+                full_ver = m.group(1) if m else major_ver
+                result.append(
+                    {
+                        "version": major_ver,
+                        "full_version": full_ver,
+                        "name": f"Ubuntu {full_ver} LTS Desktop",
+                        "iso_name": latest,
+                        "iso_url": f"{main_url}{major_ver}/{latest}",
+                        "dest_folder": f"ubuntu-{major_ver}-desktop",
+                        "size_est": "~5–6 GB",
+                    }
+                )
+            except Exception:
+                continue
+
+        return {"versions": result}
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch Ubuntu Desktop versions: {exc}"
+        )
+
+
 @assets_router.get("/nfs-status")
 def nfs_status():
     """Check whether an NFS server is running on the host and covers the required distro dirs."""

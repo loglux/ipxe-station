@@ -122,6 +122,8 @@ class TestUbuntuDesktopRecipe:
         assert "ignore_uuid" in nfs.cmdline
         assert "fsck.mode=skip" in nfs.cmdline
         assert "cloud-init=disabled" not in nfs.cmdline
+        # root=/dev/nfs must NOT appear — it conflicts with casper's NFS medium setup
+        assert "root=/dev/nfs" not in nfs.cmdline
 
     def test_desktop_nfs_24_04_has_cloud_init_disabled(self):
         entry = self._entry(version="24.04", squashfs="ubuntu-24.04/casper/filesystem.squashfs")

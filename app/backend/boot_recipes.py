@@ -106,8 +106,8 @@ def ubuntu_live_recipe(
             )
         else:
             nfs_cmdline = (
-                f"root=/dev/nfs boot=casper netboot=nfs nfsroot={server_ip}:{nfs_path} "
-                f"ip=dhcp ignore_uuid fsck.mode=skip {cloud_init_flag}quiet splash"
+                f"ip=dhcp boot=casper netboot=nfs nfsroot={server_ip}:{nfs_path} "
+                f"ignore_uuid fsck.mode=skip {cloud_init_flag}quiet splash"
             )
 
         opts.append(
