@@ -608,6 +608,41 @@ def get_ubuntu_versions():
         raise HTTPException(status_code=500, detail=f"Failed to fetch Ubuntu versions: {exc}")
 
 
+@assets_router.get("/nfs-status")
+def nfs_status():
+    """Check whether an NFS server is running on the host."""
+    import socket
+
+    result = {"rpcbind": False, "nfs": False, "exports": None, "error": None}
+
+    # Check ports 111 (rpcbind) and 2049 (NFS) — works because network_mode=host
+    for port, key in ((111, "rpcbind"), (2049, "nfs")):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                result[key] = True
+        except OSError:
+            pass
+
+    # Try showmount -e to list exports
+    if result["nfs"]:
+        try:
+            out = subprocess.run(
+                ["showmount", "-e", "--no-headers", "127.0.0.1"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if out.returncode == 0:
+                result["exports"] = [
+                    line.split()[0] for line in out.stdout.splitlines() if line.strip()
+                ]
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass  # showmount not installed — ports are enough
+
+    result["running"] = result["rpcbind"] and result["nfs"]
+    return result
+
+
 @assets_router.get("/check-url")
 def check_url(url: str):
     """Check if a remote URL is accessible via HEAD request."""
