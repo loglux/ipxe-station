@@ -98,6 +98,7 @@ function AssetManager() {
   const [uploading, setUploading] = useState(false)
   const uploadInputRef = useRef(null)
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
+  const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
 
   const checkUrl = useCallback(async (url) => {
     if (!url) return
@@ -149,17 +150,29 @@ function AssetManager() {
     }
   }, [])
 
+  const fetchNfsStatus = useCallback(async () => {
+    setNfsStatus(prev => ({ ...prev, loading: true }))
+    try {
+      const r = await fetch('/api/assets/nfs-status')
+      const data = await r.json()
+      setNfsStatus({ ...data, loading: false })
+    } catch {
+      setNfsStatus({ running: false, loading: false, error: 'Request failed' })
+    }
+  }, [])
+
   useEffect(() => {
     fetchAssets()
     fetchCatalog()
     fetchUbuntuVersions()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
+    fetchNfsStatus()
     pollProgress()
 
     const interval = setInterval(pollProgress, 2000)
     return () => clearInterval(interval)
-  }, [pollProgress, checkUrl])
+  }, [pollProgress, checkUrl, fetchNfsStatus])
 
   const fetchAssets = async () => {
     try {
@@ -549,6 +562,84 @@ function AssetManager() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* NFS Boot Status */}
+          {catalog.ubuntu && catalog.ubuntu.length > 0 && (
+            <div className="distro-group" style={{ marginTop: '12px' }}>
+              <h4>
+                📡 NFS Boot (Ubuntu Server)
+                <button
+                  className="btn btn-sm btn-secondary"
+                  style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
+                  onClick={fetchNfsStatus}
+                  title="Refresh NFS status"
+                >↻ Check</button>
+              </h4>
+              {!nfsStatus || nfsStatus.loading ? (
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Checking NFS…</p>
+              ) : !nfsStatus.running ? (
+                <div style={{ fontSize: '13px' }}>
+                  <span style={{ color: 'var(--color-danger)' }}>❌ NFS not running on host</span>
+                  <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                    — needed for Ubuntu Server PXE boot
+                  </span>
+                  <div style={{ marginTop: '6px', color: 'var(--color-text-secondary)', fontFamily: 'monospace', fontSize: '12px' }}>
+                    sudo bash scripts/setup-nfs.sh
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '13px' }}>
+                  <div style={{ marginBottom: '6px' }}>
+                    <span style={{ color: 'var(--color-success)' }}>✅ NFS running</span>
+                    {nfsStatus.exports?.length > 0 && (
+                      <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                        exports: {nfsStatus.exports.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  {catalog.ubuntu.map((dist) => {
+                    const dir = `ubuntu-${dist.version}`
+                    const covered = nfsStatus.covered?.includes(dir)
+                    const exportPath = nfsStatus.exports?.[0]
+                    const serverIp = window.location.hostname
+                    const nfsroot = exportPath
+                      ? `${serverIp}:${exportPath}/${dir}`
+                      : `${serverIp}:/path/to/data/srv/http/${dir}`
+                    const cmdline = `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
+                    return (
+                      <div key={dir} style={{ marginBottom: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
+                        <div style={{ marginBottom: '4px' }}>
+                          {covered
+                            ? <span style={{ color: 'var(--color-success)' }}>✅ Ubuntu {dist.version} — covered by export</span>
+                            : <span style={{ color: 'var(--color-warning)' }}>⚠️ Ubuntu {dist.version} — verify export path manually</span>
+                          }
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <code style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flex: 1, wordBreak: 'break-all' }}>
+                            {cmdline}
+                          </code>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            style={{ flexShrink: 0, fontSize: '11px', padding: '2px 8px' }}
+                            onClick={() => {
+                              try { navigator.clipboard.writeText(cmdline) } catch {
+                                const ta = document.createElement('textarea')
+                                ta.value = cmdline
+                                document.body.appendChild(ta)
+                                ta.select()
+                                document.execCommand('copy')
+                                document.body.removeChild(ta)
+                              }
+                            }}
+                          >📋 Copy</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 

@@ -610,10 +610,17 @@ def get_ubuntu_versions():
 
 @assets_router.get("/nfs-status")
 def nfs_status():
-    """Check whether an NFS server is running on the host."""
+    """Check whether an NFS server is running on the host and covers the required distro dirs."""
     import socket
 
-    result = {"rpcbind": False, "nfs": False, "exports": None, "error": None}
+    result = {
+        "running": False,
+        "rpcbind": False,
+        "nfs": False,
+        "exports": None,
+        "covered": [],  # ubuntu/rescue/kaspersky dirs covered by an export
+        "missing": [],  # dirs present on disk but not covered by any export
+    }
 
     # Check ports 111 (rpcbind) and 2049 (NFS) — works because network_mode=host
     for port, key in ((111, "rpcbind"), (2049, "nfs")):
@@ -623,8 +630,11 @@ def nfs_status():
         except OSError:
             pass
 
+    result["running"] = result["rpcbind"] and result["nfs"]
+
     # Try showmount -e to list exports
-    if result["nfs"]:
+    exports: list[str] = []
+    if result["running"]:
         try:
             out = subprocess.run(
                 ["showmount", "-e", "--no-headers", "127.0.0.1"],
@@ -633,13 +643,25 @@ def nfs_status():
                 timeout=5,
             )
             if out.returncode == 0:
-                result["exports"] = [
-                    line.split()[0] for line in out.stdout.splitlines() if line.strip()
-                ]
+                exports = [line.split()[0] for line in out.stdout.splitlines() if line.strip()]
+                result["exports"] = exports
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass  # showmount not installed — ports are enough
+            pass  # showmount not installed — port check is enough
 
-    result["running"] = result["rpcbind"] and result["nfs"]
+    # Cross-check: which distro dirs on disk are covered by an NFS export?
+    # The container maps host paths into /srv/http, but showmount returns the HOST path.
+    # We check by basename matching: if any export ends with or contains the version dir name.
+    distro_dirs = [p.name for p in HTTP_ROOT.iterdir() if p.is_dir()] if HTTP_ROOT.exists() else []
+    for d in distro_dirs:
+        covered = any(
+            exp.endswith(d) or f"/{d}/" in exp or exp.endswith("/http") or "/srv/http" in exp
+            for exp in exports
+        )
+        if covered:
+            result["covered"].append(d)
+        else:
+            result["missing"].append(d)
+
     return result
 
 
