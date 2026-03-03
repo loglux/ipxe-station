@@ -53,14 +53,16 @@ wait_ready() {
 cmd_deploy() {
     info "Full deploy: build frontend → build image → (re)start container"
     build_frontend
-    $COMPOSE up -d --build --force-recreate
+    $COMPOSE down --remove-orphans
+    $COMPOSE up -d --build
     wait_ready
 }
 
 cmd_redeploy() {
     info "Redeploy: rebuild image + frontend, restart container"
     build_frontend
-    $COMPOSE up -d --build --force-recreate
+    $COMPOSE down --remove-orphans
+    $COMPOSE up -d --build
     wait_ready
 }
 
