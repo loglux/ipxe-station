@@ -11,75 +11,148 @@ from app.backend.boot_recipes import (
 SERVER_IP = "192.168.10.32"
 PORT = 9021
 BASE = f"http://{SERVER_IP}:{PORT}/http"
+NFS_ROOT = "/srv/nfs/http"
 
 
 # ---------------------------------------------------------------------------
-# ubuntu_live_recipe
+# ubuntu_live_recipe — Server ISO
 # ---------------------------------------------------------------------------
 
 
-class TestUbuntuLiveRecipe:
-    def _entry(self, squashfs=None, iso=None):
+class TestUbuntuServerRecipe:
+    def _entry(self, version="22.04", squashfs=None, iso=None):
         return {
-            "version": "22.04",
-            "kernel": "ubuntu-22.04/casper/vmlinuz",
-            "initrd": "ubuntu-22.04/casper/initrd",
+            "version": version,
+            "kernel": f"ubuntu-{version}/casper/vmlinuz",
+            "initrd": f"ubuntu-{version}/casper/initrd",
             "squashfs": squashfs,
             "iso": iso,
         }
 
-    def test_squashfs_present_produces_non_recommended_option_for_server_iso(self):
-        # Server squashfs (layered) — fetch= does NOT work, so not recommended
+    def test_server_nfs_option_when_nfs_root_configured(self):
         entry = self._entry(squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs")
-        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "squashfs"
-        assert opt.recommended is False
-        assert "Desktop only" in opt.label
-        assert f"fetch={BASE}/ubuntu-22.04/casper/ubuntu-server-minimal.squashfs" in opt.cmdline
-        assert "ip=dhcp" in opt.cmdline
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        nfs = next((o for o in opts if o.mode == "nfs"), None)
+        assert nfs is not None
+        assert nfs.recommended is True
+        assert "netboot=nfs" in nfs.cmdline
+        assert f"nfsroot={SERVER_IP}:{NFS_ROOT}/ubuntu-22.04" in nfs.cmdline
+        assert "ignore_uuid" in nfs.cmdline
+        assert "cloud-config-url=/dev/null" in nfs.cmdline
+        assert "ip=dhcp" in nfs.cmdline
 
-    def test_squashfs_present_produces_recommended_option_for_desktop_iso(self):
-        # Desktop squashfs (single layer) — fetch= works fine, recommended
-        entry = self._entry(squashfs="ubuntu-22.04/casper/filesystem.squashfs")
-        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "squashfs"
-        assert opt.recommended is True
-        assert f"fetch={BASE}/ubuntu-22.04/casper/filesystem.squashfs" in opt.cmdline
+    def test_server_nfs_not_present_when_nfs_root_empty(self):
+        entry = self._entry(squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root="")
+        assert all(o.mode != "nfs" for o in opts)
 
-    def test_iso_present_produces_recommended_option_for_server_iso(self):
-        # Server ISO — url= is the only working option → recommended
+    def test_server_iso_22_04_has_correct_ramdisk(self):
         entry = self._entry(iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso")
         opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "iso"
-        assert opt.recommended is True
-        assert f"url={BASE}/ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso" in opt.cmdline
+        iso_opt = next(o for o in opts if o.mode == "iso")
+        assert "ramdisk_size=1500000" in iso_opt.cmdline
+        assert "root=/dev/ram0" in iso_opt.cmdline
+        assert "cloud-config-url=/dev/null" in iso_opt.cmdline
+        assert f"url={BASE}/ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso" in iso_opt.cmdline
 
-    def test_both_squashfs_and_iso_produces_two_options(self):
-        entry = self._entry(
-            squashfs="ubuntu-22.04/casper/filesystem.squashfs",
-            iso="ubuntu-22.04/ubuntu-22.04.iso",
-        )
+    def test_server_iso_24_04_has_larger_ramdisk(self):
+        entry = self._entry(version="24.04", iso="ubuntu-24.04/ubuntu-24.04-live-server-amd64.iso")
         opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 2
+        iso_opt = next(o for o in opts if o.mode == "iso")
+        assert "ramdisk_size=2500000" in iso_opt.cmdline
+        assert "root=/dev/ram0" in iso_opt.cmdline
+
+    def test_server_iso_recommended_when_no_nfs(self):
+        entry = self._entry(iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root="")
+        assert next(o for o in opts if o.mode == "iso").recommended is True
+
+    def test_server_iso_not_recommended_when_nfs_available(self):
+        entry = self._entry(
+            squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs",
+            iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
+        )
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        assert next(o for o in opts if o.mode == "iso").recommended is False
+
+    def test_no_squashfs_mode_for_server(self):
+        """fetch= is broken on Ubuntu 22.04+ — squashfs mode must never appear."""
+        entry = self._entry(
+            squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs",
+            iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
+        )
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        assert all(o.mode != "squashfs" for o in opts)
+
+    def test_server_with_nfs_and_iso_shows_both(self):
+        entry = self._entry(
+            squashfs="ubuntu-22.04/casper/ubuntu-server-minimal.squashfs",
+            iso="ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
+        )
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
         modes = {o.mode for o in opts}
-        assert modes == {"squashfs", "iso"}
-        sq = next(o for o in opts if o.mode == "squashfs")
-        assert sq.recommended is True
+        assert modes == {"nfs", "iso"}
+        assert next(o for o in opts if o.mode == "nfs").recommended is True
+        assert next(o for o in opts if o.mode == "iso").recommended is False
 
     def test_no_files_returns_empty(self):
-        entry = self._entry()
+        assert ubuntu_live_recipe(self._entry(), SERVER_IP, PORT) == []
+
+
+# ---------------------------------------------------------------------------
+# ubuntu_live_recipe — Desktop ISO
+# ---------------------------------------------------------------------------
+
+
+class TestUbuntuDesktopRecipe:
+    def _entry(self, version="22.04", squashfs=None, iso=None):
+        return {
+            "version": version,
+            "kernel": f"ubuntu-{version}/casper/vmlinuz",
+            "initrd": f"ubuntu-{version}/casper/initrd",
+            "squashfs": squashfs,
+            "iso": iso,
+        }
+
+    def test_desktop_nfs_22_04_no_cloud_init_disabled(self):
+        entry = self._entry(squashfs="ubuntu-22.04/casper/filesystem.squashfs")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        nfs = next(o for o in opts if o.mode == "nfs")
+        assert "netboot=nfs" in nfs.cmdline
+        assert "ignore_uuid" in nfs.cmdline
+        assert "fsck.mode=skip" in nfs.cmdline
+        assert "cloud-init=disabled" not in nfs.cmdline
+
+    def test_desktop_nfs_24_04_has_cloud_init_disabled(self):
+        entry = self._entry(version="24.04", squashfs="ubuntu-24.04/casper/filesystem.squashfs")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        nfs = next(o for o in opts if o.mode == "nfs")
+        assert "cloud-init=disabled" in nfs.cmdline
+
+    def test_desktop_iso_22_04_cmdline(self):
+        entry = self._entry(iso="ubuntu-22.04/ubuntu-22.04-desktop-amd64.iso")
         opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
-        assert opts == []
+        iso_opt = next(o for o in opts if o.mode == "iso")
+        assert "boot=casper" in iso_opt.cmdline
+        assert "cloud-config-url=/dev/null" in iso_opt.cmdline
+        assert "cloud-init=disabled" not in iso_opt.cmdline
+        assert "root=/dev/ram0" not in iso_opt.cmdline
+
+    def test_desktop_iso_24_04_has_cloud_init_disabled(self):
+        entry = self._entry(version="24.04", iso="ubuntu-24.04/ubuntu-24.04-desktop-amd64.iso")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
+        iso_opt = next(o for o in opts if o.mode == "iso")
+        assert "cloud-init=disabled" in iso_opt.cmdline
+
+    def test_no_squashfs_mode_for_desktop(self):
+        """fetch= is broken on Ubuntu 22.04+ — squashfs mode must never appear."""
+        entry = self._entry(squashfs="ubuntu-22.04/casper/filesystem.squashfs")
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
+        assert all(o.mode != "squashfs" for o in opts)
 
     def test_kernel_and_initrd_propagated(self):
         entry = self._entry(squashfs="ubuntu-22.04/casper/filesystem.squashfs")
-        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT)
+        opts = ubuntu_live_recipe(entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
         assert opts[0].kernel == "ubuntu-22.04/casper/vmlinuz"
         assert opts[0].initrd == "ubuntu-22.04/casper/initrd"
 
@@ -102,14 +175,14 @@ class TestSystemRescueRecipe:
     def test_single_http_option(self):
         opts = systemrescue_recipe(self._entry(), SERVER_IP, PORT)
         assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "http"
-        assert opt.recommended is True
+        assert opts[0].mode == "http"
+        assert opts[0].recommended is True
 
-    def test_cmdline_contains_base_url(self):
+    def test_cmdline_contains_base_url_and_ip_dhcp(self):
         opts = systemrescue_recipe(self._entry(), SERVER_IP, PORT)
         assert f"archiso_http_srv={BASE}/rescue-11.01/" in opts[0].cmdline
         assert "archisobasedir=sysresccd" in opts[0].cmdline
+        assert "ip=dhcp" in opts[0].cmdline
 
 
 # ---------------------------------------------------------------------------
@@ -136,18 +209,14 @@ class TestKasperskyRecipe:
             "iso": None,
         }
 
-    # --- KRD 18 ---
-
     def test_krd18_produces_netboot_option(self):
         opts = kaspersky_recipe(self._entry_krd18(), SERVER_IP, PORT)
         assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "netboot"
-        assert opt.recommended is True
+        assert opts[0].mode == "netboot"
+        assert opts[0].recommended is True
 
-    def test_krd18_cmdline_contains_netboot_url(self):
-        opts = kaspersky_recipe(self._entry_krd18(), SERVER_IP, PORT)
-        cmdline = opts[0].cmdline
+    def test_krd18_cmdline(self):
+        cmdline = kaspersky_recipe(self._entry_krd18(), SERVER_IP, PORT)[0].cmdline
         assert f"netboot={BASE}/kaspersky-18/krd/" in cmdline
         assert "dostartx" in cmdline
         assert "net.ifnames=0" in cmdline
@@ -158,47 +227,37 @@ class TestKasperskyRecipe:
         assert opts[0].kernel == "kaspersky-18/krd/boot/grub/k-x86_64"
         assert opts[0].initrd == "kaspersky-18/krd/boot/grub/initrd.xz"
 
-    # --- KRD 24 ---
+    def test_krd24_iso_recommended(self):
+        opts = kaspersky_recipe(self._entry_krd24(iso="kaspersky-24/krd-24.iso"), SERVER_IP, PORT)
+        assert opts[0].mode == "iso"
+        assert opts[0].recommended is True
+        assert f"fetch={BASE}/kaspersky-24/krd-24.iso" in opts[0].cmdline
+        assert "boot=live" in opts[0].cmdline
 
-    def test_iso_present_produces_recommended_iso_option(self):
-        entry = self._entry_krd24(iso="kaspersky-24/krd-24.iso")
-        opts = kaspersky_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "iso"
-        assert opt.recommended is True
-        assert f"fetch={BASE}/kaspersky-24/krd-24.iso" in opt.cmdline
-        assert "boot=live" in opt.cmdline
-
-    def test_squashfs_present_produces_squashfs_option(self):
-        entry = self._entry_krd24(squashfs="kaspersky-24/live/filesystem.squashfs")
-        opts = kaspersky_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "squashfs"
-        assert f"fetch={BASE}/kaspersky-24/live/filesystem.squashfs" in opt.cmdline
-
-    def test_both_iso_and_squashfs_produces_two_options(self):
-        entry = self._entry_krd24(
-            iso="kaspersky-24/krd-24.iso",
-            squashfs="kaspersky-24/live/filesystem.squashfs",
+    def test_krd24_squashfs_option(self):
+        opts = kaspersky_recipe(
+            self._entry_krd24(squashfs="kaspersky-24/live/filesystem.squashfs"), SERVER_IP, PORT
         )
-        opts = kaspersky_recipe(entry, SERVER_IP, PORT)
-        assert len(opts) == 2
-        modes = {o.mode for o in opts}
-        assert modes == {"iso", "squashfs"}
-        iso_opt = next(o for o in opts if o.mode == "iso")
-        assert iso_opt.recommended is True
+        assert opts[0].mode == "squashfs"
+        assert f"fetch={BASE}/kaspersky-24/live/filesystem.squashfs" in opts[0].cmdline
 
-    def test_fallback_no_files_returns_iso_with_guessed_url(self):
-        entry = self._entry_krd24()
-        opts = kaspersky_recipe(entry, SERVER_IP, PORT)
+    def test_krd24_both_iso_and_squashfs(self):
+        opts = kaspersky_recipe(
+            self._entry_krd24(
+                iso="kaspersky-24/krd-24.iso",
+                squashfs="kaspersky-24/live/filesystem.squashfs",
+            ),
+            SERVER_IP,
+            PORT,
+        )
+        assert {o.mode for o in opts} == {"iso", "squashfs"}
+        assert next(o for o in opts if o.mode == "iso").recommended is True
+
+    def test_krd24_fallback_no_files(self):
+        opts = kaspersky_recipe(self._entry_krd24(), SERVER_IP, PORT)
         assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "iso"
-        assert opt.recommended is True
-        assert "fetch=" in opt.cmdline
-        assert "boot=live" in opt.cmdline
+        assert opts[0].mode == "iso"
+        assert "fetch=" in opts[0].cmdline
 
 
 # ---------------------------------------------------------------------------
@@ -219,10 +278,9 @@ class TestDebianRecipe:
     def test_single_netboot_option(self):
         opts = debian_recipe(self._entry(), SERVER_IP, PORT)
         assert len(opts) == 1
-        opt = opts[0]
-        assert opt.mode == "netboot"
-        assert opt.recommended is True
-        assert "ip=dhcp" in opt.cmdline
+        assert opts[0].mode == "netboot"
+        assert opts[0].recommended is True
+        assert "ip=dhcp" in opts[0].cmdline
 
 
 # ---------------------------------------------------------------------------
@@ -242,28 +300,43 @@ class TestGetRecipe:
         assert result["options"] == []
         assert result["error"] is not None
 
-    def test_ubuntu_live_with_squashfs_success(self):
+    def test_ubuntu_server_with_nfs_returns_nfs_and_iso(self):
         entry = {
             "version": "22.04",
             "kernel": "ubuntu-22.04/casper/vmlinuz",
             "initrd": "ubuntu-22.04/casper/initrd",
-            "squashfs": "ubuntu-22.04/casper/filesystem.squashfs",
-            "iso": None,
+            "squashfs": "ubuntu-22.04/casper/ubuntu-server-minimal.squashfs",
+            "iso": "ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
         }
-        result = get_recipe("ubuntu_live", entry, SERVER_IP, PORT)
+        result = get_recipe("ubuntu_live", entry, SERVER_IP, PORT, nfs_root=NFS_ROOT)
+        assert result["error"] is None
+        modes = {o["mode"] for o in result["options"]}
+        assert "nfs" in modes
+        assert "iso" in modes
+        assert "squashfs" not in modes
+        assert next(o for o in result["options"] if o["mode"] == "nfs")["recommended"] is True
+
+    def test_ubuntu_server_no_nfs_returns_iso_recommended(self):
+        entry = {
+            "version": "22.04",
+            "kernel": "ubuntu-22.04/casper/vmlinuz",
+            "initrd": "ubuntu-22.04/casper/initrd",
+            "squashfs": "ubuntu-22.04/casper/ubuntu-server-minimal.squashfs",
+            "iso": "ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
+        }
+        result = get_recipe("ubuntu_live", entry, SERVER_IP, PORT, nfs_root="")
         assert result["error"] is None
         assert len(result["options"]) == 1
-        opt = result["options"][0]
-        assert opt["recommended"] is True
-        assert "fetch=" in opt["cmdline"]
+        assert result["options"][0]["mode"] == "iso"
+        assert result["options"][0]["recommended"] is True
 
     def test_result_has_all_required_keys(self):
         entry = {
             "version": "22.04",
             "kernel": "ubuntu-22.04/casper/vmlinuz",
             "initrd": "ubuntu-22.04/casper/initrd",
-            "squashfs": "ubuntu-22.04/casper/filesystem.squashfs",
-            "iso": None,
+            "squashfs": None,
+            "iso": "ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
         }
         result = get_recipe("ubuntu_live", entry, SERVER_IP, PORT)
         opt = result["options"][0]
@@ -305,14 +378,13 @@ class TestGetRecipe:
         assert result["error"] is None
         assert result["options"][0]["mode"] == "netboot"
 
-    def test_ubuntu_netboot_alias(self):
-        """ubuntu_netboot uses the same recipe function as ubuntu_live."""
+    def test_ubuntu_netboot_alias_same_as_ubuntu_live(self):
         entry = {
             "version": "22.04",
             "kernel": "ubuntu-22.04/casper/vmlinuz",
             "initrd": "ubuntu-22.04/casper/initrd",
-            "squashfs": "ubuntu-22.04/casper/filesystem.squashfs",
-            "iso": None,
+            "squashfs": None,
+            "iso": "ubuntu-22.04/ubuntu-22.04-live-server-amd64.iso",
         }
         r1 = get_recipe("ubuntu_live", entry, SERVER_IP, PORT)
         r2 = get_recipe("ubuntu_netboot", entry, SERVER_IP, PORT)
