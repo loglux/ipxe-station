@@ -58,9 +58,9 @@ cmd_deploy() {
 }
 
 cmd_redeploy() {
-    info "Redeploy without rebuilding image (frontend + restart)"
+    info "Redeploy: rebuild image + frontend, restart container"
     build_frontend
-    $COMPOSE restart
+    $COMPOSE up -d --build
     wait_ready
 }
 
@@ -122,7 +122,7 @@ cmd_help() {
 
   Commands:
     deploy      Build frontend + Docker image, start container   (first run / Dockerfile changed)
-    redeploy    Rebuild frontend, restart container              (Python code changes)
+    redeploy    Rebuild image + frontend, restart container      (Dockerfile / requirements changed)
     frontend    Rebuild frontend only, no container restart      (JS/CSS changes)
 
     start       docker-compose up -d
@@ -136,7 +136,7 @@ cmd_help() {
     info        Show data directory sizes and installed versions
 
   When to use what:
-    Dockerfile / requirements.txt changed  →  deploy
+    Dockerfile / requirements.txt changed  →  deploy  or  redeploy
     Python (app/) changed                  →  restart   (uvicorn --reload picks it up automatically)
     Frontend (frontend/src/) changed       →  frontend  (then Ctrl+Shift+R in browser)
 
