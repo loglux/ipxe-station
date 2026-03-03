@@ -29,6 +29,7 @@ function UrlBadge({ url, urlStatus }) {
 }
 
 function AssetManager() {
+  const [activeTab, setActiveTab] = useState('overview')
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
   const [downloading, setDownloading] = useState({})
@@ -505,9 +506,27 @@ function AssetManager() {
         )}
       </div>
 
+      <div className="asset-tabs">
+        {[
+          ['overview', 'Overview'],
+          ['ubuntu', 'Ubuntu'],
+          ['debian', 'Debian'],
+          ['rescue', 'Rescue'],
+          ['files', 'Files'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            className={`asset-tab ${activeTab === id ? 'active' : ''}`}
+            onClick={() => setActiveTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="asset-content">
         {/* Discovered Distributions */}
-        <section className="asset-section">
+        <section className="asset-section" style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
           <h3>📊 Discovered Distributions</h3>
 
           {/* Ubuntu */}
@@ -643,14 +662,17 @@ function AssetManager() {
           )}
 
           {/* Quick Download Section */}
-          <div className="download-section">
+          <div
+            className="download-section"
+            style={{ display: ['ubuntu', 'debian', 'rescue'].includes(activeTab) ? 'block' : 'none' }}
+          >
             <h4>⬇️ Quick Download</h4>
             <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
               Download boot assets directly into the catalog. Debian netboot downloads only the installer bootstrap, not a full Live ISO.
             </p>
 
             {/* Ubuntu — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ display: activeTab === 'ubuntu' ? 'block' : 'none', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
               <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
@@ -716,7 +738,7 @@ function AssetManager() {
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ display: activeTab === 'ubuntu' ? 'block' : 'none', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
               <h4 style={{ marginBottom: '4px' }}>🖥️ Ubuntu Desktop (LTS)</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
@@ -795,7 +817,7 @@ function AssetManager() {
               )}
             </div>
 
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: activeTab === 'debian' ? 'block' : 'none', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
               <h4 style={{ marginBottom: '4px' }}>🌀 Debian Downloads</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
                 Backend-owned Debian products from official Debian sources: installer bootstrap, netinst ISO, and live ISO.
@@ -897,7 +919,7 @@ function AssetManager() {
             </div>
 
             {/* SystemRescue Version Selector */}
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: activeTab === 'rescue' ? 'block' : 'none', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
               <h4>🛟 SystemRescue</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
                 Select a version to download
@@ -983,7 +1005,7 @@ function AssetManager() {
             </div>
 
             {/* Kaspersky Rescue Disk Version Selector */}
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: activeTab === 'rescue' ? 'block' : 'none', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
               <h4>🛡️ Kaspersky Rescue Disk</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
                 Select a version to download (ISO will need to be extracted)
@@ -1076,7 +1098,7 @@ function AssetManager() {
         </section>
 
         {/* All Files */}
-        <section className="asset-section">
+        <section className="asset-section" style={{ display: activeTab === 'files' ? 'block' : 'none' }}>
           <h3>📁 All Files</h3>
           <div className="file-tree">
             <div className="file-tree-header">/srv/http/</div>
