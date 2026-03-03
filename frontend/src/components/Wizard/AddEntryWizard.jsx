@@ -3,6 +3,22 @@ import './AddEntryWizard.css'
 import LoadingSpinner from '../LoadingSpinner/LoadingSpinner'
 import { CATEGORIES, getScenariosByCategory, getScenario, createEntryFromScenario } from '../../data/scenarios'
 
+// Maps boot mode → short label used in entry title
+const MODE_TITLE_LABELS = {
+  iso:      'ISO',
+  squashfs: 'Squashfs',
+  nfs:      'NFS',
+  http:     'HTTP',
+  netboot:  'Netboot',
+}
+
+// Build entry title: strip existing parenthetical from displayName, add mode label
+const buildTitle = (displayName, version, mode) => {
+  const base = displayName.replace(/\s*\([^)]*\)\s*$/, '').trim()
+  const modeLabel = MODE_TITLE_LABELS[mode]
+  return modeLabel ? `${base} (${modeLabel}) ${version}` : `${base} ${version}`
+}
+
 // Maps scenario ID → catalog key returned by /api/assets/catalog
 const SCENARIO_CATALOG_KEY = {
   ubuntu_netboot: 'ubuntu',
@@ -50,7 +66,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedBootOption(null)
     setRecipeError(null)
 
-    // Update title to include version
+    // Update title to include version (mode refined after recipe loads)
     const scenario = getScenario(selectedScenario)
     setEntryTitle(`${scenario.displayName} ${version.version}`)
 
@@ -70,6 +86,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         setKernel(rec.kernel)
         setInitrd(rec.initrd)
         setCmdline(rec.cmdline)
+        setEntryTitle(buildTitle(scenario.displayName, version.version, rec.mode))
       }
     } catch {
       setRecipeError('Failed to load boot recipe')
@@ -326,6 +343,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                         setKernel(opt.kernel)
                         setInitrd(opt.initrd)
                         setCmdline(opt.cmdline)
+                        const sc = getScenario(selectedScenario)
+                        if (selectedVersion) {
+                          setEntryTitle(buildTitle(sc.displayName, selectedVersion.version, opt.mode))
+                        }
                       }}
                     />
                     <span>{opt.label}</span>
