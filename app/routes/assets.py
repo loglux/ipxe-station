@@ -18,6 +18,7 @@ from .state import (
     add_log,
     download_progress,
     download_progress_lock,
+    load_settings,
 )
 
 assets_router = APIRouter(prefix="/api/assets", tags=["assets"])
@@ -160,6 +161,7 @@ def download_asset(request: DownloadRequest):
     target.parent.mkdir(parents=True, exist_ok=True)
 
     progress_key = str(target.relative_to(HTTP_ROOT.resolve()))
+    tmp_target = target.with_suffix(target.suffix + ".tmp")
 
     try:
         with requests.get(request.url, stream=True, timeout=(30, 600)) as r:
@@ -177,7 +179,7 @@ def download_asset(request: DownloadRequest):
             add_log("download", "info", f"Started downloading {progress_key} ({total_size} bytes)")
 
             downloaded = 0
-            with open(target, "wb") as fh:
+            with open(tmp_target, "wb") as fh:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         fh.write(chunk)
@@ -193,6 +195,9 @@ def download_asset(request: DownloadRequest):
                                     "status": "downloading",
                                 }
 
+        # Atomically move completed download to final path
+        tmp_target.replace(target)
+
         with download_progress_lock:
             download_progress[progress_key] = {
                 "downloaded": downloaded,
@@ -204,7 +209,8 @@ def download_asset(request: DownloadRequest):
 
         add_log("download", "info", f"Completed downloading {progress_key} ({downloaded} bytes)")
 
-        if target.suffix.lower() == ".iso":
+        auto_extract = load_settings().auto_extraction
+        if auto_extract and target.suffix.lower() == ".iso":
             with download_progress_lock:
                 download_progress[progress_key]["status"] = "extracting"
             add_log("download", "info", f"Starting ISO extraction for {progress_key}")
@@ -239,6 +245,7 @@ def download_asset(request: DownloadRequest):
                 )
 
     except Exception as exc:
+        tmp_target.unlink(missing_ok=True)
         with download_progress_lock:
             download_progress[progress_key] = {
                 "downloaded": 0,
@@ -283,16 +290,22 @@ def get_all_download_progress():
 
 @assets_router.post("/upload")
 async def upload_asset(file: UploadFile = File(...), dest: str = ""):
-    """Upload a file into /srv/http/<dest> (relative)."""
+    """Upload a file into /srv/http/<dest> (relative), streamed in chunks."""
     target_dir = _resolve_within_root(HTTP_ROOT, dest, allow_empty=True, path_label="dest")
     target_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = _validate_filename(file.filename)
     target_path = _resolve_within_root(target_dir, safe_filename, path_label="filename")
+    tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
     try:
-        with open(target_path, "wb") as fh:
-            content = await file.read()
-            fh.write(content)
+        with open(tmp_path, "wb") as fh:
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1 MB chunks
+                if not chunk:
+                    break
+                fh.write(chunk)
+        tmp_path.replace(target_path)
     except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
     return {"saved": str(target_path.relative_to(HTTP_ROOT))}
 
