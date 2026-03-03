@@ -91,6 +91,28 @@ def assets_catalog():
     }
 
 
+def _autodetect_nfs_root() -> str:
+    """Return NFS root path from showmount if NFS is running, else empty string.
+
+    Used as a fallback when nfs_root is not configured in settings.
+    The user can override this by setting nfs_root explicitly in Settings.
+    """
+    try:
+        out = subprocess.run(
+            ["showmount", "-e", "--no-headers", "127.0.0.1"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if out.returncode == 0:
+            exports = [line.split()[0] for line in out.stdout.splitlines() if line.strip()]
+            if exports:
+                return exports[0]
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    return ""
+
+
 @assets_router.get("/boot-recipe")
 def assets_boot_recipe(version_path: str, scenario: str):
     """Return boot options (kernel/initrd/cmdline) for a distro version + scenario.
@@ -103,6 +125,10 @@ def assets_boot_recipe(version_path: str, scenario: str):
     from .state import load_settings
 
     s = load_settings()
+
+    # Use configured nfs_root if set; otherwise auto-detect from showmount.
+    # Settings nfs_root acts as an explicit override (e.g. non-standard export path).
+    nfs_root = s.nfs_root or _autodetect_nfs_root()
 
     # Derive catalog prefix from the directory name (e.g. "ubuntu-22.04" → "ubuntu")
     prefix = version_path.split("-")[0]
@@ -117,7 +143,7 @@ def assets_boot_recipe(version_path: str, scenario: str):
             status_code=404, detail=f"Version '{version_path}' not found in catalog"
         )
 
-    return get_recipe(scenario, entry, s.server_ip, s.http_port, nfs_root=s.nfs_root)
+    return get_recipe(scenario, entry, s.server_ip, s.http_port, nfs_root=nfs_root)
 
 
 @assets_router.post("/merge-squashfs")
