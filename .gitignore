@@ -31,6 +31,11 @@ secrets/
 
 # Backup files
 *.old
+*.bak
+
+# Custom iPXE builds (local experiments — see ROADMAP.md for build notes)
+*-custom.kpxe
+*-custom.efi
 
 # Frontend build output (generated, not committed)
 app/frontend/dist/
