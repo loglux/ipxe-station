@@ -308,7 +308,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
           {/* Boot mode selector — shown once recipe loads */}
           {recipeLoading && <LoadingSpinner size="sm" label="Loading boot options…" inline />}
           {recipeError && <p className="form-hint form-hint-error">{recipeError}</p>}
-          {bootOptions.length > 1 && (
+          {bootOptions.length > 0 && (
             <div className="form-group">
               <label>Boot Mode</label>
               <div className="boot-option-list">
