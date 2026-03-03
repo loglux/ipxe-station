@@ -648,14 +648,20 @@ def nfs_status():
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass  # showmount not installed — port check is enough
 
-    # Cross-check: which distro dirs on disk are covered by an NFS export?
-    # The container maps host paths into /srv/http, but showmount returns the HOST path.
-    # We check by basename matching: if any export ends with or contains the version dir name.
+    # Include nfs_root from settings — gives frontend the configured host path
+    from app.routes.state import load_settings as _load_settings
+
+    _s = _load_settings()
+    result["nfs_root"] = _s.nfs_root  # "" if not configured
+
+    # Cross-check: which distro dirs on disk are covered by an NFS export or nfs_root?
+    # showmount returns host paths; nfs_root is the explicit host path configured by user.
+    all_paths = list(exports) + ([_s.nfs_root] if _s.nfs_root else [])
     distro_dirs = [p.name for p in HTTP_ROOT.iterdir() if p.is_dir()] if HTTP_ROOT.exists() else []
     for d in distro_dirs:
         covered = any(
-            exp.endswith(d) or f"/{d}/" in exp or exp.endswith("/http") or "/srv/http" in exp
-            for exp in exports
+            p.endswith(d) or f"/{d}/" in p or p.endswith("/http") or "/srv/http" in p
+            for p in all_paths
         )
         if covered:
             result["covered"].append(d)

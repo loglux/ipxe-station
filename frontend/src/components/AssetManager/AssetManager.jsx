@@ -602,39 +602,50 @@ function AssetManager() {
                   {catalog.ubuntu.map((dist) => {
                     const dir = `ubuntu-${dist.version}`
                     const covered = nfsStatus.covered?.includes(dir)
-                    const exportPath = nfsStatus.exports?.[0]
                     const serverIp = window.location.hostname
-                    const nfsroot = exportPath
-                      ? `${serverIp}:${exportPath}/${dir}`
-                      : `${serverIp}:/path/to/data/srv/http/${dir}`
-                    const cmdline = `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
+                    // Use showmount export, or nfs_root from Settings, or placeholder
+                    const exportBase = nfsStatus.exports?.[0] || nfsStatus.nfs_root || null
+                    const nfsroot = exportBase
+                      ? `${serverIp}:${exportBase.replace(/\/$/, '')}/${dir}`
+                      : null
+                    const cmdline = nfsroot
+                      ? `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
+                      : null
                     return (
                       <div key={dir} style={{ marginBottom: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
                         <div style={{ marginBottom: '4px' }}>
                           {covered
-                            ? <span style={{ color: 'var(--color-success)' }}>✅ Ubuntu {dist.version} — covered by export</span>
-                            : <span style={{ color: 'var(--color-warning)' }}>⚠️ Ubuntu {dist.version} — verify export path manually</span>
+                            ? <span style={{ color: 'var(--color-success)' }}>✅ Ubuntu {dist.version} — export confirmed</span>
+                            : cmdline
+                              ? <span style={{ color: 'var(--color-warning)' }}>⚠️ Ubuntu {dist.version} — path from Settings, verify manually</span>
+                              : <span style={{ color: 'var(--color-danger)' }}>❌ Ubuntu {dist.version} — set NFS Root Path in Settings first</span>
                           }
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <code style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flex: 1, wordBreak: 'break-all' }}>
-                            {cmdline}
-                          </code>
-                          <button
-                            className="btn btn-sm btn-secondary"
-                            style={{ flexShrink: 0, fontSize: '11px', padding: '2px 8px' }}
-                            onClick={() => {
-                              try { navigator.clipboard.writeText(cmdline) } catch {
-                                const ta = document.createElement('textarea')
-                                ta.value = cmdline
-                                document.body.appendChild(ta)
-                                ta.select()
-                                document.execCommand('copy')
-                                document.body.removeChild(ta)
-                              }
-                            }}
-                          >📋 Copy</button>
-                        </div>
+                        {cmdline ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <code style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flex: 1, wordBreak: 'break-all' }}>
+                              {cmdline}
+                            </code>
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              style={{ flexShrink: 0, fontSize: '11px', padding: '2px 8px' }}
+                              onClick={() => {
+                                try { navigator.clipboard.writeText(cmdline) } catch {
+                                  const ta = document.createElement('textarea')
+                                  ta.value = cmdline
+                                  document.body.appendChild(ta)
+                                  ta.select()
+                                  document.execCommand('copy')
+                                  document.body.removeChild(ta)
+                                }
+                              }}
+                            >📋 Copy</button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                            Go to <strong>Settings → NFS Boot</strong> and set the host export path
+                          </div>
+                        )}
                       </div>
                     )
                   })}
