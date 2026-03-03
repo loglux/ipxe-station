@@ -9,11 +9,13 @@
 - **HTTP file serving** — `/srv/http/` at `/http/`, `/srv/ipxe/` at `/ipxe/` (no-cache), `/srv/tftp/` at `/tftp/`
 - **Menu builder** — React SPA, scenario-based wizard, property panel, tree with inline controls
 - **Boot Recipe Engine** — auto-generates correct `cmdline` per distro/version/boot-mode (Ubuntu Server NFS/ISO, Ubuntu Desktop NFS/ISO, Kaspersky KRD 18/24, SystemRescue, Debian)
+- **Debian v1 modes** — `debian_netboot` and `debian_preseed` are first-class backend recipe scenarios
+- **Debian Live prototype** — experimental backend/UI path exposed for research, not yet production-supported
 - **DHCP Diagnostic** — scenario detection (`proxy_ok`, `conflict`, `no_pxe`, `wrong_server`, …) + actionable recommendations with Fix buttons
 - **Asset manager** — download, upload, ISO extract; dynamic version pickers for Ubuntu Server, Ubuntu Desktop, SystemRescue, Kaspersky
 - **NFS boot** — Ubuntu Server NFS option with auto-detected export path
 - **Monitoring** — boot events, syslog, service status
-- **Boot Files tab** — autoexec.ipxe editor with templates
+- **Boot Files tab** — autoexec.ipxe editor plus managed Debian preseed profiles
 - **Dark mode**, URL-hash tab persistence
 
 ---
@@ -71,6 +73,19 @@ from proxy (offered_ip = 0.0.0.0) — classify accordingly.
 
 **Goal:** Generate Ubuntu preseed or cloud-init `user-data` / `meta-data` files from a form UI,
 served over HTTP for automated installs.
+
+### 5. Debian Live Validation
+
+**Goal:** Turn the current Debian Live prototype into a documented, validated mode or remove it.
+
+- Confirm which iPXE + Debian Live asset combinations are actually reliable on real hardware
+- Document required files and working cmdlines
+- Keep the scenario marked experimental until generator tests and boot verification agree
+- Current documentation findings:
+  - Debian separates installer media from Live install images
+  - Live images are amd64-only and use Calamares
+  - Debian live-boot expects `boot=live` and supports `fetch=` / `httpfs=` / `netboot=`
+  - `fetch=` prefers IP-based URLs and can use a live ISO in place of squashfs
 
 ---
 

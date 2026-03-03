@@ -304,7 +304,7 @@ function App() {
               className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
               onClick={() => switchTab('boot')}
             >
-              🚀 autoexec
+              🚀 Boot Files
             </button>
             <button
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}

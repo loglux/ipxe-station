@@ -25,6 +25,8 @@ const SCENARIO_CATALOG_KEY = {
   ubuntu_live:    'ubuntu',
   ubuntu_preseed: 'ubuntu',
   debian_netboot: 'debian',
+  debian_preseed: 'debian',
+  debian_live: 'debian',
   systemrescue:   'rescue',
   kaspersky:      'kaspersky',
 }
@@ -45,6 +47,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [selectedBootOption, setSelectedBootOption] = useState(null)
   const [recipeLoading, setRecipeLoading] = useState(false)
   const [recipeError, setRecipeError] = useState(null)
+  const [preseedProfiles, setPreseedProfiles] = useState([])
+  const [selectedPreseedProfile, setSelectedPreseedProfile] = useState('')
 
   // Handle initial category selection
   useEffect(() => {
@@ -57,7 +61,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     }
   }, [isOpen, initialCategory])
 
-  const handleVersionSelect = useCallback(async (version) => {
+  const handleVersionSelect = useCallback(async (version, profileOverride = null) => {
     setSelectedVersion(version)
     setKernel(version.kernel || '')
     setInitrd(version.initrd || '')
@@ -73,9 +77,17 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     // Fetch boot recipe from backend
     const catalogKey = SCENARIO_CATALOG_KEY[selectedScenario] || selectedScenario
     const versionPath = `${catalogKey}-${version.version}`
+    const preseedProfile = profileOverride ?? selectedPreseedProfile
     setRecipeLoading(true)
     try {
-      const resp = await fetch(`/api/assets/boot-recipe?version_path=${encodeURIComponent(versionPath)}&scenario=${encodeURIComponent(selectedScenario)}`)
+      const params = new URLSearchParams({
+        version_path: versionPath,
+        scenario: selectedScenario,
+      })
+      if (selectedScenario === 'debian_preseed' && preseedProfile) {
+        params.set('preseed_profile', preseedProfile)
+      }
+      const resp = await fetch(`/api/assets/boot-recipe?${params.toString()}`)
       const data = await resp.json()
       if (data.error) {
         setRecipeError(data.error)
@@ -93,7 +105,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     } finally {
       setRecipeLoading(false)
     }
-  }, [selectedScenario])
+  }, [selectedPreseedProfile, selectedScenario])
 
   const fetchAvailableAssets = useCallback(async () => {
     try {
@@ -123,15 +135,44 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     }
   }, [handleVersionSelect, selectedScenario])
 
+  const fetchPreseedProfiles = useCallback(async () => {
+    if (selectedScenario !== 'debian_preseed') {
+      setPreseedProfiles([])
+      setSelectedPreseedProfile('')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/boot/preseed/profiles')
+      const data = await response.json()
+      const profiles = data.profiles || []
+      const active = data.active_profile || profiles[0] || ''
+      setPreseedProfiles(profiles)
+      setSelectedPreseedProfile((current) => (
+        current && profiles.includes(current) ? current : active
+      ))
+    } catch {
+      setPreseedProfiles([])
+      setSelectedPreseedProfile('')
+    }
+  }, [selectedScenario])
+
   // Fetch available assets when scenario is selected
   useEffect(() => {
     if (selectedScenario) {
       const timerId = setTimeout(() => {
         fetchAvailableAssets()
+        fetchPreseedProfiles()
       }, 0)
       return () => clearTimeout(timerId)
     }
-  }, [fetchAvailableAssets, selectedScenario])
+  }, [fetchAvailableAssets, fetchPreseedProfiles, selectedScenario])
+
+  useEffect(() => {
+    if (selectedScenario === 'debian_preseed' && selectedVersion && selectedPreseedProfile) {
+      handleVersionSelect(selectedVersion, selectedPreseedProfile)
+    }
+  }, [handleVersionSelect, selectedPreseedProfile, selectedScenario, selectedVersion])
 
   if (!isOpen) return null
 
@@ -158,6 +199,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       return
     }
 
+    const requiresIso = selectedBootOption
+      ? selectedBootOption.mode === 'iso'
+      : undefined
+
     // Create entry from scenario with auto-populated fields
     const entry = createEntryFromScenario(selectedScenario, {
       name: entryName,
@@ -166,6 +211,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       kernel: kernel || undefined,
       initrd: initrd || undefined,
       cmdline: cmdline || undefined,
+      requires_iso: requiresIso,
+      preseed_profile: selectedScenario === 'debian_preseed' ? (selectedPreseedProfile || undefined) : undefined,
     })
 
     onAddEntry(entry)
@@ -188,6 +235,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedBootOption(null)
     setRecipeLoading(false)
     setRecipeError(null)
+    setPreseedProfiles([])
+    setSelectedPreseedProfile('')
     onClose()
   }
 
@@ -362,6 +411,26 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                   {' '}<strong>Settings</strong> to enable it (recommended for Server ISOs).
                 </p>
               )}
+            </div>
+          )}
+
+          {selectedScenario === 'debian_preseed' && preseedProfiles.length > 0 && (
+            <div className="form-group">
+              <label>Preseed Profile</label>
+              <select
+                value={selectedPreseedProfile}
+                onChange={(e) => setSelectedPreseedProfile(e.target.value)}
+                className="form-control"
+              >
+                {preseedProfiles.map((profile) => (
+                  <option key={profile} value={profile}>
+                    {profile}
+                  </option>
+                ))}
+              </select>
+              <small className="form-hint">
+                Backend will point this entry to <code>/preseed/{selectedPreseedProfile || 'PROFILE'}.cfg</code>
+              </small>
             </div>
           )}
 

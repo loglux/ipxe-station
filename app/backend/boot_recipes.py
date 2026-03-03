@@ -38,12 +38,19 @@ BOOTIF:
   - ``BOOTIF=01-${net0/mac:hexhyp}`` tells the installer which interface was used for
     PXE boot.  Useful on multi-NIC machines.  Not consumed by casper — read by
     cloud-init / NetworkManager.  Not included by default; add manually if needed.
+
+Debian v1 support:
+  - ``debian_netboot``: standard Debian Installer network boot via kernel + initrd.
+  - ``debian_preseed``: automated Debian Installer boot via HTTP-served preseed file.
+  - ``debian_live``: experimental live-boot recipe based on Debian live-boot docs.
+    It is exposed as a prototype path, not as a fully validated production mode.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List
+from urllib.parse import quote
 
 
 @dataclass
@@ -277,6 +284,69 @@ def debian_recipe(entry: dict, server_ip: str, port: int, nfs_root: str = "") ->
     ]
 
 
+def debian_preseed_recipe(
+    entry: dict, server_ip: str, port: int, nfs_root: str = ""
+) -> List[BootOption]:
+    """Boot options for Debian automated install via preseed over HTTP."""
+    profile = (entry.get("preseed_profile") or "").strip()
+    if profile:
+        preseed_url = f"http://{server_ip}:{port}/preseed/{quote(profile)}.cfg"
+        label = f"Debian automated install (Preseed: {profile})"
+    else:
+        preseed_url = f"http://{server_ip}:{port}/preseed.cfg"
+        label = "Debian automated install (Preseed)"
+    return [
+        BootOption(
+            mode="preseed",
+            label=label,
+            kernel=entry.get("kernel") or "",
+            initrd=entry.get("initrd") or "",
+            cmdline=(f"ip=dhcp auto=true priority=critical url={preseed_url} " "interface=auto"),
+            recommended=True,
+        )
+    ]
+
+
+def debian_live_recipe(
+    entry: dict, server_ip: str, port: int, nfs_root: str = ""
+) -> List[BootOption]:
+    """Experimental boot options for Debian Live media via live-boot."""
+    kernel = entry.get("kernel") or ""
+    initrd = entry.get("initrd") or ""
+    squashfs = entry.get("squashfs")
+    iso = entry.get("iso")
+    opts: List[BootOption] = []
+
+    if not kernel or not initrd:
+        return []
+
+    if iso:
+        iso_url = f"http://{server_ip}:{port}/http/{iso}"
+        opts.append(
+            BootOption(
+                mode="iso",
+                label="Debian Live (Experimental) — ISO fetch",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=f"boot=live components fetch={iso_url} ip=dhcp",
+            )
+        )
+
+    if squashfs:
+        squashfs_url = f"http://{server_ip}:{port}/http/{squashfs}"
+        opts.append(
+            BootOption(
+                mode="squashfs",
+                label="Debian Live (Experimental) — squashfs fetch",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=f"boot=live components fetch={squashfs_url} ip=dhcp",
+            )
+        )
+
+    return opts
+
+
 RECIPE_MAP = {
     "ubuntu_live": ubuntu_live_recipe,
     "ubuntu_netboot": ubuntu_live_recipe,  # same assets, same recipe logic
@@ -284,6 +354,8 @@ RECIPE_MAP = {
     "systemrescue": systemrescue_recipe,
     "kaspersky": kaspersky_recipe,
     "debian_netboot": debian_recipe,
+    "debian_preseed": debian_preseed_recipe,
+    "debian_live": debian_live_recipe,
 }
 
 

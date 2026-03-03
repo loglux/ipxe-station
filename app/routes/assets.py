@@ -113,7 +113,7 @@ def _autodetect_nfs_root() -> str:
 
 
 @assets_router.get("/boot-recipe")
-def assets_boot_recipe(version_path: str, scenario: str):
+def assets_boot_recipe(version_path: str, scenario: str, preseed_profile: str | None = None):
     """Return boot options (kernel/initrd/cmdline) for a distro version + scenario.
 
     - **version_path**: directory name, e.g. ``ubuntu-22.04``
@@ -141,6 +141,9 @@ def assets_boot_recipe(version_path: str, scenario: str):
         raise HTTPException(
             status_code=404, detail=f"Version '{version_path}' not found in catalog"
         )
+
+    if preseed_profile:
+        entry = {**entry, "preseed_profile": preseed_profile}
 
     return get_recipe(scenario, entry, s.server_ip, s.http_port, nfs_root=nfs_root)
 

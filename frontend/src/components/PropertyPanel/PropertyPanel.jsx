@@ -1,10 +1,84 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './PropertyPanel.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [preseedProfiles, setPreseedProfiles] = useState([])
+  const [preseedProfilesLoading, setPreseedProfilesLoading] = useState(false)
+
+  const isDebianPreseedEntry = (
+    entry?.entry_type === 'boot' &&
+    entry?.boot_mode === 'preseed' &&
+    (entry?.kernel || '').startsWith('debian-')
+  )
+
+  const detectPreseedProfile = useCallback(() => {
+    if (entry?.preseed_profile) return entry.preseed_profile
+    const match = (entry?.cmdline || '').match(/\/preseed\/([a-zA-Z0-9_-]+)\.cfg/)
+    return match?.[1] || ''
+  }, [entry?.cmdline, entry?.preseed_profile])
+
+  const currentPreseedProfile = detectPreseedProfile()
+
+  const refreshDebianPreseedRecipe = useCallback(async (profile) => {
+    const versionPath = (entry?.kernel || '').split('/')[0]
+    if (!versionPath) return
+
+    const params = new URLSearchParams({
+      version_path: versionPath,
+      scenario: 'debian_preseed',
+    })
+    if (profile) {
+      params.set('preseed_profile', profile)
+    }
+
+    try {
+      const response = await fetch(`/api/assets/boot-recipe?${params.toString()}`)
+      const data = await response.json()
+      if (data.error || !data.options?.length) return
+
+      const recipe = data.options.find((option) => option.recommended) || data.options[0]
+      onUpdateEntry(entry.name, {
+        kernel: recipe.kernel,
+        initrd: recipe.initrd,
+        cmdline: recipe.cmdline,
+        boot_mode: recipe.mode,
+        requires_internet: true,
+        preseed_profile: profile || null,
+      })
+    } catch {
+      // Keep the panel responsive even if recipe refresh fails.
+    }
+  }, [entry?.kernel, entry?.name, onUpdateEntry])
+
+  useEffect(() => {
+    if (!isDebianPreseedEntry) {
+      setPreseedProfiles([])
+      return
+    }
+
+    let cancelled = false
+    setPreseedProfilesLoading(true)
+
+    fetch('/api/boot/preseed/profiles')
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled) return
+        setPreseedProfiles(data.profiles || [])
+      })
+      .catch(() => {
+        if (!cancelled) setPreseedProfiles([])
+      })
+      .finally(() => {
+        if (!cancelled) setPreseedProfilesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isDebianPreseedEntry])
 
   if (!entry) {
     return (
@@ -149,6 +223,32 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                 placeholder="ip=dhcp ..."
               />
             </div>
+
+            {isDebianPreseedEntry && (
+              <div className="form-group">
+                <label>Preseed Profile</label>
+                <select
+                  value={currentPreseedProfile}
+                  onChange={(e) => refreshDebianPreseedRecipe(e.target.value)}
+                  className="form-control"
+                  disabled={preseedProfilesLoading || preseedProfiles.length === 0}
+                >
+                  {preseedProfiles.length === 0 && (
+                    <option value="">
+                      {preseedProfilesLoading ? 'Loading profiles...' : 'No saved profiles'}
+                    </option>
+                  )}
+                  {preseedProfiles.map((profile) => (
+                    <option key={profile} value={profile}>
+                      {profile}
+                    </option>
+                  ))}
+                </select>
+                <small className="form-hint">
+                  Changing the profile refreshes Debian installer cmdline from the backend recipe.
+                </small>
+              </div>
+            )}
           </>
         )}
 

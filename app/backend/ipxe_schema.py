@@ -20,6 +20,7 @@ class IpxeEntryModel(BaseModel):
     requires_iso: bool = False
     requires_internet: bool = False
     parent: Optional[str] = None  # for submenu grouping
+    preseed_profile: Optional[str] = None
 
     model_config = {
         "extra": "forbid",
@@ -75,6 +76,7 @@ def menu_to_model(menu) -> IpxeMenuModel:
                 requires_iso=entry.requires_iso,
                 requires_internet=entry.requires_internet,
                 parent=entry.parent,
+                preseed_profile=entry.preseed_profile,
             )
             for entry in menu.entries
         ],
@@ -109,6 +111,7 @@ def model_to_menu(model: IpxeMenuModel):
                 requires_iso=entry.requires_iso,
                 requires_internet=entry.requires_internet,
                 parent=entry.parent,
+                preseed_profile=entry.preseed_profile,
             )
             for entry in model.entries
         ],

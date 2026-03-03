@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import (
+    HTTP_ROOT,
     IPXE_ROOT,
     PXE_CLIENTS,
     SYSTEM_LOGS,
@@ -9,6 +10,7 @@ from app.main import (
     _track_ipxe_loop,
     app,
 )
+from app.routes.state import SETTINGS_FILE
 
 client = TestClient(app)
 
@@ -37,6 +39,13 @@ def sample_menu():
 def setup_function():
     SYSTEM_LOGS.clear()
     PXE_CLIENTS.clear()
+    (TFTP_ROOT / "autoexec.ipxe").unlink(missing_ok=True)
+    (HTTP_ROOT / "preseed.cfg").unlink(missing_ok=True)
+    preseed_dir = HTTP_ROOT / "preseed"
+    if preseed_dir.exists():
+        for path in preseed_dir.glob("*.cfg"):
+            path.unlink()
+    SETTINGS_FILE.unlink(missing_ok=True)
 
 
 def test_validate_endpoint():
@@ -79,6 +88,94 @@ def test_delete_autoexec_endpoint():
     data = resp.json()
     assert data["success"] is True
     assert not saved.exists()
+
+
+def test_save_preseed_endpoint():
+    payload = {"profile": "lab", "content": "# Debian preseed\n"}
+    resp = client.post("/api/boot/preseed", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["profile"] == "lab"
+    assert data["active_profile"] == "lab"
+    saved = HTTP_ROOT / "preseed.cfg"
+    assert saved.exists()
+    assert saved.read_text() == payload["content"]
+    named = HTTP_ROOT / "preseed" / "lab.cfg"
+    assert named.exists()
+    assert named.read_text() == payload["content"]
+
+
+def test_delete_preseed_endpoint():
+    client.post("/api/boot/preseed", json={"profile": "lab", "content": "# Debian preseed\n"})
+
+    resp = client.delete("/api/boot/preseed?profile=lab")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert not (HTTP_ROOT / "preseed" / "lab.cfg").exists()
+
+
+def test_preseed_profiles_endpoint_lists_active_profile():
+    client.post(
+        "/api/boot/preseed",
+        json={"profile": "lab", "content": "# lab\n", "activate": False},
+    )
+    client.post("/api/boot/preseed", json={"profile": "desktop", "content": "# desktop\n"})
+
+    resp = client.get("/api/boot/preseed/profiles")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "lab" in data["profiles"]
+    assert "desktop" in data["profiles"]
+    assert data["active_profile"] == "desktop"
+
+
+def test_activate_preseed_profile_updates_root_alias():
+    client.post(
+        "/api/boot/preseed",
+        json={"profile": "lab", "content": "# lab\n", "activate": False},
+    )
+    client.post("/api/boot/preseed", json={"profile": "desktop", "content": "# desktop\n"})
+
+    resp = client.post("/api/boot/preseed/activate", json={"profile": "lab"})
+    assert resp.status_code == 200
+    assert resp.json()["active_profile"] == "lab"
+    assert (HTTP_ROOT / "preseed.cfg").read_text() == "# lab\n"
+
+
+def test_preseed_served_from_root_endpoint():
+    client.post("/api/boot/preseed", json={"profile": "lab", "content": "# Debian preseed\n"})
+
+    resp = client.get("/preseed.cfg")
+    assert resp.status_code == 200
+    assert "# Debian preseed" in resp.text
+
+
+def test_named_preseed_profile_served_from_profile_endpoint():
+    client.post(
+        "/api/boot/preseed",
+        json={"profile": "desktop", "content": "# Desktop profile\n", "activate": False},
+    )
+
+    resp = client.get("/preseed/desktop.cfg")
+    assert resp.status_code == 200
+    assert "# Desktop profile" in resp.text
+
+
+def test_assets_boot_recipe_accepts_preseed_profile():
+    version_dir = HTTP_ROOT / "debian-13.3.0"
+    version_dir.mkdir(parents=True, exist_ok=True)
+    (version_dir / "linux").write_text("kernel")
+    (version_dir / "initrd.gz").write_text("initrd")
+
+    resp = client.get(
+        "/api/assets/boot-recipe?version_path=debian-13.3.0&scenario=debian_preseed&preseed_profile=desktop"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["error"] is None
+    assert "/preseed/desktop.cfg" in data["options"][0]["cmdline"]
 
 
 def test_upload_rejects_path_traversal_dest():

@@ -43,6 +43,7 @@ class iPXEEntry:
     requires_iso: bool = False  # Whether this option needs ISO file
     requires_internet: bool = False  # Whether this option needs internet
     parent: Optional[str] = None  # parent menu name for submenu grouping
+    preseed_profile: Optional[str] = None
 
     def __post_init__(self):
         """Validate entry after initialization"""

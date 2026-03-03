@@ -25,6 +25,7 @@
 
 ### 🔧 Boot Files
 - **autoexec.ipxe editor** — edit or apply templates directly from the UI
+- **Preseed profiles** — create, activate, and serve Debian unattended install templates from the UI
 - **NFS boot** — Ubuntu Server NFS cmdline with auto-detected export path
 
 ### 📊 Monitoring
@@ -95,7 +96,9 @@ Open **http://localhost:9021/ui**
 | Ubuntu Server Live | Server ISO boot — NFS (recommended) or HTTP ISO |
 | Ubuntu Desktop Live | Desktop ISO boot — NFS or HTTP ISO (≥ 8 GB RAM) |
 | Ubuntu Preseed | Automated server install |
-| Debian Netboot | Network installer (12 Bookworm, 13 Trixie) |
+| Debian Netboot | Interactive network installer |
+| Debian Preseed | Automated Debian Installer via preseed.cfg |
+| Debian Live (Experimental) | Prototype live-boot path via ISO or squashfs fetch |
 
 ### 🛠️ Rescue & Tools
 | Scenario | Description |
@@ -158,6 +161,48 @@ sudo bash scripts/setup-nfs.sh
 ```
 
 Then set the export path in **Settings → NFS Boot Root**.
+
+### Debian Preseed
+
+For automated Debian installs, manage one or more preseed profiles in the
+**Boot Files** tab. The active profile is exposed at:
+
+```text
+http://SERVER:9021/preseed.cfg
+```
+
+Named profiles are also available at:
+
+```text
+http://SERVER:9021/preseed/PROFILE.cfg
+```
+
+### Debian Live Research Status
+
+Debian publishes official Live install images separately from installer media, and they
+are explicitly positioned as "live install" images with Calamares on 64-bit PC systems.
+iPXE Station now exposes Debian Live as an experimental scenario so the path can be
+prototyped, but it is still not treated as a validated production mode.
+
+The current prototype follows Debian `live-boot` documentation:
+- `boot=live` is required
+- `fetch=` can use an HTTP URL to `filesystem.squashfs`
+- `fetch=` may also use a Live ISO in place of the squashfs image
+- IP-based URLs are preferred inside early boot environments
+
+Manual validation checklist:
+1. Boot a BIOS client with Debian Live ISO fetch and confirm the menu reaches `live-boot`.
+2. Boot a UEFI client with the same ISO path and compare behavior.
+3. Repeat with squashfs fetch against `live/filesystem.squashfs`.
+4. Record RAM usage, download time, and whether network comes up automatically.
+5. Capture final working and failing cmdlines before promoting the mode beyond experimental.
+
+Research basis:
+- Debian download/install split: [Download Debian](https://www.debian.org/distrib/)
+- Debian Live images: [Live install images](https://www.debian.org/CD/live/)
+- Debian preseed boot parameters: [Installer appendix B.2](https://www.debian.org/releases/trixie/amd64/apbs02.en.html)
+- Debian live-boot parameters: [live-boot(7)](https://manpages.debian.org/bookworm/live-boot-doc/live-boot.7.en.html)
+- iPXE preseed appnote: [Debian preseed](https://ipxe.org/appnote/debian_preseed)
 
 ---
 

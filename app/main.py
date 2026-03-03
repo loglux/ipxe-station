@@ -108,6 +108,34 @@ async def serve_tftp(filename: str):
     return Response("File not found", status_code=404)
 
 
+@app.get("/preseed.cfg")
+@app.head("/preseed.cfg")
+async def serve_preseed():
+    """Serve Debian preseed configuration from HTTP root."""
+    preseed_path = HTTP_ROOT / "preseed.cfg"
+    if preseed_path.exists():
+        return FileResponse(
+            preseed_path, media_type="text/plain", headers={"Cache-Control": "no-cache"}
+        )
+    return Response("File not found", status_code=404)
+
+
+@app.get("/preseed/{profile}.cfg")
+@app.head("/preseed/{profile}.cfg")
+async def serve_preseed_profile(profile: str):
+    """Serve a named Debian preseed profile from HTTP root."""
+    try:
+        file_path = (HTTP_ROOT / "preseed" / f"{profile}.cfg").resolve()
+        file_path.relative_to((HTTP_ROOT / "preseed").resolve())
+        if file_path.exists():
+            return FileResponse(
+                file_path, media_type="text/plain", headers={"Cache-Control": "no-cache"}
+            )
+    except (ValueError, OSError):
+        pass
+    return Response("File not found", status_code=404)
+
+
 @app.get("/")
 async def root():
     """Redirect to React UI."""

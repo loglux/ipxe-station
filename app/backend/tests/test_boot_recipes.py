@@ -1,6 +1,8 @@
 """Unit tests for app/backend/boot_recipes.py"""
 
 from app.backend.boot_recipes import (
+    debian_live_recipe,
+    debian_preseed_recipe,
     debian_recipe,
     get_recipe,
     kaspersky_recipe,
@@ -285,6 +287,80 @@ class TestDebianRecipe:
         assert "ip=dhcp" in opts[0].cmdline
 
 
+class TestDebianPreseedRecipe:
+    def _entry(self, preseed_profile=None):
+        return {
+            "version": "13.3.0",
+            "kernel": "debian-13.3.0/linux",
+            "initrd": "debian-13.3.0/initrd.gz",
+            "squashfs": None,
+            "iso": None,
+            "preseed_profile": preseed_profile,
+        }
+
+    def test_single_preseed_option(self):
+        opts = debian_preseed_recipe(self._entry(), SERVER_IP, PORT)
+        assert len(opts) == 1
+        assert opts[0].mode == "preseed"
+        assert opts[0].recommended is True
+
+    def test_preseed_cmdline_contains_expected_fields(self):
+        cmdline = debian_preseed_recipe(self._entry(), SERVER_IP, PORT)[0].cmdline
+        assert "ip=dhcp" in cmdline
+        assert "auto=true" in cmdline
+        assert "priority=critical" in cmdline
+        assert "interface=auto" in cmdline
+        assert f"url=http://{SERVER_IP}:{PORT}/preseed.cfg" in cmdline
+
+    def test_preseed_cmdline_can_target_named_profile(self):
+        opt = debian_preseed_recipe(self._entry(preseed_profile="lab"), SERVER_IP, PORT)[0]
+        assert "url=http://192.168.10.32:9021/preseed/lab.cfg" in opt.cmdline
+        assert "Preseed: lab" in opt.label
+
+
+class TestDebianLiveRecipe:
+    def _entry(self, iso=None, squashfs=None):
+        return {
+            "version": "13.3.0",
+            "kernel": "debian-13.3.0/live/vmlinuz",
+            "initrd": "debian-13.3.0/live/initrd.img",
+            "iso": iso,
+            "squashfs": squashfs,
+        }
+
+    def test_live_iso_option(self):
+        opts = debian_live_recipe(
+            self._entry(iso="debian-13.3.0/debian-live-13.3.0-amd64-xfce.iso"),
+            SERVER_IP,
+            PORT,
+        )
+        assert len(opts) == 1
+        assert opts[0].mode == "iso"
+        assert "boot=live" in opts[0].cmdline
+        assert "fetch=" in opts[0].cmdline
+
+    def test_live_squashfs_option(self):
+        opts = debian_live_recipe(
+            self._entry(squashfs="debian-13.3.0/live/filesystem.squashfs"),
+            SERVER_IP,
+            PORT,
+        )
+        assert len(opts) == 1
+        assert opts[0].mode == "squashfs"
+        assert f"fetch={BASE}/debian-13.3.0/live/filesystem.squashfs" in opts[0].cmdline
+
+    def test_live_iso_and_squashfs(self):
+        opts = debian_live_recipe(
+            self._entry(
+                iso="debian-13.3.0/debian-live-13.3.0-amd64-xfce.iso",
+                squashfs="debian-13.3.0/live/filesystem.squashfs",
+            ),
+            SERVER_IP,
+            PORT,
+        )
+        assert {o.mode for o in opts} == {"iso", "squashfs"}
+
+
 # ---------------------------------------------------------------------------
 # get_recipe() — public API
 # ---------------------------------------------------------------------------
@@ -379,6 +455,46 @@ class TestGetRecipe:
         result = get_recipe("debian_netboot", entry, SERVER_IP, PORT)
         assert result["error"] is None
         assert result["options"][0]["mode"] == "netboot"
+
+    def test_debian_preseed_scenario(self):
+        entry = {
+            "version": "13.3.0",
+            "kernel": "debian-13.3.0/linux",
+            "initrd": "debian-13.3.0/initrd.gz",
+            "squashfs": None,
+            "iso": None,
+        }
+        result = get_recipe("debian_preseed", entry, SERVER_IP, PORT)
+        assert result["error"] is None
+        assert result["options"][0]["mode"] == "preseed"
+        assert f"url=http://{SERVER_IP}:{PORT}/preseed.cfg" in result["options"][0]["cmdline"]
+
+    def test_debian_preseed_scenario_with_named_profile(self):
+        entry = {
+            "version": "13.3.0",
+            "kernel": "debian-13.3.0/linux",
+            "initrd": "debian-13.3.0/initrd.gz",
+            "squashfs": None,
+            "iso": None,
+            "preseed_profile": "desktop",
+        }
+        result = get_recipe("debian_preseed", entry, SERVER_IP, PORT)
+        assert result["error"] is None
+        assert (
+            f"url=http://{SERVER_IP}:{PORT}/preseed/desktop.cfg" in result["options"][0]["cmdline"]
+        )
+
+    def test_debian_live_scenario(self):
+        entry = {
+            "version": "13.3.0",
+            "kernel": "debian-13.3.0/live/vmlinuz",
+            "initrd": "debian-13.3.0/live/initrd.img",
+            "iso": "debian-13.3.0/debian-live-13.3.0-amd64-xfce.iso",
+            "squashfs": "debian-13.3.0/live/filesystem.squashfs",
+        }
+        result = get_recipe("debian_live", entry, SERVER_IP, PORT)
+        assert result["error"] is None
+        assert {opt["mode"] for opt in result["options"]} == {"iso", "squashfs"}
 
     def test_ubuntu_netboot_alias_same_as_ubuntu_live(self):
         entry = {

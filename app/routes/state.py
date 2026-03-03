@@ -88,6 +88,7 @@ class SettingsModel(BaseModel):
     # Host-side path that the NAS exports via NFS (not the Docker-internal path).
     # Used when generating NFS boot entries for Ubuntu Server ISOs.
     nfs_root: str = os.getenv("NFS_ROOT", "")
+    active_preseed_profile: str = "debian_minimal"
 
 
 def load_settings() -> SettingsModel:
@@ -432,6 +433,33 @@ def _scan_distro_versions(prefix: str, base: Path):
                 candidate = path / "sysresccd" / "boot" / "x86_64" / "sysresccd.img"
                 if candidate.exists():
                     initrd = f"{path.name}/sysresccd/boot/x86_64/sysresccd.img"
+        elif prefix == "debian":
+            for name in ["linux", "vmlinuz"]:
+                candidate = path / name
+                if candidate.exists():
+                    kernel = f"{path.name}/{name}"
+                    break
+            for name in ["initrd.gz", "initrd", "initrd.img"]:
+                candidate = path / name
+                if candidate.exists():
+                    initrd = f"{path.name}/{name}"
+                    break
+
+            if not kernel:
+                for name in ["vmlinuz", "linux"]:
+                    candidate = path / "live" / name
+                    if candidate.exists():
+                        kernel = f"{path.name}/live/{name}"
+                        break
+            if not initrd:
+                for name in ["initrd.img", "initrd", "initrd.gz"]:
+                    candidate = path / "live" / name
+                    if candidate.exists():
+                        initrd = f"{path.name}/live/{name}"
+                        break
+            live_squashfs = path / "live" / "filesystem.squashfs"
+            if live_squashfs.exists():
+                squashfs = f"{path.name}/live/filesystem.squashfs"
         else:
             for name in ["vmlinuz", "linux"]:
                 candidate = path / name

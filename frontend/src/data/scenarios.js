@@ -216,6 +216,83 @@ export const SCENARIOS = {
     },
   },
 
+  debian_preseed: {
+    id: 'debian_preseed',
+    displayName: 'Debian Preseed',
+    description: 'Automated Debian installation using preseed configuration',
+    icon: '🤖',
+    category: 'linux',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'preseed',
+      requires_internet: true,
+      requires_iso: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: `ip=dhcp auto=true priority=critical url=http://\${server_ip}:\${port}/preseed.cfg interface=auto`,
+    }),
+
+    assetDiscovery: {
+      pattern: 'debian-*/linux',
+      requiredFiles: ['linux', 'initrd.gz'],
+      versionExtractor: /debian-(\d+)/,
+    },
+
+    help: `
+      Debian Preseed performs an automated Debian installation.
+
+      Requirements:
+      - Debian installer kernel and initrd
+      - A preseed.cfg file served by the backend over HTTP
+
+      This is the automated equivalent of Debian netboot installer mode.
+    `,
+  },
+
+  debian_live: {
+    id: 'debian_live',
+    displayName: 'Debian Live (Experimental)',
+    description: 'Experimental Debian live-boot via ISO or squashfs fetch',
+    icon: '🧪',
+    category: 'linux',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'live',
+      requires_internet: false,
+      requires_iso: true,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent', 'entry_type', 'boot_mode'],
+    },
+
+    assetDiscovery: {
+      pattern: 'debian-*/*.iso',
+      requiredFiles: ['live/vmlinuz', 'live/initrd.img'],
+      versionExtractor: /debian-(\d+)/,
+    },
+
+    help: `
+      Debian Live is currently exposed as an experimental iPXE path.
+
+      The current recipe uses Debian live-boot's fetch-based HTTP path with
+      IP-address URLs and can target either a full live ISO or live/filesystem.squashfs.
+
+      This is still not treated as a fully validated production boot mode in iPXE Station.
+    `,
+  },
+
   // ========== RESCUE & TOOLS ==========
 
   systemrescue: {
