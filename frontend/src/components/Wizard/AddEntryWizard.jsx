@@ -333,6 +333,14 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                   </label>
                 ))}
               </div>
+              {/* Hint: NFS available but nfs_root not configured */}
+              {['ubuntu_live', 'ubuntu_netboot', 'ubuntu_preseed'].includes(selectedScenario) &&
+                !bootOptions.some(o => o.mode === 'nfs') && (
+                <p className="form-hint" style={{ marginTop: '6px' }}>
+                  NFS boot not shown — configure <strong>NFS Root Path</strong> in
+                  {' '}<strong>Settings</strong> to enable it (recommended for Server ISOs).
+                </p>
+              )}
             </div>
           )}
 
