@@ -38,4 +38,6 @@ secrets/
 *-custom.efi
 
 # Frontend build output (generated, not committed)
+# Vite outputs to app/frontend/dist/ — never to frontend/dist/
 app/frontend/dist/
+frontend/dist/
