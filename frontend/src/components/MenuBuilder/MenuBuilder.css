@@ -147,6 +147,7 @@
 }
 
 .tree-move-select {
+  color-scheme: light;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -156,6 +157,10 @@
   cursor: pointer;
   max-width: 130px;
   opacity: 0.85;
+}
+
+[data-theme="dark"] .tree-move-select {
+  color-scheme: dark;
 }
 
 .tree-move-select:hover,
