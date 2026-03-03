@@ -17,6 +17,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
   })
 
   const [detecting, setDetecting] = useState(false)
+  const [detectingNfs, setDetectingNfs] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
 
@@ -58,6 +59,29 @@ export default function Settings({ isOpen, onClose, onSave }) {
       setTimeout(() => setMessage(null), 3000)
     } finally {
       setDetecting(false)
+    }
+  }
+
+  const detectNfsRoot = async () => {
+    setDetectingNfs(true)
+    try {
+      const r = await fetch('/api/assets/nfs-status')
+      const data = await r.json()
+      if (!data.running) {
+        setMessage({ type: 'error', text: 'NFS not running — run scripts/setup-nfs.sh first' })
+      } else if (data.exports?.length > 0) {
+        const path = data.exports[0]
+        setSettings(prev => ({ ...prev, nfs_root: path }))
+        setMessage({ type: 'success', text: `Detected NFS export: ${path}` })
+      } else {
+        setMessage({ type: 'warning', text: 'NFS running but no exports found via showmount — enter path manually' })
+      }
+      setTimeout(() => setMessage(null), 4000)
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to check NFS status' })
+      setTimeout(() => setMessage(null), 3000)
+    } finally {
+      setDetectingNfs(false)
     }
   }
 
@@ -160,16 +184,26 @@ export default function Settings({ isOpen, onClose, onSave }) {
           <section className="settings-section">
             <h3>📂 NFS Boot</h3>
             <div className="setting-group">
-              <label>
-                NFS Root Path:
+              <label>NFS Root Path:</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
                   type="text"
                   value={settings.nfs_root}
                   onChange={e => handleChange('nfs_root', e.target.value)}
                   placeholder="/volume1/ipxe-station/data/srv/http"
+                  style={{ flex: 1 }}
                 />
-                <small>Host path exported by your NAS via NFS — used for Ubuntu Server network boot without downloading the full ISO. Leave empty to hide NFS option.</small>
-              </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={detectNfsRoot}
+                  disabled={detectingNfs}
+                  title="Detect NFS export path via showmount"
+                >
+                  {detectingNfs ? '🔍 Detecting...' : '🔍 Auto-detect'}
+                </button>
+              </div>
+              <small>Host path exported via NFS — used for Ubuntu Server PXE boot. Leave empty to hide NFS option in wizard.</small>
             </div>
           </section>
 
