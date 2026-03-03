@@ -25,6 +25,73 @@ assets_router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 _DOWNLOAD_PROGRESS_TTL = 3600  # seconds — completed/failed entries are dropped after 1 hour
 
+DEBIAN_PRODUCTS = [
+    {
+        "id": "debian-13.3-netboot",
+        "channel": "stable",
+        "kind": "installer_bootstrap",
+        "version": "13.3.0",
+        "name": "Debian 13.3 Netboot Installer Files",
+        "description": (
+            "Small Debian installer bootstrap: linux + initrd.gz " "for Netboot and Preseed."
+        ),
+        "size_est": "~45 MB",
+        "dest_folder": "debian-13.3",
+        "kernel_url": "https://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux",
+        "initrd_url": "https://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz",
+        "files": {"kernel": "linux", "initrd": "initrd.gz"},
+        "boot_targets": ["Debian Netboot", "Debian Preseed"],
+    },
+    {
+        "id": "debian-13.3-netinst-iso",
+        "channel": "stable",
+        "kind": "installer_iso",
+        "version": "13.3.0",
+        "name": "Debian 13.3 Netinst ISO",
+        "description": (
+            "Official small installation ISO. " "Extracts into installer assets and keeps the ISO."
+        ),
+        "size_est": "~700 MB",
+        "dest_folder": "debian-13.3-netinst",
+        "iso_url": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.3.0-amd64-netinst.iso",
+        "files": {"iso": "debian-13.3.0-amd64-netinst.iso"},
+        "iso_only": True,
+        "boot_targets": ["Debian Netboot", "Debian Preseed"],
+    },
+    {
+        "id": "debian-13.3-live-xfce",
+        "channel": "stable",
+        "kind": "live_iso",
+        "version": "13.3.0",
+        "name": "Debian 13.3 Live Xfce ISO",
+        "description": (
+            "Official Debian Live image with Calamares installer. " "Experimental in iPXE Station."
+        ),
+        "size_est": "~3.0 GB",
+        "dest_folder": "debian-13.3-live-xfce",
+        "iso_url": "https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/debian-live-13.3.0-amd64-xfce.iso",
+        "files": {"iso": "debian-live-13.3.0-amd64-xfce.iso"},
+        "iso_only": True,
+        "experimental": True,
+        "boot_targets": ["Debian Live (Experimental)"],
+    },
+    {
+        "id": "debian-13.3-live-gnome",
+        "channel": "stable",
+        "kind": "live_iso",
+        "version": "13.3.0",
+        "name": "Debian 13.3 Live GNOME ISO",
+        "description": "Official Debian Live GNOME image. Experimental in iPXE Station.",
+        "size_est": "~4.0 GB",
+        "dest_folder": "debian-13.3-live-gnome",
+        "iso_url": "https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/debian-live-13.3.0-amd64-gnome.iso",
+        "files": {"iso": "debian-live-13.3.0-amd64-gnome.iso"},
+        "iso_only": True,
+        "experimental": True,
+        "boot_targets": ["Debian Live (Experimental)"],
+    },
+]
+
 
 class DownloadRequest(BaseModel):
     url: str
@@ -455,6 +522,12 @@ def get_systemrescue_versions():
 
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch versions: {exc}")
+
+
+@assets_router.get("/versions/debian")
+def get_debian_versions():
+    """Return backend-owned Debian download products."""
+    return {"products": DEBIAN_PRODUCTS}
 
 
 @assets_router.get("/versions/kaspersky")

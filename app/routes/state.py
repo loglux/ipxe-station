@@ -457,6 +457,24 @@ def _scan_distro_versions(prefix: str, base: Path):
                     if candidate.exists():
                         initrd = f"{path.name}/live/{name}"
                         break
+            if not kernel:
+                for subdir in ["install.amd", "install.amd64", "install"]:
+                    for name in ["vmlinuz", "linux"]:
+                        candidate = path / subdir / name
+                        if candidate.exists():
+                            kernel = f"{path.name}/{subdir}/{name}"
+                            break
+                    if kernel:
+                        break
+            if not initrd:
+                for subdir in ["install.amd", "install.amd64", "install"]:
+                    for name in ["initrd.gz", "initrd", "initrd.img"]:
+                        candidate = path / subdir / name
+                        if candidate.exists():
+                            initrd = f"{path.name}/{subdir}/{name}"
+                            break
+                    if initrd:
+                        break
             live_squashfs = path / "live" / "filesystem.squashfs"
             if live_squashfs.exists():
                 squashfs = f"{path.name}/live/filesystem.squashfs"

@@ -1,55 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './AssetManager.css'
 
-// Downloadable distros with URLs and menu configurations (Debian only — Ubuntu is dynamic)
-const DOWNLOADABLE_DISTROS = [
-  {
-    id: 'debian-13',
-    name: 'Debian 13 (Trixie) Testing',
-    kernel_url: 'http://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
-    initrd_url: 'http://deb.debian.org/debian/dists/trixie/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
-    dest_folder: 'debian-13',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' },
-    size: '~45 MB',
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp',
-      requires_internet: true
-    }
-  },
-  {
-    id: 'debian-12',
-    name: 'Debian 12 (Bookworm) Stable',
-    kernel_url: 'http://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
-    initrd_url: 'http://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
-    dest_folder: 'debian-12',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' },
-    size: '~45 MB',
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp',
-      requires_internet: true
-    }
-  },
-  {
-    id: 'debian-11',
-    name: 'Debian 11 (Bullseye) OldStable',
-    kernel_url: 'http://deb.debian.org/debian/dists/bullseye/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux',
-    initrd_url: 'http://deb.debian.org/debian/dists/bullseye/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz',
-    dest_folder: 'debian-11',
-    files: { kernel: 'vmlinuz', initrd: 'initrd' },
-    size: '~40 MB',
-    menu_config: {
-      entry_type: 'boot',
-      boot_mode: 'netboot',
-      cmdline: 'ip=dhcp',
-      requires_internet: true
-    }
-  },
-]
-
 // SystemRescue is handled separately with version selection
 const SYSTEMRESCUE_CONFIG = {
   id: 'systemrescue',
@@ -88,6 +39,7 @@ function AssetManager() {
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
   const [kasperskyVersions, setKasperskyVersions] = useState([])
   const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
+  const [debianProducts, setDebianProducts] = useState([])
   const [ubuntuVersions, setUbuntuVersions] = useState([])
   const [selectedUbuntuVersion, setSelectedUbuntuVersion] = useState(null)
   const [ubuntuLoading, setUbuntuLoading] = useState(false)
@@ -125,13 +77,13 @@ function AssetManager() {
         Object.keys(data.downloads).forEach(key => {
           const status = data.downloads[key].status
           if (status === 'downloading' || status === 'extracting') {
-            DOWNLOADABLE_DISTROS.forEach(distro => {
+            debianProducts.forEach(distro => {
               if (key.includes(distro.dest_folder)) {
                 activeDownloads[distro.id] = true
               }
             })
           } else if (status === 'extracted' || status === 'complete') {
-            DOWNLOADABLE_DISTROS.forEach(distro => {
+            debianProducts.forEach(distro => {
               if (key.includes(distro.dest_folder)) {
                 completedDownloads[distro.id] = false
               }
@@ -149,7 +101,7 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch progress:', error)
     }
-  }, [])
+  }, [debianProducts])
 
   const fetchNfsStatus = useCallback(async () => {
     setNfsStatus(prev => ({ ...prev, loading: true }))
@@ -167,6 +119,7 @@ function AssetManager() {
     fetchCatalog()
     fetchUbuntuVersions()
     fetchUbuntuDesktopVersions()
+    fetchDebianProducts()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
     fetchNfsStatus()
@@ -193,6 +146,21 @@ function AssetManager() {
       setCatalog(data)
     } catch (error) {
       console.error('Failed to fetch catalog:', error)
+    }
+  }
+
+  const fetchDebianProducts = async () => {
+    try {
+      const response = await fetch('/api/assets/versions/debian')
+      const data = await response.json()
+      const products = data.products || []
+      setDebianProducts(products)
+      products.forEach((product) => {
+        if (product.iso_url) checkUrl(product.iso_url)
+      })
+    } catch (error) {
+      console.error('Failed to fetch Debian products:', error)
+      setDebianProducts([])
     }
   }
 
@@ -660,6 +628,8 @@ function AssetManager() {
                     <div className="distro-files">
                       {dist.kernel && <span className="file-badge">✓ kernel</span>}
                       {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
                     </div>
                   </div>
                   <div className="distro-actions"></div>
@@ -672,7 +642,7 @@ function AssetManager() {
           <div className="download-section">
             <h4>⬇️ Quick Download</h4>
             <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-              Download netboot files (kernel + initrd) for network installation
+              Download boot assets directly into the catalog. Debian netboot downloads only the installer bootstrap, not a full Live ISO.
             </p>
 
             {/* Ubuntu — dynamic version picker */}
@@ -821,99 +791,105 @@ function AssetManager() {
               )}
             </div>
 
-            <div className="download-grid">
-              {DOWNLOADABLE_DISTROS.map(distro => (
-                <div key={distro.id} className="download-card">
-                  <div className="download-name">{distro.name}</div>
-                  <div className="download-size">{distro.size}</div>
+            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
+              <h4 style={{ marginBottom: '4px' }}>🌀 Debian Downloads</h4>
+              <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+                Backend-owned Debian products from official Debian sources: installer bootstrap, netinst ISO, and live ISO.
+              </p>
 
-                  {distro.iso_url && (
-                    <div style={{ marginTop: '6px' }}>
-                      <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
+              <div className="download-grid">
+                {debianProducts.map(distro => (
+                  <div key={distro.id} className="download-card">
+                    <div className="download-name">{distro.name}</div>
+                    <div className="download-size">{distro.size_est}</div>
+                    <div className="download-description">{distro.description}</div>
+                    <div className="download-uses">
+                      Unlocks: {distro.boot_targets.join(', ')}
+                      {distro.experimental ? ' · Experimental' : ''}
                     </div>
-                  )}
 
-                  {distro.supports_iso && (
-                    <label style={{ fontSize: '12px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input
-                        type="checkbox"
-                        checked={downloadIso[distro.id] || false}
-                        onChange={(e) => setDownloadIso(prev => ({ ...prev, [distro.id]: e.target.checked }))}
-                      />
-                      Also download ISO ({distro.iso_size})
-                    </label>
-                  )}
+                    {distro.iso_url && (
+                      <div style={{ marginBottom: '8px' }}>
+                        <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
+                      </div>
+                    )}
 
-                  {/* Progress bars for active downloads */}
-                  {downloading[distro.id] && (
-                    <div style={{ marginTop: '8px' }}>
-                      {/* Kernel progress */}
-                      {downloadProgress[`${distro.dest_folder}/vmlinuz`] && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Kernel</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                            <span>{downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%</span>
-                            <span>{(downloadProgress[`${distro.dest_folder}/vmlinuz`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${distro.dest_folder}/vmlinuz`].total / 1024 / 1024).toFixed(1)} MB</span>
-                          </div>
-                          <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/vmlinuz`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Initrd progress */}
-                      {downloadProgress[`${distro.dest_folder}/initrd`] && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Initrd</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                            <span>{downloadProgress[`${distro.dest_folder}/initrd`].percentage}%</span>
-                            <span>{(downloadProgress[`${distro.dest_folder}/initrd`].downloaded / 1024 / 1024).toFixed(1)} MB / {(downloadProgress[`${distro.dest_folder}/initrd`].total / 1024 / 1024).toFixed(1)} MB</span>
-                          </div>
-                          <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/initrd`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ISO progress */}
-                      {distro.supports_iso && distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                            ISO
-                            {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracting' &&
-                              <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                            }
-                            {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracted' &&
-                              <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                                ✓ Extracted ({downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].file_count} files)
+                    {downloading[distro.id] && (
+                      <div style={{ marginTop: '8px' }}>
+                        {distro.files.kernel && downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`] && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>linux</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].percentage}%</span>
+                              <span>
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].downloaded / 1024 / 1024).toFixed(1)} MB /
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].total / 1024 / 1024).toFixed(1)} MB
                               </span>
-                            }
+                            </div>
+                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                            <span>{downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%</span>
-                            <span>{(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].downloaded / 1024 / 1024).toFixed(0)} MB / {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].total / 1024 / 1024).toFixed(0)} MB</span>
-                          </div>
-                          <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        )}
 
-                  {downloadStatus[distro.id] && (
-                    <div className="download-status">{downloadStatus[distro.id]}</div>
-                  )}
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => downloadDistro(distro)}
-                    disabled={downloading[distro.id]}
-                    title={distro.supports_iso ? 'Download kernel + initrd' + (downloadIso[distro.id] ? ' + ISO' : '') : 'Download kernel + initrd'}
-                  >
-                    {downloading[distro.id] ? '⏳ Downloading...' : '⬇️ Download'}
-                  </button>
-                </div>
-              ))}
+                        {distro.files.initrd && downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`] && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>initrd.gz</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].percentage}%</span>
+                              <span>
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].downloaded / 1024 / 1024).toFixed(1)} MB /
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].total / 1024 / 1024).toFixed(1)} MB
+                              </span>
+                            </div>
+                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                            </div>
+                          </div>
+                        )}
+
+                        {distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                              ISO
+                              {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracting' &&
+                                <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
+                              }
+                              {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracted' &&
+                                <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
+                                  ✓ Extracted ({downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].file_count} files)
+                                </span>
+                              }
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%</span>
+                              <span>
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                                {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                              </span>
+                            </div>
+                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {downloadStatus[distro.id] && (
+                      <div className="download-status">{downloadStatus[distro.id]}</div>
+                    )}
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => downloadDistro(distro)}
+                      disabled={downloading[distro.id]}
+                      title={distro.iso_only ? 'Download Debian ISO' : 'Download Debian installer files'}
+                    >
+                      {downloading[distro.id] ? '⏳ Downloading...' : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* SystemRescue Version Selector */}

@@ -110,6 +110,20 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.download-description {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.4;
+}
+
+.download-uses {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.4;
+}
+
 .download-status {
   font-size: 12px;
   font-weight: 500;

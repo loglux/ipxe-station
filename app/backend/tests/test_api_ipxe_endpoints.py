@@ -178,6 +178,18 @@ def test_assets_boot_recipe_accepts_preseed_profile():
     assert "/preseed/desktop.cfg" in data["options"][0]["cmdline"]
 
 
+def test_debian_versions_endpoint_returns_full_download_products():
+    resp = client.get("/api/assets/versions/debian")
+    assert resp.status_code == 200
+    data = resp.json()
+    products = data["products"]
+
+    assert any(product["kind"] == "installer_bootstrap" for product in products)
+    assert any(product["kind"] == "installer_iso" for product in products)
+    assert any(product["kind"] == "live_iso" for product in products)
+    assert any(product["experimental"] is True for product in products if "experimental" in product)
+
+
 def test_upload_rejects_path_traversal_dest():
     files = {"file": ("poc.txt", b"owned", "text/plain")}
     resp = client.post("/api/assets/upload?dest=../../escape", files=files)
