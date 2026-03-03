@@ -457,27 +457,15 @@ def _scan_distro_versions(prefix: str, base: Path):
                         initrd = f"{path.name}/casper/{name}"
                         break
             # Detect squashfs for Ubuntu casper boot.
-            # merged.squashfs takes priority — it's a pre-merged single-layer squashfs
-            # that works with fetch= without needing NFS or full ISO in RAM.
+            # Note: fetch= is broken on Ubuntu 22.04+ via iPXE (causes black screen /
+            # "no medium found"). squashfs field is retained for catalog info only;
+            # NFS is the correct boot method for Server, HTTP ISO for Desktop.
             casper = path / "casper"
-            merged_candidate = casper / "merged.squashfs"
-            if merged_candidate.exists():
-                squashfs = f"{path.name}/casper/merged.squashfs"
-            else:
-                for sqname in ["ubuntu-server-minimal.squashfs", "filesystem.squashfs"]:
-                    candidate = casper / sqname
-                    if candidate.exists():
-                        squashfs = f"{path.name}/casper/{sqname}"
-                        break
-
-        # needs_merge: Ubuntu Server layers present but merged.squashfs not yet built
-        needs_merge = False
-        if prefix not in ("rescue", "systemrescue", "kaspersky"):
-            casper = path / "casper"
-            server_layer = casper / "ubuntu-server-minimal.squashfs"
-            merged = casper / "merged.squashfs"
-            if server_layer.exists() and not merged.exists():
-                needs_merge = True
+            for sqname in ["ubuntu-server-minimal.squashfs", "filesystem.squashfs"]:
+                candidate = casper / sqname
+                if candidate.exists():
+                    squashfs = f"{path.name}/casper/{sqname}"
+                    break
 
         for item in path.glob("*.iso"):
             iso = f"{path.name}/{item.name}"
@@ -494,7 +482,6 @@ def _scan_distro_versions(prefix: str, base: Path):
                 "iso": iso,
                 "wim": wim,
                 "squashfs": squashfs,
-                "needs_merge": needs_merge,
             }
         )
     return results

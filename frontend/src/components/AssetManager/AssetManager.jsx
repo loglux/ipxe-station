@@ -80,8 +80,6 @@ function UrlBadge({ url, urlStatus }) {
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
-  const [merging, setMerging] = useState({})       // version_dir → true/false
-  const [mergeStatus, setMergeStatus] = useState({}) // version_dir → step string
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
   const [downloadProgress, setDownloadProgress] = useState({}) // Track download progress percentages
@@ -194,29 +192,6 @@ function AssetManager() {
     }
   }
 
-  const mergeSquashfs = async (versionDir) => {
-    setMerging(prev => ({ ...prev, [versionDir]: true }))
-    setMergeStatus(prev => ({ ...prev, [versionDir]: 'Starting…' }))
-    try {
-      await fetch(`/api/assets/merge-squashfs?version_dir=${encodeURIComponent(versionDir)}`, { method: 'POST' })
-      // Poll for progress
-      const poll = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/assets/merge-progress?version_dir=${encodeURIComponent(versionDir)}`)
-          const data = await r.json()
-          setMergeStatus(prev => ({ ...prev, [versionDir]: data.step || '' }))
-          if (data.status === 'done' || data.status === 'error') {
-            clearInterval(poll)
-            setMerging(prev => ({ ...prev, [versionDir]: false }))
-            if (data.status === 'done') fetchCatalog()
-          }
-        } catch { clearInterval(poll) }
-      }, 3000)
-    } catch (e) {
-      setMergeStatus(prev => ({ ...prev, [versionDir]: `Error: ${e.message}` }))
-      setMerging(prev => ({ ...prev, [versionDir]: false }))
-    }
-  }
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -520,48 +495,19 @@ function AssetManager() {
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group">
               <h4>🐧 Ubuntu</h4>
-              {catalog.ubuntu.map((dist, idx) => {
-                const versionDir = `ubuntu-${dist.version}`
-                const isMerging = merging[versionDir]
-                const squashfsLabel = dist.squashfs
-                  ? dist.squashfs.includes('merged') ? '✓ merged.squashfs ✅' : '⚠️ layered squashfs'
-                  : null
-                return (
-                  <div key={idx} className="distro-item">
-                    <div className="distro-info">
-                      <div className="distro-name">✅ Ubuntu {dist.version}</div>
-                      <div className="distro-files">
-                        {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                        {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                        {dist.iso && <span className="file-badge">✓ ISO</span>}
-                        {squashfsLabel && <span className="file-badge">{squashfsLabel}</span>}
-                      </div>
-                      {isMerging && (
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-                          ⏳ {mergeStatus[versionDir]}
-                        </div>
-                      )}
-                      {!isMerging && mergeStatus[versionDir] && !dist.needs_merge && (
-                        <div style={{ fontSize: '12px', color: 'var(--color-success)', marginTop: '4px' }}>
-                          ✅ {mergeStatus[versionDir]}
-                        </div>
-                      )}
-                    </div>
-                    <div className="distro-actions">
-                      {dist.needs_merge && (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => mergeSquashfs(versionDir)}
-                          disabled={isMerging}
-                          title="Merge squashfs layers into one file — enables fast HTTP boot without NFS or full ISO in RAM"
-                        >
-                          {isMerging ? '⏳ Merging…' : '🔀 Merge layers'}
-                        </button>
-                      )}
+              {catalog.ubuntu.map((dist, idx) => (
+                <div key={idx} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">✅ Ubuntu {dist.version}</div>
+                    <div className="distro-files">
+                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
                     </div>
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           )}
 
