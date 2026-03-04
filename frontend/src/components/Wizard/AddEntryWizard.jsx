@@ -49,6 +49,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [recipeError, setRecipeError] = useState(null)
   const [preseedProfiles, setPreseedProfiles] = useState([])
   const [selectedPreseedProfile, setSelectedPreseedProfile] = useState('')
+  const [createError, setCreateError] = useState(null)
 
   // Handle initial category selection
   useEffect(() => {
@@ -195,9 +196,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
 
   const handleCreate = () => {
     if (!selectedScenario || !entryName || !entryTitle) {
-      alert('Please fill in all required fields')
+      setCreateError('Please fill in all required fields.')
       return
     }
+    setCreateError(null)
 
     const requiresIso = selectedBootOption
       ? selectedBootOption.mode === 'iso'
@@ -237,6 +239,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setRecipeError(null)
     setPreseedProfiles([])
     setSelectedPreseedProfile('')
+    setCreateError(null)
     onClose()
   }
 
@@ -571,9 +574,12 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             Cancel
           </button>
           {step === 3 && (
-            <button className="btn btn-primary" onClick={handleCreate}>
-              Create Entry
-            </button>
+            <>
+              {createError && <p className="form-hint form-hint-error">{createError}</p>}
+              <button className="btn btn-primary" onClick={handleCreate}>
+                Create Entry
+              </button>
+            </>
           )}
         </div>
       </div>

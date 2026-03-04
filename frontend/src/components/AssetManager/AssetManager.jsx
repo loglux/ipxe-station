@@ -52,6 +52,7 @@ function AssetManager() {
   const debianProductsRef = useRef([])
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
+  const [pollInterval, setPollInterval] = useState(2000)
 
   const checkUrl = useCallback(async (url) => {
     if (!url) return
@@ -115,6 +116,14 @@ function AssetManager() {
     }
   }, [])
 
+  // Read poll_interval from settings once on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => { if (data.poll_interval) setPollInterval(data.poll_interval) })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetchAssets()
     fetchCatalog()
@@ -126,9 +135,9 @@ function AssetManager() {
     fetchNfsStatus()
     pollProgress()
 
-    const interval = setInterval(pollProgress, 2000)
+    const interval = setInterval(pollProgress, pollInterval)
     return () => clearInterval(interval)
-  }, [pollProgress, checkUrl, fetchNfsStatus])
+  }, [pollProgress, checkUrl, fetchNfsStatus, pollInterval])
 
   const fetchAssets = async () => {
     try {

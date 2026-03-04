@@ -22,6 +22,7 @@ export default function Monitoring() {
     total_requests: 0
   })
   const [bootSessions, setBootSessions] = useState([])
+  const [pollInterval, setPollInterval] = useState(2000)
   const logsEndRef = useRef(null)
 
   const loadLogs = useCallback(async () => {
@@ -76,6 +77,14 @@ export default function Monitoring() {
     }
   }, [logs, autoScroll])
 
+  // Read poll_interval from settings once on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => { if (data.poll_interval) setPollInterval(data.poll_interval) })
+      .catch(() => {})
+  }, [])
+
   // Load initial logs and start polling
   useEffect(() => {
     const runLoad = () => {
@@ -91,13 +100,13 @@ export default function Monitoring() {
       if (!isPaused) {
         runLoad()
       }
-    }, 2000)
+    }, pollInterval)
 
     return () => {
       clearTimeout(initialTimer)
       clearInterval(interval)
     }
-  }, [isPaused, loadBootSessions, loadLogs, loadMetrics, loadServiceStatus])
+  }, [isPaused, pollInterval, loadBootSessions, loadLogs, loadMetrics, loadServiceStatus])
 
   const formatAge = (seconds) => {
     if (seconds == null) return 'n/a'
