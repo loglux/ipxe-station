@@ -650,16 +650,16 @@ function AssetManager() {
             </p>
 
             {/* Ubuntu — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div className="download-row-section">
               <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
                     <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      className="download-select"
                       value={selectedUbuntuVersion?.version || ''}
                       onChange={(e) => {
                         const v = ubuntuVersions.find(u => u.version === e.target.value)
@@ -677,7 +677,7 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
                       downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
@@ -716,7 +716,7 @@ function AssetManager() {
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div className="download-row-section">
               <h4 style={{ marginBottom: '4px' }}>🖥️ Ubuntu Desktop (LTS)</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
@@ -724,11 +724,11 @@ function AssetManager() {
               {ubuntuDesktopLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuDesktopVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
                     <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      className="download-select"
                       value={selectedUbuntuDesktopVersion?.version || ''}
                       onChange={(e) => {
                         const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
@@ -746,7 +746,7 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
                       downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
