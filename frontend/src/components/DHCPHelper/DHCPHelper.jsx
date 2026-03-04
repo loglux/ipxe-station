@@ -43,7 +43,6 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
   const [loading, setLoading] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   // ── Proxy DHCP helpers ───────────────────────────────────────────────────
 
@@ -516,7 +515,6 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
               {/* Collapsible probe table */}
               <details
                 className="probe-details"
-                onToggle={e => setDetailsExpanded(e.target.open)}
               >
                 <summary>
                   Technical details ({Object.keys(validationResult.probes || {}).length} probes)

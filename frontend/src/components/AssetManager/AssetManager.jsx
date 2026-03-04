@@ -34,7 +34,6 @@ function AssetManager() {
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
   const [downloadProgress, setDownloadProgress] = useState({}) // Track download progress percentages
-  const [downloadIso, setDownloadIso] = useState({}) // Track ISO download option for each distro
   const [systemRescueVersions, setSystemRescueVersions] = useState([])
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
   const [kasperskyVersions, setKasperskyVersions] = useState([])
@@ -308,7 +307,6 @@ function AssetManager() {
 
   const downloadDistro = async (distro) => {
     setDownloading(prev => ({ ...prev, [distro.id]: true }))
-    const includeIso = downloadIso[distro.id] || false
 
     try {
       // Download kernel + initrd in parallel (unless ISO-only)
@@ -350,8 +348,8 @@ function AssetManager() {
         }
       }
 
-      // Download ISO if requested (or if ISO-only distro)
-      if (distro.iso_only || (distro.supports_iso && includeIso)) {
+      // Download ISO if this is an ISO-only distro
+      if (distro.iso_only) {
         setDownloadStatus(prev => ({ ...prev, [distro.id]: 'Downloading ISO... (this may take a while)' }))
         const isoDest = `${distro.dest_folder}/${distro.files.iso}`
         const isoUrl = distro.iso_url

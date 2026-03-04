@@ -6,7 +6,6 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [preseedProfiles, setPreseedProfiles] = useState([])
-  const [preseedProfilesLoading, setPreseedProfilesLoading] = useState(false)
 
   const isDebianPreseedEntry = (
     entry?.entry_type === 'boot' &&
@@ -18,7 +17,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
     if (entry?.preseed_profile) return entry.preseed_profile
     const match = (entry?.cmdline || '').match(/\/preseed\/([a-zA-Z0-9_-]+)\.cfg/)
     return match?.[1] || ''
-  }, [entry?.cmdline, entry?.preseed_profile])
+  }, [entry])
 
   const currentPreseedProfile = detectPreseedProfile()
 
@@ -51,16 +50,12 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
     } catch {
       // Keep the panel responsive even if recipe refresh fails.
     }
-  }, [entry?.kernel, entry?.name, onUpdateEntry])
+  }, [entry, onUpdateEntry])
 
   useEffect(() => {
-    if (!isDebianPreseedEntry) {
-      setPreseedProfiles([])
-      return
-    }
+    if (!isDebianPreseedEntry) return
 
     let cancelled = false
-    setPreseedProfilesLoading(true)
 
     fetch('/api/boot/preseed/profiles')
       .then((response) => response.json())
@@ -70,9 +65,6 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
       })
       .catch(() => {
         if (!cancelled) setPreseedProfiles([])
-      })
-      .finally(() => {
-        if (!cancelled) setPreseedProfilesLoading(false)
       })
 
     return () => {
@@ -231,12 +223,10 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                   value={currentPreseedProfile}
                   onChange={(e) => refreshDebianPreseedRecipe(e.target.value)}
                   className="form-control"
-                  disabled={preseedProfilesLoading || preseedProfiles.length === 0}
+                  disabled={preseedProfiles.length === 0}
                 >
                   {preseedProfiles.length === 0 && (
-                    <option value="">
-                      {preseedProfilesLoading ? 'Loading profiles...' : 'No saved profiles'}
-                    </option>
+                    <option value="">No saved profiles</option>
                   )}
                   {preseedProfiles.map((profile) => (
                     <option key={profile} value={profile}>
