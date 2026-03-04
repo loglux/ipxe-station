@@ -513,14 +513,14 @@ function AssetManager() {
       </div>
 
       <div className="asset-content">
-        {/* Discovered Distributions */}
+        {/* ── Ubuntu ── */}
         <section className="asset-section">
-          <h3>📊 Discovered Distributions</h3>
+          <h3>🐧 Ubuntu</h3>
 
-          {/* Ubuntu */}
+          {/* Discovered */}
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group">
-              <h4>🐧 Ubuntu</h4>
+              <h4>📋 Discovered on disk</h4>
               {catalog.ubuntu.map((dist, idx) => (
                 <div key={idx} className="distro-item">
                   <div className="distro-info">
@@ -541,7 +541,7 @@ function AssetManager() {
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group" style={{ marginTop: '12px' }}>
               <h4>
-                📡 NFS Boot (Ubuntu Server)
+                📡 NFS Boot
                 <button
                   className="btn btn-sm btn-secondary"
                   style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
@@ -626,39 +626,13 @@ function AssetManager() {
             </div>
           )}
 
-          {/* Debian */}
-          {catalog.debian && catalog.debian.length > 0 && (
-            <div className="distro-group">
-              <h4>🌀 Debian</h4>
-              {catalog.debian.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">
-                      ✅ Debian {dist.version}
-                    </div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                  <div className="distro-actions"></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Quick Download Section */}
+          {/* Download */}
           <div className="download-section">
-            <h4>⬇️ Quick Download</h4>
-            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-              Download boot assets directly into the catalog. Debian netboot downloads only the installer bootstrap, not a full Live ISO.
-            </p>
+            <h4>⬇️ Download</h4>
 
-            {/* Ubuntu — dynamic version picker */}
+            {/* Ubuntu Server — dynamic version picker */}
             <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
-              <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
+              <h4 style={{ marginBottom: '8px' }}>Ubuntu Server (LTS)</h4>
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuVersions.length > 0 ? (
@@ -723,8 +697,8 @@ function AssetManager() {
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
-              <h4 style={{ marginBottom: '4px' }}>🖥️ Ubuntu Desktop (LTS)</h4>
+            <div>
+              <h4 style={{ marginBottom: '4px' }}>Ubuntu Desktop (LTS)</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
               </p>
@@ -801,14 +775,39 @@ function AssetManager() {
                 </div>
               )}
             </div>
+          </div>
+        </section>
 
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
-              <h4 style={{ marginBottom: '4px' }}>🌀 Debian Downloads</h4>
-              <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-                Backend-owned Debian products from official Debian sources: installer bootstrap, netinst ISO, and live ISO.
-              </p>
+        {/* ── Debian ── */}
+        <section className="asset-section">
+          <h3>🌀 Debian</h3>
 
-              <div className="download-grid">
+          {catalog.debian && catalog.debian.length > 0 && (
+            <div className="distro-group">
+              <h4>📋 Discovered on disk</h4>
+              {catalog.debian.map((dist, idx) => (
+                <div key={idx} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">✅ Debian {dist.version}</div>
+                    <div className="distro-files">
+                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="download-section">
+            <h4>⬇️ Download</h4>
+            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+              Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
+            </p>
+
+            <div className="download-grid">
                 {debianProducts.map(distro => (
                   <div key={distro.id} className="download-card">
                     <div className="download-name">{distro.name}</div>
@@ -901,14 +900,19 @@ function AssetManager() {
                   </div>
                 ))}
               </div>
-            </div>
+          </div>
+        </section>
 
-            {/* SystemRescue Version Selector */}
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
-              <h4>🛟 SystemRescue</h4>
-              <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-                Select a version to download
-              </p>
+        {/* ── Tools ── */}
+        <section className="asset-section">
+          <h3>🛠️ Tools</h3>
+
+          {/* SystemRescue */}
+          <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <h4>🛟 SystemRescue</h4>
+            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+              Select a version to download
+            </p>
               {systemRescueVersions.length > 0 ? (
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
                   <div style={{ flex: 1 }}>
@@ -989,9 +993,9 @@ function AssetManager() {
               )}
             </div>
 
-            {/* Kaspersky Rescue Disk Version Selector */}
-            <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
-              <h4>🛡️ Kaspersky Rescue Disk</h4>
+          {/* Kaspersky Rescue Disk */}
+          <div>
+            <h4>🛡️ Kaspersky Rescue Disk</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
                 Select a version to download (ISO will need to be extracted)
               </p>
@@ -1079,7 +1083,6 @@ function AssetManager() {
                 <p className="text-sm text-muted">Loading versions...</p>
               )}
             </div>
-          </div>
         </section>
 
         {/* All Files */}
