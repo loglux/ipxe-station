@@ -903,19 +903,13 @@ function AssetManager() {
                 Select a version to download
               </p>
               {systemRescueVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>
                       Version
                     </label>
                     <select
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        fontSize: '14px'
-                      }}
+                      className="download-select"
                       value={selectedSysrescueVersion?.version || ''}
                       onChange={(e) => {
                         const version = systemRescueVersions.find(v => v.version === e.target.value)
@@ -935,7 +929,7 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {/* Progress bar for SystemRescue */}
                     {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
@@ -989,19 +983,13 @@ function AssetManager() {
                 Select a version to download (ISO will need to be extracted)
               </p>
               {kasperskyVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>
                       Version
                     </label>
                     <select
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        fontSize: '14px'
-                      }}
+                      className="download-select"
                       value={selectedKasperskyVersion?.version || ''}
                       onChange={(e) => {
                         const version = kasperskyVersions.find(v => v.version === e.target.value)
@@ -1026,7 +1014,7 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {/* Progress bar for Kaspersky */}
                     {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
                       <div style={{ marginBottom: '8px' }}>
