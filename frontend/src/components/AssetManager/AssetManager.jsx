@@ -636,50 +636,47 @@ function AssetManager() {
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
-                    <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
-                      value={selectedUbuntuVersion?.version || ''}
-                      onChange={(e) => {
-                        const v = ubuntuVersions.find(u => u.version === e.target.value)
-                        setSelectedUbuntuVersion(v)
-                        if (v?.iso_url) checkUrl(v.iso_url)
-                      }}
-                    >
-                      {ubuntuVersions.map(v => (
-                        <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                      ))}
-                    </select>
-                    {selectedUbuntuVersion?.iso_url && (
-                      <div style={{ marginTop: '4px' }}>
-                        <UrlBadge url={selectedUbuntuVersion.iso_url} urlStatus={urlStatus} />
+                <div className="download-picker">
+                  <label>Version</label>
+                  <select
+                    value={selectedUbuntuVersion?.version || ''}
+                    onChange={(e) => {
+                      const v = ubuntuVersions.find(u => u.version === e.target.value)
+                      setSelectedUbuntuVersion(v)
+                      if (v?.iso_url) checkUrl(v.iso_url)
+                    }}
+                  >
+                    {ubuntuVersions.map(v => (
+                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                    ))}
+                  </select>
+                  {selectedUbuntuVersion?.iso_url && (
+                    <div style={{ marginTop: '4px' }}>
+                      <UrlBadge url={selectedUbuntuVersion.iso_url} urlStatus={urlStatus} />
+                    </div>
+                  )}
+                  {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
+                    downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
+                    <div className="download-picker-progress">
+                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Ubuntu ISO</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                        <span>{downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%</span>
+                        <span>
+                          {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                          {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  <div style={{ minWidth: '300px' }}>
-                    {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
-                      downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Ubuntu ISO</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                          <span>{downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%</span>
-                          <span>
-                            {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                            {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
-                          </span>
-                        </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                        </div>
+                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
                       </div>
-                    )}
-                    {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version] && (
-                      <div className="download-status" style={{ marginBottom: '8px' }}>
-                        {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version]}
-                      </div>
-                    )}
+                    </div>
+                  )}
+                  {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version] && (
+                    <div className="download-status download-picker-progress">
+                      {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version]}
+                    </div>
+                  )}
+                  <div className="download-picker-actions">
                     <button
                       className="btn btn-primary"
                       onClick={downloadUbuntu}
@@ -705,60 +702,57 @@ function AssetManager() {
               {ubuntuDesktopLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuDesktopVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
-                    <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
-                      value={selectedUbuntuDesktopVersion?.version || ''}
-                      onChange={(e) => {
-                        const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
-                        setSelectedUbuntuDesktopVersion(v)
-                        if (v?.iso_url) checkUrl(v.iso_url)
-                      }}
-                    >
-                      {ubuntuDesktopVersions.map(v => (
-                        <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                      ))}
-                    </select>
-                    {selectedUbuntuDesktopVersion?.iso_url && (
-                      <div style={{ marginTop: '4px' }}>
-                        <UrlBadge url={selectedUbuntuDesktopVersion.iso_url} urlStatus={urlStatus} />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ minWidth: '300px' }}>
-                    {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
-                      downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                          Ubuntu Desktop ISO
-                          {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracting' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                          }
-                          {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracted' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                              ✓ Extracted ({downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].file_count} files)
-                            </span>
-                          }
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                          <span>{downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%</span>
-                          <span>
-                            {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                            {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                <div className="download-picker">
+                  <label>Version</label>
+                  <select
+                    value={selectedUbuntuDesktopVersion?.version || ''}
+                    onChange={(e) => {
+                      const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
+                      setSelectedUbuntuDesktopVersion(v)
+                      if (v?.iso_url) checkUrl(v.iso_url)
+                    }}
+                  >
+                    {ubuntuDesktopVersions.map(v => (
+                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                    ))}
+                  </select>
+                  {selectedUbuntuDesktopVersion?.iso_url && (
+                    <div style={{ marginTop: '4px' }}>
+                      <UrlBadge url={selectedUbuntuDesktopVersion.iso_url} urlStatus={urlStatus} />
+                    </div>
+                  )}
+                  {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
+                    downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
+                    <div className="download-picker-progress">
+                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                        Ubuntu Desktop ISO
+                        {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracting' &&
+                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
+                        }
+                        {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracted' &&
+                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
+                            ✓ Extracted ({downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].file_count} files)
                           </span>
-                        </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                        </div>
+                        }
                       </div>
-                    )}
-                    {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] && (
-                      <div className="download-status" style={{ marginBottom: '8px' }}>
-                        {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                        <span>{downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%</span>
+                        <span>
+                          {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                          {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                        </span>
                       </div>
-                    )}
+                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                      </div>
+                    </div>
+                  )}
+                  {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] && (
+                    <div className="download-status download-picker-progress">
+                      {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
+                    </div>
+                  )}
+                  <div className="download-picker-actions">
                     <button
                       className="btn btn-primary"
                       onClick={downloadUbuntuDesktop}
@@ -914,71 +908,56 @@ function AssetManager() {
               Select a version to download
             </p>
               {systemRescueVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>
-                      Version
-                    </label>
-                    <select
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        fontSize: '14px'
-                      }}
-                      value={selectedSysrescueVersion?.version || ''}
-                      onChange={(e) => {
-                        const version = systemRescueVersions.find(v => v.version === e.target.value)
-                        setSelectedSysrescueVersion(version)
-                        if (version?.iso_url) checkUrl(version.iso_url)
-                      }}
-                    >
-                      {systemRescueVersions.map(v => (
-                        <option key={v.version} value={v.version}>
-                          {v.name} ({v.size_est})
-                        </option>
-                      ))}
-                    </select>
-                    {selectedSysrescueVersion?.iso_url && (
-                      <div style={{ marginTop: '4px' }}>
-                        <UrlBadge url={selectedSysrescueVersion.iso_url} urlStatus={urlStatus} />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ minWidth: '300px' }}>
-                    {/* Progress bar for SystemRescue */}
-                    {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                          SystemRescue ISO
-                          {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                          }
-                          {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                              ✓ Extracted ({downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
-                            </span>
-                          }
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                          <span>{downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
-                          <span>
-                            {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                            {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                <div className="download-picker">
+                  <label>Version</label>
+                  <select
+                    value={selectedSysrescueVersion?.version || ''}
+                    onChange={(e) => {
+                      const version = systemRescueVersions.find(v => v.version === e.target.value)
+                      setSelectedSysrescueVersion(version)
+                      if (version?.iso_url) checkUrl(version.iso_url)
+                    }}
+                  >
+                    {systemRescueVersions.map(v => (
+                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                    ))}
+                  </select>
+                  {selectedSysrescueVersion?.iso_url && (
+                    <div style={{ marginTop: '4px' }}>
+                      <UrlBadge url={selectedSysrescueVersion.iso_url} urlStatus={urlStatus} />
+                    </div>
+                  )}
+                  {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
+                    <div className="download-picker-progress">
+                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                        SystemRescue ISO
+                        {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
+                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
+                        }
+                        {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
+                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
+                            ✓ Extracted ({downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
                           </span>
-                        </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
-                        </div>
+                        }
                       </div>
-                    )}
-
-                    {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version] && (
-                      <div className="download-status" style={{ marginBottom: '8px' }}>
-                        {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version]}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                        <span>{downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
+                        <span>
+                          {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
+                          {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
+                        </span>
                       </div>
-                    )}
+                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
+                      </div>
+                    </div>
+                  )}
+                  {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version] && (
+                    <div className="download-status download-picker-progress">
+                      {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version]}
+                    </div>
+                  )}
+                  <div className="download-picker-actions">
                     <button
                       className="btn btn-primary"
                       onClick={downloadSystemRescue}
@@ -996,93 +975,78 @@ function AssetManager() {
           {/* Kaspersky Rescue Disk */}
           <div>
             <h4>🛡️ Kaspersky Rescue Disk</h4>
-              <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-                Select a version to download (ISO will need to be extracted)
-              </p>
-              {kasperskyVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>
-                      Version
-                    </label>
-                    <select
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        fontSize: '14px'
-                      }}
-                      value={selectedKasperskyVersion?.version || ''}
-                      onChange={(e) => {
-                        const version = kasperskyVersions.find(v => v.version === e.target.value)
-                        setSelectedKasperskyVersion(version)
-                        if (version?.iso_url) checkUrl(version.iso_url)
-                      }}
-                    >
-                      {kasperskyVersions.map(v => (
-                        <option key={v.version} value={v.version}>
-                          {v.name} ({v.size_est})
-                        </option>
-                      ))}
-                    </select>
-                    {selectedKasperskyVersion?.notes && (
-                      <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--color-text-secondary)' }}>
-                        ℹ️ {selectedKasperskyVersion.notes}
-                      </div>
-                    )}
-                    {selectedKasperskyVersion?.iso_url && (
-                      <div style={{ marginTop: '4px' }}>
-                        <UrlBadge url={selectedKasperskyVersion.iso_url} urlStatus={urlStatus} />
-                      </div>
-                    )}
+            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+              Select a version to download (ISO will be extracted automatically)
+            </p>
+            {kasperskyVersions.length > 0 ? (
+              <div className="download-picker">
+                <label>Version</label>
+                <select
+                  value={selectedKasperskyVersion?.version || ''}
+                  onChange={(e) => {
+                    const version = kasperskyVersions.find(v => v.version === e.target.value)
+                    setSelectedKasperskyVersion(version)
+                    if (version?.iso_url) checkUrl(version.iso_url)
+                  }}
+                >
+                  {kasperskyVersions.map(v => (
+                    <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                  ))}
+                </select>
+                {selectedKasperskyVersion?.notes && (
+                  <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--color-text-secondary)' }}>
+                    ℹ️ {selectedKasperskyVersion.notes}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
-                    {/* Progress bar for Kaspersky */}
-                    {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                          Kaspersky ISO
-                          {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracting' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-warning)' }}>(Extracting...)</span>
-                          }
-                          {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracted' &&
-                            <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                              ✓ Extracted ({downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].file_count} files)
-                            </span>
-                          }
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                          <span>{downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%</span>
-                          <span>
-                            {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].downloaded / 1024 / 1024).toFixed(0)} MB /
-                            {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].total / 1024 / 1024).toFixed(0)} MB
-                          </span>
-                        </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-warning)', transition: 'width 0.3s' }}></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version] && (
-                      <div className="download-status" style={{ marginBottom: '8px' }}>
-                        {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version]}
-                      </div>
-                    )}
-                    <button
-                      className="btn btn-primary"
-                      onClick={downloadKaspersky}
-                      disabled={!selectedKasperskyVersion || downloading['kaspersky-' + selectedKasperskyVersion?.version]}
-                    >
-                      {downloading['kaspersky-' + selectedKasperskyVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
-                    </button>
+                )}
+                {selectedKasperskyVersion?.iso_url && (
+                  <div style={{ marginTop: '4px' }}>
+                    <UrlBadge url={selectedKasperskyVersion.iso_url} urlStatus={urlStatus} />
                   </div>
+                )}
+                {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
+                  <div className="download-picker-progress">
+                    <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                      Kaspersky ISO
+                      {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracting' &&
+                        <span style={{ marginLeft: '8px', color: 'var(--color-warning)' }}>(Extracting...)</span>
+                      }
+                      {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracted' &&
+                        <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
+                          ✓ Extracted ({downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].file_count} files)
+                        </span>
+                      }
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                      <span>{downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%</span>
+                      <span>
+                        {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].downloaded / 1024 / 1024).toFixed(0)} MB /
+                        {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].total / 1024 / 1024).toFixed(0)} MB
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-warning)', transition: 'width 0.3s' }}></div>
+                    </div>
+                  </div>
+                )}
+                {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version] && (
+                  <div className="download-status download-picker-progress">
+                    {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version]}
+                  </div>
+                )}
+                <div className="download-picker-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={downloadKaspersky}
+                    disabled={!selectedKasperskyVersion || downloading['kaspersky-' + selectedKasperskyVersion?.version]}
+                  >
+                    {downloading['kaspersky-' + selectedKasperskyVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                  </button>
                 </div>
-              ) : (
-                <p className="text-sm text-muted">Loading versions...</p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">Loading versions...</p>
+            )}
+          </div>
         </section>
 
         {/* All Files */}

@@ -83,6 +83,36 @@
   margin-top: var(--spacing-xl);
 }
 
+/* Stacked version-picker layout used by Ubuntu/SystemRescue/Kaspersky downloaders */
+.download-picker {
+  max-width: 480px;
+}
+
+.download-picker label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.download-picker select {
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-size: 14px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.download-picker-progress {
+  margin-top: 8px;
+}
+
+.download-picker-actions {
+  margin-top: 10px;
+}
+
 .download-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -91,11 +121,17 @@
 }
 
 .download-card {
+  display: flex;
+  flex-direction: column;
   padding: var(--spacing-md);
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   text-align: center;
+}
+
+.download-card > button {
+  margin-top: auto;
 }
 
 .download-name {
