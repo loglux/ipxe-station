@@ -93,7 +93,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 12px;
-  align-items: end;
+  align-items: start;
 }
 
 .download-main {
@@ -102,10 +102,10 @@
 
 .download-actions-col {
   min-width: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-end;
+}
+
+.download-actions-col .btn {
+  width: 100%;
 }
 
 .download-select {
