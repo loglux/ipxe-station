@@ -554,12 +554,9 @@ function AssetManager() {
           className="asset-section"
           style={{ display: activeTab === 'files' ? 'none' : 'block' }}
         >
-          <h3>{activeTab === 'overview' ? '📊 Overview' : '⬇️ Downloads'}</h3>
+          <h3>📊 Overview</h3>
 
-          <div
-            className="summary-grid"
-            style={{ display: activeTab === 'overview' ? 'grid' : 'none' }}
-          >
+          <div className="summary-grid">
             <SummaryCard
               title="Ubuntu"
               icon="🐧"
@@ -594,10 +591,7 @@ function AssetManager() {
             />
           </div>
 
-          <div
-            className="overview-alerts"
-            style={{ display: activeTab === 'overview' ? 'flex' : 'none' }}
-          >
+          <div className="overview-alerts">
             <div className={`overview-alert ${nfsReady ? 'ok' : 'warn'}`}>
               {nfsReady ? '✅ NFS looks available for Ubuntu Server boot.' : '⚠️ NFS is not confirmed. Ubuntu Server NFS boot may be unavailable.'}
             </div>
@@ -610,7 +604,7 @@ function AssetManager() {
           </div>
 
           {/* Ubuntu */}
-          {activeTab === 'overview' && catalog.ubuntu && catalog.ubuntu.length > 0 && (
+          {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group">
               <h4>🐧 Ubuntu</h4>
               {catalog.ubuntu.map((dist, idx) => (
@@ -630,7 +624,7 @@ function AssetManager() {
           )}
 
           {/* NFS Boot Status */}
-          {activeTab === 'overview' && catalog.ubuntu && catalog.ubuntu.length > 0 && (
+          {catalog.ubuntu && catalog.ubuntu.length > 0 && (
             <div className="distro-group" style={{ marginTop: '12px' }}>
               <h4>
                 📡 NFS Boot (Ubuntu Server)
@@ -719,7 +713,7 @@ function AssetManager() {
           )}
 
           {/* Debian */}
-          {activeTab === 'overview' && catalog.debian && catalog.debian.length > 0 && (
+          {catalog.debian && catalog.debian.length > 0 && (
             <div className="distro-group">
               <h4>🌀 Debian</h4>
               {catalog.debian.map((dist, idx) => (
