@@ -669,16 +669,19 @@ function AssetManager() {
             )}
 
             {/* Ubuntu — dynamic version picker */}
-            <div style={{ display: activeTab === 'ubuntu' ? 'block' : 'none', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div
+              className="download-row-section"
+              style={{ display: activeTab === 'ubuntu' ? 'block' : 'none' }}
+            >
               <h4 style={{ marginBottom: '8px' }}>🐧 Ubuntu Server (LTS)</h4>
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
                     <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      className="download-select"
                       value={selectedUbuntuVersion?.version || ''}
                       onChange={(e) => {
                         const v = ubuntuVersions.find(u => u.version === e.target.value)
@@ -696,20 +699,23 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
                       downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Ubuntu ISO</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                      <div className="download-progress">
+                        <div className="download-progress-label">Ubuntu ISO</div>
+                        <div className="download-progress-meta">
                           <span>{downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%</span>
                           <span>
                             {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
                             {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
                           </span>
                         </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                        <div className="download-progress-bar">
+                          <div
+                            className="download-progress-bar-fill"
+                            style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%` }}
+                          ></div>
                         </div>
                       </div>
                     )}
@@ -735,7 +741,10 @@ function AssetManager() {
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
-            <div style={{ display: activeTab === 'ubuntu' ? 'block' : 'none', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+            <div
+              className="download-row-section"
+              style={{ display: activeTab === 'ubuntu' ? 'block' : 'none' }}
+            >
               <h4 style={{ marginBottom: '4px' }}>🖥️ Ubuntu Desktop (LTS)</h4>
               <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
@@ -743,11 +752,11 @@ function AssetManager() {
               {ubuntuDesktopLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuDesktopVersions.length > 0 ? (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <div className="download-row">
+                  <div className="download-main">
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: '500' }}>Version</label>
                     <select
-                      style={{ width: '100%', padding: '8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', fontSize: '14px' }}
+                      className="download-select"
                       value={selectedUbuntuDesktopVersion?.version || ''}
                       onChange={(e) => {
                         const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
@@ -765,11 +774,11 @@ function AssetManager() {
                       </div>
                     )}
                   </div>
-                  <div style={{ minWidth: '300px' }}>
+                  <div className="download-actions-col">
                     {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
                       downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
-                      <div style={{ marginBottom: '8px' }}>
-                        <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
+                      <div className="download-progress">
+                        <div className="download-progress-label">
                           Ubuntu Desktop ISO
                           {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracting' &&
                             <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
@@ -780,15 +789,18 @@ function AssetManager() {
                             </span>
                           }
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+                        <div className="download-progress-meta">
                           <span>{downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%</span>
                           <span>
                             {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
                             {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
                           </span>
                         </div>
-                        <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
+                        <div className="download-progress-bar">
+                          <div
+                            className="download-progress-bar-fill"
+                            style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%` }}
+                          ></div>
                         </div>
                       </div>
                     )}
