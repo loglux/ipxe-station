@@ -28,24 +28,6 @@ function UrlBadge({ url, urlStatus }) {
   return <span style={{ fontSize: '11px', color: 'var(--color-danger)' }}>❌ Not found — URL may be outdated</span>
 }
 
-function SummaryCard({ title, icon, count, note, actionLabel, onAction }) {
-  return (
-    <div className="summary-card">
-      <div className="summary-card-head">
-        <span className="summary-card-icon">{icon}</span>
-        <div>
-          <div className="summary-card-title">{title}</div>
-          <div className="summary-card-count">{count}</div>
-        </div>
-      </div>
-      <div className="summary-card-note">{note}</div>
-      <button className="btn btn-secondary btn-sm" onClick={onAction}>
-        {actionLabel}
-      </button>
-    </div>
-  )
-}
-
 function AssetManager() {
   const [activeTab, setActiveTab] = useState('overview')
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
@@ -491,12 +473,6 @@ function AssetManager() {
     }
   }
 
-  const ubuntuCount = catalog.ubuntu?.length || 0
-  const debianCount = catalog.debian?.length || 0
-  const rescueCount = (catalog.rescue?.length || 0) + (catalog.kaspersky?.length || 0)
-  const totalHttpFiles = assets.http?.length || 0
-  const nfsReady = Boolean(nfsStatus?.running)
-
   return (
     <div className="asset-manager">
       <div className="asset-header">
@@ -550,58 +526,8 @@ function AssetManager() {
 
       <div className="asset-content">
         {/* Discovered Distributions */}
-        <section
-          className="asset-section"
-          style={{ display: activeTab === 'files' ? 'none' : 'block' }}
-        >
-          <h3>📊 Overview</h3>
-
-          <div className="summary-grid">
-            <SummaryCard
-              title="Ubuntu"
-              icon="🐧"
-              count={`${ubuntuCount} version${ubuntuCount === 1 ? '' : 's'}`}
-              note={ubuntuCount > 0 ? 'Server/Desktop assets found in catalog.' : 'No Ubuntu assets found yet.'}
-              actionLabel="Open Ubuntu"
-              onAction={() => setActiveTab('ubuntu')}
-            />
-            <SummaryCard
-              title="Debian"
-              icon="🌀"
-              count={`${debianCount} version${debianCount === 1 ? '' : 's'}`}
-              note={debianCount > 0 ? 'Installer and/or Live assets found in catalog.' : 'No Debian assets found yet.'}
-              actionLabel="Open Debian"
-              onAction={() => setActiveTab('debian')}
-            />
-            <SummaryCard
-              title="Rescue"
-              icon="🛟"
-              count={`${rescueCount} product${rescueCount === 1 ? '' : 's'}`}
-              note={rescueCount > 0 ? 'SystemRescue or Kaspersky assets are present.' : 'No rescue assets found yet.'}
-              actionLabel="Open Rescue"
-              onAction={() => setActiveTab('rescue')}
-            />
-            <SummaryCard
-              title="Files"
-              icon="📁"
-              count={`${totalHttpFiles} file${totalHttpFiles === 1 ? '' : 's'}`}
-              note="Current /srv/http inventory."
-              actionLabel="Browse Files"
-              onAction={() => setActiveTab('files')}
-            />
-          </div>
-
-          <div className="overview-alerts">
-            <div className={`overview-alert ${nfsReady ? 'ok' : 'warn'}`}>
-              {nfsReady ? '✅ NFS looks available for Ubuntu Server boot.' : '⚠️ NFS is not confirmed. Ubuntu Server NFS boot may be unavailable.'}
-            </div>
-            <div className={`overview-alert ${debianCount > 0 ? 'ok' : 'warn'}`}>
-              {debianCount > 0 ? '✅ Debian assets are present and should be selectable in Builder.' : '⚠️ No Debian assets in catalog yet. Go to the Debian tab to download them.'}
-            </div>
-            <div className={`overview-alert ${ubuntuCount > 0 ? 'ok' : 'warn'}`}>
-              {ubuntuCount > 0 ? '✅ Ubuntu assets are present and ready for Builder flows.' : '⚠️ No Ubuntu assets in catalog yet. Go to the Ubuntu tab to download them.'}
-            </div>
-          </div>
+        <section className="asset-section" style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+          <h3>📊 Discovered Distributions</h3>
 
           {/* Ubuntu */}
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
