@@ -16,10 +16,26 @@
 }
 
 .asset-tabs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
   margin-bottom: var(--spacing-lg);
+}
+
+.asset-tab {
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.asset-tab.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
 }
 
 .asset-actions {
@@ -56,16 +72,6 @@
   background: linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  text-align: left;
-}
-
-.asset-tabs .summary-card {
-  cursor: pointer;
-}
-
-.asset-tabs .summary-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
 }
 
 .summary-card-head {
