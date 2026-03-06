@@ -5,6 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/ui/',
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    globals: true,
+    exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
+  },
   build: {
     // Output directly into app/ so a single volume mount (./app:/app) covers both
     // backend code and built frontend — no nested Docker mounts needed.
