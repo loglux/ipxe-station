@@ -312,12 +312,24 @@ class iPXEValidator:
                         f"{entry.name}: requires_iso=True but boot_mode is '{entry.boot_mode}'"
                     )
                 # File presence checks (best-effort, local paths only)
-                warnings.extend(cls._lint_local_files(entry, base_path))
+                warnings.extend(
+                    cls._lint_local_files(
+                        entry,
+                        base_path,
+                        menu.server_ip,
+                        menu.http_port,
+                    )
+                )
 
         return warnings
 
     @staticmethod
-    def _lint_local_files(entry: iPXEEntry, base_path: str) -> List[str]:
+    def _lint_local_files(
+        entry: iPXEEntry,
+        base_path: str,
+        server_ip: str = "",
+        http_port: int = 0,
+    ) -> List[str]:
         """Check local file existence for kernel/initrd/ISO when applicable."""
         import re
         from pathlib import Path
@@ -344,26 +356,54 @@ class iPXEValidator:
         if initrd_path and not initrd_path.exists():
             warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
 
-        # Ubuntu ISO check: only when cmdline has no fetch=/url= (squashfs/iso recipe not applied)
+        # ISO check:
+        # - Skip NFS live mode (no local ISO required)
+        # - Validate only explicit ISO references in cmdline (url=/fetch=/...iso)
+        # - Warn only for concrete, locally-served ISO paths that are actually missing
         cmdline = entry.cmdline or ""
-        if (
-            (entry.requires_iso or entry.boot_mode == "live")
-            and "fetch=" not in cmdline
-            and "url=" not in cmdline
-        ):
-            version = None
-            if entry.kernel:
-                m = re.search(r"ubuntu[-_](\d{2}\.\d{2})", entry.kernel)
-                if m:
-                    version = m.group(1)
-            if version:
-                iso_candidate = (
-                    Path(base_path)
-                    / f"ubuntu-{version}"
-                    / f"ubuntu-{version}-live-server-amd64.iso"
-                )
-                if not iso_candidate.exists():
-                    warnings.append(f"{entry.name}: ISO missing at {iso_candidate}")
+        cmdline_lower = cmdline.lower()
+        is_nfs_live = "netboot=nfs" in cmdline_lower or "nfsroot=" in cmdline_lower
+        needs_local_iso_check = (
+            entry.requires_iso or entry.boot_mode == "live"
+        ) and not is_nfs_live
+
+        if needs_local_iso_check:
+            iso_ref = None
+            for match in re.finditer(r"(?:(?<=\s)|^)[^=\s]+=([^\s]+)", cmdline):
+                candidate = match.group(1).strip("'\"")
+                if ".iso" in candidate.lower():
+                    iso_ref = candidate
+                    break
+
+            if iso_ref:
+                local_path: Optional[Path] = None
+                if iso_ref.startswith(("http://", "https://")):
+                    parsed = urlparse(iso_ref)
+                    host = (parsed.hostname or "").lower()
+                    local_hosts = {
+                        "localhost",
+                        "127.0.0.1",
+                        "::1",
+                        settings.pxe_server_ip.lower(),
+                    }
+                    if server_ip:
+                        local_hosts.add(server_ip.lower())
+                    if "${server_ip}" in iso_ref:
+                        local_path = Path(base_path) / parsed.path.lstrip("/")
+                    elif host in local_hosts and parsed.path:
+                        if http_port and parsed.port and parsed.port != http_port:
+                            local_path = None
+                        else:
+                            local_path = Path(base_path) / parsed.path.lstrip("/")
+                elif iso_ref.startswith("tftp://"):
+                    local_path = None
+                elif iso_ref.startswith("/"):
+                    local_path = Path(iso_ref)
+                else:
+                    local_path = Path(base_path) / iso_ref.lstrip("/")
+
+                if local_path and not local_path.exists():
+                    warnings.append(f"{entry.name}: ISO missing at {local_path}")
 
         # HTTP-served distros: check that the extracted ISO content directory exists.
         # Each entry maps (cmdline marker, URL regex, required subdir, display name).

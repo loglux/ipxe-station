@@ -110,6 +110,8 @@ def test_lint_missing_files(tmp_path):
                 entry_type="boot",
                 boot_mode="live",
                 requires_iso=True,
+                cmdline="ip=dhcp boot=casper netboot=url "
+                "url=http://localhost:8123/ubuntu-24.04/ubuntu-24.04-live-server-amd64.iso",
             )
         ],
     )
@@ -117,3 +119,60 @@ def test_lint_missing_files(tmp_path):
     warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
     assert any("initrd file missing" in w for w in warnings)
     assert any("ISO missing" in w for w in warnings)
+
+
+def test_lint_local_iso_patch_version_is_valid(tmp_path):
+    base = tmp_path
+    (base / "live").mkdir(parents=True, exist_ok=True)
+    (base / "live" / "vmlinuz").write_text("kernel")
+    (base / "live" / "initrd").write_text("initrd")
+    (base / "live" / "linux-live-2026.03.1.iso").write_text("iso")
+
+    menu = iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="live_patch",
+                title="Live Patch",
+                kernel="live/vmlinuz",
+                initrd="live/initrd",
+                entry_type="boot",
+                boot_mode="live",
+                requires_iso=True,
+                cmdline="ip=dhcp boot=casper netboot=url "
+                "url=http://localhost:8123/live/linux-live-2026.03.1.iso",
+            )
+        ],
+    )
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    assert not any("ISO missing" in w for w in warnings)
+
+
+def test_lint_external_iso_url_is_not_checked_locally(tmp_path):
+    base = tmp_path
+    (base / "live").mkdir(parents=True, exist_ok=True)
+    (base / "live" / "vmlinuz").write_text("kernel")
+    (base / "live" / "initrd").write_text("initrd")
+
+    menu = iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="live_external",
+                title="Live External",
+                kernel="live/vmlinuz",
+                initrd="live/initrd",
+                entry_type="boot",
+                boot_mode="live",
+                requires_iso=True,
+                cmdline="ip=dhcp boot=casper netboot=url "
+                "url=https://cdn.example.org/images/linux-live-2026.03.1.iso",
+            )
+        ],
+    )
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    assert not any("ISO missing" in w for w in warnings)
