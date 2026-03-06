@@ -2,6 +2,15 @@
 
 ## Current State (2026-03-03)
 
+### Execution Principles
+
+- **Feature-first:** prioritize core PXE/iPXE functionality before non-critical hardening.
+- **Backend as source of truth:** schema, recipes, and generation logic must stay in backend APIs.
+- **Thin frontend:** UI renders and calls APIs; it must not become a second business-logic backend.
+- **Security-by-boundary:** future auth should be added at API boundary (middleware/dependencies), not spread across domain logic.
+- **Stable contracts:** keep API request/response models backward-compatible to allow incremental security rollout.
+- **Optional hardening:** security controls should be modular and config-driven, with dev-friendly defaults.
+
 ### What Works
 
 - **Proxy DHCP** — dnsmasq in proxy mode, correctly serves BIOS (`undionly.kpxe`) and EFI (`ipxe.efi`); auto-starts on container restart
@@ -86,6 +95,18 @@ served over HTTP for automated installs.
   - Live images are amd64-only and use Calamares
   - Debian live-boot expects `boot=live` and supports `fetch=` / `httpfs=` / `netboot=`
   - `fetch=` prefers IP-based URLs and can use a live ISO in place of squashfs
+
+### 6. Optional LAN Security Hardening (No Overengineering)
+
+**Goal:** Keep development friction low while reducing the highest-impact risks for LAN deployments.
+
+- **Authentication remains optional** and disabled by default (`SECURITY_MODE=off`).
+- Add lightweight optional token mode (`SECURITY_MODE=token`) for write/control API endpoints.
+- Add configurable upload/download size limits to reduce accidental disk/IO exhaustion.
+- Add optional SSRF guardrails for URL-based endpoints (`/api/assets/download`, `/api/assets/check-url`)
+  with deny rules for loopback/private/metadata targets.
+- Document trusted-LAN deployment assumptions and recommended network isolation
+  (VLAN/firewall) as guidance, not as a mandatory runtime dependency.
 
 ---
 

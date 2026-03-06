@@ -35,6 +35,24 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
   const submenus = entries.filter(e => e.entry_type === 'submenu')
 
+  const getDescendantNames = (entryName) => {
+    const descendants = new Set()
+    const stack = [entryName]
+
+    while (stack.length > 0) {
+      const current = stack.pop()
+      const children = entries.filter(e => e.parent === current && e.entry_type === 'submenu')
+      children.forEach((child) => {
+        if (!descendants.has(child.name)) {
+          descendants.add(child.name)
+          stack.push(child.name)
+        }
+      })
+    }
+
+    return descendants
+  }
+
   const handleMoveUp = (entry, e) => {
     e.stopPropagation()
     const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
@@ -84,8 +102,9 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     const canUp = idx > 0
     const canDown = idx < siblings.length - 1
 
-    // Submenus this entry can move into (excluding itself and its own children)
-    const moveTargets = submenus.filter(s => s.name !== entry.name)
+    // Submenus this entry can move into (excluding itself and its own descendants)
+    const descendantNames = getDescendantNames(entry.name)
+    const moveTargets = submenus.filter(s => s.name !== entry.name && !descendantNames.has(s.name))
 
     return (
       <div key={entry.name} className="tree-entry">

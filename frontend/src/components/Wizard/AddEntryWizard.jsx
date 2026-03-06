@@ -199,6 +199,28 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       setCreateError('Please fill in all required fields.')
       return
     }
+    const scenario = getScenario(selectedScenario)
+    const required = scenario?.fields?.required || []
+
+    const requiredValues = {
+      name: entryName,
+      title: entryTitle,
+      kernel,
+      initrd,
+      cmdline,
+    }
+
+    for (const field of required) {
+      const value = requiredValues[field]
+      if (typeof value === 'string' && value.trim() === '') {
+        setCreateError(`Field "${field}" is required.`)
+        return
+      }
+      if (value == null) {
+        setCreateError(`Field "${field}" is required.`)
+        return
+      }
+    }
     setCreateError(null)
 
     const requiresIso = selectedBootOption

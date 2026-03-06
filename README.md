@@ -42,6 +42,13 @@
 - **Ports**: 9021 (HTTP/UI), 69 (TFTP), 67 (DHCP — only if using Proxy DHCP)
 - **Capability**: `NET_ADMIN` for DHCP validation and Proxy DHCP (already in `docker-compose.yml`)
 
+### Security Scope (Current Stage)
+
+- iPXE Station is currently designed for **trusted LAN** usage.
+- Full authentication/authorization is **not required** for local development at this stage.
+- Optional hardening (token mode, SSRF guard, upload/download limits) is planned as
+  modular features and can be enabled later without changing the default dev workflow.
+
 ---
 
 ## 🚀 Quick Start
@@ -207,6 +214,9 @@ Research basis:
 ---
 
 ## 🏗️ Architecture
+
+Working principles for delivery and future extensibility are documented in
+`ROADMAP.md` under **Execution Principles**.
 
 ```
 ┌──────────────────────────────────────────────┐

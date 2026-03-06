@@ -3,12 +3,13 @@ import os
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.routes.assets import assets_router
 from app.routes.boot import boot_router
+from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import ipxe_router
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
@@ -156,13 +157,17 @@ async def status():
 # Include routers
 # ---------------------------------------------------------------------------
 
-app.include_router(ipxe_router)
-app.include_router(boot_router)
-app.include_router(assets_router)
-app.include_router(dhcp_router)
-app.include_router(proxy_dhcp_router)
-app.include_router(monitoring_router)
-app.include_router(settings_router)
+_api_routers = (
+    ipxe_router,
+    boot_router,
+    assets_router,
+    dhcp_router,
+    proxy_dhcp_router,
+    monitoring_router,
+    settings_router,
+)
+for _router in _api_routers:
+    app.include_router(_router, dependencies=[Depends(api_boundary_context)])
 
 
 # ---------------------------------------------------------------------------

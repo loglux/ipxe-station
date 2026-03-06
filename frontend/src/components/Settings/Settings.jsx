@@ -21,27 +21,30 @@ export default function Settings({ isOpen, onClose, onSave }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
 
-  // Load settings on mount
-  useEffect(() => {
-    if (isOpen) {
-      fetchSettings()
-    }
-  }, [isOpen])
+  const parseIntOrFallback = (rawValue, fallback) => {
+    const parsed = Number.parseInt(rawValue, 10)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
 
   const applyTheme = (theme) => {
     document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : ''
   }
 
-  const fetchSettings = async () => {
-    try {
-      const response = await fetch('/api/settings')
-      const data = await response.json()
-      setSettings(data)
-      applyTheme(data.theme)
-    } catch (error) {
-      console.error('Failed to load settings:', error)
+  // Load settings when modal opens
+  useEffect(() => {
+    if (!isOpen) return
+    const load = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        const data = await response.json()
+        setSettings(data)
+        applyTheme(data.theme)
+      } catch (error) {
+        console.error('Failed to load settings:', error)
+      }
     }
-  }
+    load()
+  }, [isOpen])
 
   const detectIP = async () => {
     setDetecting(true)
@@ -162,7 +165,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
                 <input
                   type="number"
                   value={settings.http_port}
-                  onChange={e => handleChange('http_port', parseInt(e.target.value))}
+                  onChange={e => handleChange('http_port', parseIntOrFallback(e.target.value, settings.http_port))}
                   min="1"
                   max="65535"
                 />
@@ -172,7 +175,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
                 <input
                   type="number"
                   value={settings.tftp_port}
-                  onChange={e => handleChange('tftp_port', parseInt(e.target.value))}
+                  onChange={e => handleChange('tftp_port', parseIntOrFallback(e.target.value, settings.tftp_port))}
                   min="1"
                   max="65535"
                 />
@@ -216,7 +219,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
                 <input
                   type="number"
                   value={settings.default_timeout}
-                  onChange={e => handleChange('default_timeout', parseInt(e.target.value))}
+                  onChange={e => handleChange('default_timeout', parseIntOrFallback(e.target.value, settings.default_timeout))}
                   min="0"
                   step="1000"
                 />
@@ -255,7 +258,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
                 <input
                   type="number"
                   value={settings.poll_interval}
-                  onChange={e => handleChange('poll_interval', parseInt(e.target.value))}
+                  onChange={e => handleChange('poll_interval', parseIntOrFallback(e.target.value, settings.poll_interval))}
                   min="1000"
                   max="10000"
                   step="500"

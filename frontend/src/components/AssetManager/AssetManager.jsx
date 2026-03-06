@@ -137,9 +137,20 @@ function AssetManager() {
 
     const interval = setInterval(pollProgress, pollInterval)
     return () => clearInterval(interval)
-  }, [pollProgress, checkUrl, fetchNfsStatus, pollInterval])
+  }, [
+    fetchAssets,
+    fetchCatalog,
+    fetchDebianProducts,
+    fetchKasperskyVersions,
+    fetchNfsStatus,
+    fetchSystemRescueVersions,
+    fetchUbuntuDesktopVersions,
+    fetchUbuntuVersions,
+    pollProgress,
+    pollInterval,
+  ])
 
-  const fetchAssets = async () => {
+  const fetchAssets = useCallback(async () => {
     try {
       const response = await fetch('/api/assets')
       const data = await response.json()
@@ -147,9 +158,9 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch assets:', error)
     }
-  }
+  }, [])
 
-  const fetchCatalog = async () => {
+  const fetchCatalog = useCallback(async () => {
     try {
       const response = await fetch('/api/assets/catalog')
       const data = await response.json()
@@ -157,9 +168,9 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch catalog:', error)
     }
-  }
+  }, [])
 
-  const fetchDebianProducts = async () => {
+  const fetchDebianProducts = useCallback(async () => {
     try {
       const response = await fetch('/api/assets/versions/debian')
       const data = await response.json()
@@ -174,7 +185,7 @@ function AssetManager() {
       setDebianProducts([])
       debianProductsRef.current = []
     }
-  }
+  }, [checkUrl])
 
 
   const handleUpload = async (e) => {
@@ -200,7 +211,7 @@ function AssetManager() {
     }
   }
 
-  const fetchSystemRescueVersions = async () => {
+  const fetchSystemRescueVersions = useCallback(async () => {
     try {
       const response = await fetch('/api/assets/versions/systemrescue')
       const data = await response.json()
@@ -212,9 +223,9 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch SystemRescue versions:', error)
     }
-  }
+  }, [checkUrl])
 
-  const fetchKasperskyVersions = async () => {
+  const fetchKasperskyVersions = useCallback(async () => {
     try {
       const response = await fetch('/api/assets/versions/kaspersky')
       const data = await response.json()
@@ -226,9 +237,9 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch Kaspersky versions:', error)
     }
-  }
+  }, [checkUrl])
 
-  const fetchUbuntuVersions = async () => {
+  const fetchUbuntuVersions = useCallback(async () => {
     setUbuntuLoading(true)
     try {
       const response = await fetch('/api/assets/versions/ubuntu')
@@ -243,9 +254,9 @@ function AssetManager() {
     } finally {
       setUbuntuLoading(false)
     }
-  }
+  }, [checkUrl])
 
-  const fetchUbuntuDesktopVersions = async () => {
+  const fetchUbuntuDesktopVersions = useCallback(async () => {
     setUbuntuDesktopLoading(true)
     try {
       const response = await fetch('/api/assets/versions/ubuntu/desktop')
@@ -260,7 +271,7 @@ function AssetManager() {
     } finally {
       setUbuntuDesktopLoading(false)
     }
-  }
+  }, [checkUrl])
 
   const downloadUbuntuDesktop = async () => {
     if (!selectedUbuntuDesktopVersion) return

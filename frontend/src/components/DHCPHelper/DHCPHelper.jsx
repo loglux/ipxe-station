@@ -245,8 +245,20 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
 
   const applyFix = async (fix_url, fix_method = 'POST') => {
     setLoading(true);
-    await fetch(fix_url, { method: fix_method });
-    await validateNetwork();
+    try {
+      const response = await fetch(fix_url, { method: fix_method });
+      if (!response.ok) {
+        throw new Error(`Fix request failed: HTTP ${response.status}`);
+      }
+      await validateNetwork();
+    } catch (error) {
+      setValidationResult({
+        status: 'error',
+        message: error?.message || 'Failed to apply fix'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
