@@ -674,6 +674,62 @@ details[open] .script-preview-toggle {
 }
 
 @media (max-width: 900px) {
+  .app-header {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .header-left {
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-left h1 {
+    font-size: 18px;
+    line-height: 1.1;
+  }
+
+  .header-left .version {
+    display: none;
+  }
+
+  .header-right {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .header-right .save-message {
+    display: none;
+  }
+
+  .header-right .btn {
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 var(--spacing-sm);
+    gap: 0;
+  }
+
+  .tab {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
   .main-layout {
     grid-template-columns: 1fr;
   }

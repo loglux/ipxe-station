@@ -59,6 +59,19 @@ function App() {
     return () => clearTimeout(timer)
   }, [saveMessage])
 
+  // Keep active tab in sync when hash changes outside React tab clicks
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashTab = window.location.hash.slice(1)
+      if (VALID_TABS.includes(hashTab)) {
+        setActiveTab(hashTab)
+        if (hashTab !== 'builder') setSelectedEntryId(null)
+      }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
   // Apply saved theme on mount
   useEffect(() => {
     fetch('/api/settings')
