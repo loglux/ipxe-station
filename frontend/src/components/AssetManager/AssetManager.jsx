@@ -124,32 +124,6 @@ function AssetManager() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    fetchAssets()
-    fetchCatalog()
-    fetchUbuntuVersions()
-    fetchUbuntuDesktopVersions()
-    fetchDebianProducts()
-    fetchSystemRescueVersions()
-    fetchKasperskyVersions()
-    fetchNfsStatus()
-    pollProgress()
-
-    const interval = setInterval(pollProgress, pollInterval)
-    return () => clearInterval(interval)
-  }, [
-    fetchAssets,
-    fetchCatalog,
-    fetchDebianProducts,
-    fetchKasperskyVersions,
-    fetchNfsStatus,
-    fetchSystemRescueVersions,
-    fetchUbuntuDesktopVersions,
-    fetchUbuntuVersions,
-    pollProgress,
-    pollInterval,
-  ])
-
   const fetchAssets = useCallback(async () => {
     try {
       const response = await fetch('/api/assets')
@@ -272,6 +246,32 @@ function AssetManager() {
       setUbuntuDesktopLoading(false)
     }
   }, [checkUrl])
+
+  useEffect(() => {
+    fetchAssets()
+    fetchCatalog()
+    fetchUbuntuVersions()
+    fetchUbuntuDesktopVersions()
+    fetchDebianProducts()
+    fetchSystemRescueVersions()
+    fetchKasperskyVersions()
+    fetchNfsStatus()
+    pollProgress()
+
+    const interval = setInterval(pollProgress, pollInterval)
+    return () => clearInterval(interval)
+  }, [
+    fetchAssets,
+    fetchCatalog,
+    fetchDebianProducts,
+    fetchKasperskyVersions,
+    fetchNfsStatus,
+    fetchSystemRescueVersions,
+    fetchUbuntuDesktopVersions,
+    fetchUbuntuVersions,
+    pollProgress,
+    pollInterval,
+  ])
 
   const downloadUbuntuDesktop = async () => {
     if (!selectedUbuntuDesktopVersion) return
