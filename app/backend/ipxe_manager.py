@@ -348,6 +348,12 @@ class iPXEValidator:
                 return Path(path)
             return Path(base_path) / path.lstrip("/")
 
+        def resolve_http_served_path(path: str) -> Path:
+            normalized = path.lstrip("/")
+            if normalized.startswith("http/"):
+                normalized = normalized[len("http/") :]
+            return Path(base_path) / normalized
+
         kernel_path = resolve(entry.kernel)
         initrd_path = resolve(entry.initrd)
 
@@ -389,18 +395,20 @@ class iPXEValidator:
                     if server_ip:
                         local_hosts.add(server_ip.lower())
                     if "${server_ip}" in iso_ref:
-                        local_path = Path(base_path) / parsed.path.lstrip("/")
+                        local_path = resolve_http_served_path(parsed.path)
                     elif host in local_hosts and parsed.path:
                         if http_port and parsed.port and parsed.port != http_port:
                             local_path = None
                         else:
-                            local_path = Path(base_path) / parsed.path.lstrip("/")
+                            local_path = resolve_http_served_path(parsed.path)
                 elif iso_ref.startswith("tftp://"):
                     local_path = None
+                elif iso_ref.startswith("/http/"):
+                    local_path = resolve_http_served_path(iso_ref)
                 elif iso_ref.startswith("/"):
                     local_path = Path(iso_ref)
                 else:
-                    local_path = Path(base_path) / iso_ref.lstrip("/")
+                    local_path = resolve_http_served_path(iso_ref)
 
                 if local_path and not local_path.exists():
                     warnings.append(f"{entry.name}: ISO missing at {local_path}")

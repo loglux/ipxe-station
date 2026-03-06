@@ -176,3 +176,61 @@ def test_lint_external_iso_url_is_not_checked_locally(tmp_path):
 
     warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
     assert not any("ISO missing" in w for w in warnings)
+
+
+def test_lint_http_mount_prefix_url_maps_to_base_path(tmp_path):
+    base = tmp_path
+    (base / "kaspersky-24").mkdir(parents=True, exist_ok=True)
+    (base / "kaspersky-24" / "vmlinuz").write_text("kernel")
+    (base / "kaspersky-24" / "initrd").write_text("initrd")
+    (base / "kaspersky-24" / "krd-24.iso").write_text("iso")
+
+    menu = iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="kaspersky_1",
+                title="Kaspersky",
+                kernel="kaspersky-24/vmlinuz",
+                initrd="kaspersky-24/initrd",
+                entry_type="boot",
+                boot_mode="live",
+                requires_iso=True,
+                cmdline="ip=dhcp netboot=url "
+                "url=http://localhost:8123/http/kaspersky-24/krd-24.iso",
+            )
+        ],
+    )
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    assert not any("ISO missing" in w for w in warnings)
+
+
+def test_lint_http_mount_prefix_relative_path_maps_to_base_path(tmp_path):
+    base = tmp_path
+    (base / "debian-13.3-live-xfce").mkdir(parents=True, exist_ok=True)
+    (base / "debian-13.3-live-xfce" / "vmlinuz").write_text("kernel")
+    (base / "debian-13.3-live-xfce" / "initrd").write_text("initrd")
+    (base / "debian-13.3-live-xfce" / "debian-live-13.3.0-amd64-xfce.iso").write_text("iso")
+
+    menu = iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="debian_live_1",
+                title="Debian Live",
+                kernel="debian-13.3-live-xfce/vmlinuz",
+                initrd="debian-13.3-live-xfce/initrd",
+                entry_type="boot",
+                boot_mode="live",
+                requires_iso=True,
+                cmdline="ip=dhcp netboot=url "
+                "url=http://localhost:8123/http/debian-13.3-live-xfce/debian-live-13.3.0-amd64-xfce.iso",
+            )
+        ],
+    )
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    assert not any("ISO missing" in w for w in warnings)
