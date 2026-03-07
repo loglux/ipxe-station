@@ -71,7 +71,7 @@ function UrlBadge({ url, urlStatus }) {
 }
 
 function AssetManager() {
-  const [_assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
+  const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
@@ -686,6 +686,16 @@ function AssetManager() {
     return new Set(rows.map(row => String(row.version)))
   }, [catalog.kaspersky])
 
+  const manualToolFiles = useMemo(() => {
+    const files = Array.isArray(assets.http) ? assets.http : []
+    return files.filter((item) => item.startsWith('tools/'))
+  }, [assets.http])
+
+  const manualAntivirusFiles = useMemo(() => {
+    const files = Array.isArray(assets.http) ? assets.http : []
+    return files.filter((item) => item.startsWith('antivirus/'))
+  }, [assets.http])
+
   return (
     <div className="asset-manager">
       <div className="asset-header">
@@ -1171,6 +1181,19 @@ function AssetManager() {
         <section className="asset-section">
           <h3>🛠️ Tools</h3>
 
+          {manualToolFiles.length > 0 && (
+            <div className="distro-group">
+              <h4>📂 Manual files (tools/)</h4>
+              {manualToolFiles.map((path) => (
+                <div key={path} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">📄 {path.replace(/^tools\//, '')}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {catalog.rescue && catalog.rescue.length > 0 && (
             <div className="distro-group">
               <h4>📋 Discovered on disk</h4>
@@ -1257,6 +1280,19 @@ function AssetManager() {
         {(activeAcquireSection === 'all' || activeAcquireSection === 'antivirus') && (
         <section className="asset-section">
           <h3>🛡️ Antivirus</h3>
+
+          {manualAntivirusFiles.length > 0 && (
+            <div className="distro-group">
+              <h4>📂 Manual files (antivirus/)</h4>
+              {manualAntivirusFiles.map((path) => (
+                <div key={path} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">📄 {path.replace(/^antivirus\//, '')}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {catalog.kaspersky && catalog.kaspersky.length > 0 && (
             <div className="distro-group">
