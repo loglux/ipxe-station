@@ -62,25 +62,61 @@ const MANUAL_ISO_MATCHERS = {
   },
 }
 
-const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
+const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet, httpFiles = []) => {
   const parentDir = isoPath.includes('/') ? isoPath.split('/').slice(0, -1).join('/') : ''
   const join = (relative) => (parentDir ? `${parentDir}/${relative}` : relative)
   const has = (relative) => httpFilesSet.has(join(relative))
+  const parentPrefix = parentDir ? `${parentDir}/` : ''
+  const localFiles = (Array.isArray(httpFiles) ? httpFiles : [])
+    .map((p) => p.replace(/^\/+/, ''))
+    .filter((p) => (parentPrefix ? p.startsWith(parentPrefix) : true))
+    .map((p) => (parentPrefix ? p.slice(parentPrefix.length) : p))
+
+  const findLocalBySuffix = (suffixes = []) => {
+    const wanted = suffixes.map((s) => s.toLowerCase())
+    for (const item of localFiles) {
+      const v = item.toLowerCase()
+      if (wanted.some((s) => v === s || v.endsWith(`/${s}`))) {
+        return item
+      }
+    }
+    return ''
+  }
 
   if (scenarioId === 'hiren') {
-    const winpeReady =
-      has('wimboot') &&
-      has('bootmgr') &&
-      (has('Boot/BCD') || has('boot/BCD')) &&
-      (has('Boot/boot.sdi') || has('boot/boot.sdi')) &&
-      (has('sources/boot.wim') || has('Sources/boot.wim'))
+    const localWimboot = has('wimboot') ? 'wimboot' : findLocalBySuffix(['wimboot'])
+    const globalWimboot = httpFilesSet.has('wimboot') ? 'wimboot' : ''
+    const wimbootPath = localWimboot ? join(localWimboot) : (globalWimboot || '')
+    const bootmgrLocal = has('bootmgr') ? 'bootmgr' : findLocalBySuffix(['bootmgr'])
+    const bcdLocal = has('Boot/BCD')
+      ? 'Boot/BCD'
+      : has('boot/BCD')
+        ? 'boot/BCD'
+        : findLocalBySuffix(['Boot/BCD', 'boot/BCD'])
+    const sdiLocal = has('Boot/boot.sdi')
+      ? 'Boot/boot.sdi'
+      : has('boot/boot.sdi')
+        ? 'boot/boot.sdi'
+        : findLocalBySuffix(['Boot/boot.sdi', 'boot/boot.sdi'])
+    const wimLocal = has('sources/boot.wim')
+      ? 'sources/boot.wim'
+      : has('Sources/boot.wim')
+        ? 'Sources/boot.wim'
+        : findLocalBySuffix(['sources/boot.wim', 'Sources/boot.wim'])
+    const winpeReady = Boolean(wimbootPath && bootmgrLocal && bcdLocal && sdiLocal && wimLocal)
 
     if (winpeReady) {
       return {
-        kernel: join('wimboot'),
-        initrd: join('bootmgr'),
+        kernel: wimbootPath,
+        initrd: join(bootmgrLocal),
         cmdline: '',
         autodetected: true,
+        severity: 'success',
+        hiren_winpe_ready: true,
+        hiren_bootmgr: join(bootmgrLocal),
+        hiren_bcd: join(bcdLocal),
+        hiren_boot_sdi: join(sdiLocal),
+        hiren_boot_wim: join(wimLocal),
         hint: '✅ Detected Hiren WinPE assets (wimboot + bootmgr/BCD/boot.sdi/boot.wim).',
       }
     }
@@ -92,6 +128,8 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
         initrd: join('initrd'),
         cmdline: 'ip=dhcp',
         autodetected: false,
+        severity: 'warning',
+        hiren_winpe_ready: false,
         hint: '⚠️ Linux fallback detected (vmlinuz/initrd). Verify this image is not PE-only.',
       }
     }
@@ -101,7 +139,9 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
       initrd: '',
       cmdline: '',
       autodetected: false,
-      hint: '❌ Hiren PE boot files not found near ISO. Extract ISO to a folder with wimboot + bootmgr + Boot/BCD + Boot/boot.sdi + sources/boot.wim.',
+      severity: 'warning',
+      hiren_winpe_ready: false,
+      hint: 'ℹ️ WinPE bundle not fully detected near ISO. ISO (legacy memdisk, BIOS) can still be used; for WinPE mode keep wimboot + bootmgr + Boot/BCD + Boot/boot.sdi + sources/boot.wim together.',
     }
   }
 
@@ -110,6 +150,8 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
     initrd: join('initrd'),
     cmdline: 'ip=dhcp',
     autodetected: false,
+    severity: 'warning',
+    hiren_winpe_ready: false,
     hint: `⚠️ Manual asset selected: ${isoPath}. Verify kernel/initrd/cmdline manually.`,
   }
 }
@@ -241,7 +283,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         setEntryTitle(buildTitle(scenario.displayName, version.version, preferred.mode))
       }
       setManualAssetsHint(version.manual_hint || '')
-      setManualAssetsHintKind(version.autodetected ? 'success' : 'error')
+      setManualAssetsHintKind(version.manual_hint_kind || (version.autodetected ? 'success' : 'warning'))
       return
     }
 
@@ -320,6 +362,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               || (path.startsWith('tools/') ? 'tools' : '')
               || (path.startsWith('rescue/') ? 'rescue' : '')
               || (path.startsWith('antivirus/') ? 'antivirus' : '')
+              || (path.startsWith('hiren-') ? 'tools' : '')
+              || (path.startsWith('hiren/') ? 'tools' : '')
             return { path, category }
           })
           .map((path) => {
@@ -332,7 +376,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
           .filter((row) => row.include)
           .map(({ path, category }) => {
             const httpFilesSet = new Set(httpFiles.map((item) => item.replace(/^\/+/, '')))
-            const defaults = detectManualBootDefaults(selectedScenario, path, httpFilesSet)
+            const defaults = detectManualBootDefaults(selectedScenario, path, httpFilesSet, httpFiles)
             const parts = path.split('/')
             const fileName = parts.at(-1) || path
             const baseName = fileName.replace(/\.iso$/i, '')
@@ -348,6 +392,12 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               manual: true,
               autodetected: defaults.autodetected,
               manual_hint: defaults.hint,
+              manual_hint_kind: defaults.severity || 'warning',
+              hiren_winpe_ready: defaults.hiren_winpe_ready || false,
+              hiren_bootmgr: defaults.hiren_bootmgr,
+              hiren_bcd: defaults.hiren_bcd,
+              hiren_boot_sdi: defaults.hiren_boot_sdi,
+              hiren_boot_wim: defaults.hiren_boot_wim,
             }
           })
         : []
@@ -456,6 +506,15 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     const requiresIso = selectedBootOption
       ? selectedBootOption.mode === 'iso'
       : undefined
+    const hirenWinpeOverrides = selectedScenario === 'hiren' && selectedBootOption?.mode === 'winpe'
+      ? {
+          hiren_winpe_ready: Boolean(selectedVersion?.hiren_winpe_ready),
+          hiren_bootmgr: selectedVersion?.hiren_bootmgr || undefined,
+          hiren_bcd: selectedVersion?.hiren_bcd || undefined,
+          hiren_boot_sdi: selectedVersion?.hiren_boot_sdi || undefined,
+          hiren_boot_wim: selectedVersion?.hiren_boot_wim || undefined,
+        }
+      : {}
 
     // Create entry from scenario with auto-populated fields
     const entry = createEntryFromScenario(selectedScenario, {
@@ -467,6 +526,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       cmdline: cmdline || undefined,
       requires_iso: requiresIso,
       preseed_profile: selectedScenario === 'debian_preseed' ? (selectedPreseedProfile || undefined) : undefined,
+      ...hirenWinpeOverrides,
     })
 
     onAddEntry(entry)

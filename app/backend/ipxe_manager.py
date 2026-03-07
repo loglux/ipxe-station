@@ -44,6 +44,11 @@ class iPXEEntry:
     requires_internet: bool = False  # Whether this option needs internet
     parent: Optional[str] = None  # parent menu name for submenu grouping
     preseed_profile: Optional[str] = None
+    hiren_winpe_ready: bool = False
+    hiren_bootmgr: Optional[str] = None
+    hiren_bcd: Optional[str] = None
+    hiren_boot_sdi: Optional[str] = None
+    hiren_boot_wim: Optional[str] = None
 
     def __post_init__(self):
         """Validate entry after initialization"""
@@ -727,6 +732,48 @@ class iPXEGenerator:
 
                 if entry.requires_iso:
                     script_lines.append("echo Note: Local ISO file required")
+
+                # Canonical WinPE flow via wimboot:
+                # kernel wimboot
+                # initrd <bootmgr> bootmgr
+                # initrd <BCD> BCD
+                # initrd <boot.sdi> boot.sdi
+                # initrd <boot.wim> boot.wim
+                if entry.hiren_winpe_ready and entry.kernel:
+                    kernel_url = iPXEGenerator._resolve_kernel_url(
+                        entry.kernel, menu.server_ip, menu.http_port
+                    )
+                    cmdline = (
+                        (entry.cmdline or "")
+                        .replace("${server_ip}", menu.server_ip)
+                        .replace("${port}", str(menu.http_port))
+                    )
+                    script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
+
+                    bootmgr_path = entry.hiren_bootmgr or entry.initrd
+                    if bootmgr_path:
+                        bootmgr_url = iPXEGenerator._resolve_kernel_url(
+                            bootmgr_path, menu.server_ip, menu.http_port
+                        )
+                        script_lines.append(f"initrd {bootmgr_url} bootmgr")
+                    if entry.hiren_bcd:
+                        bcd_url = iPXEGenerator._resolve_kernel_url(
+                            entry.hiren_bcd, menu.server_ip, menu.http_port
+                        )
+                        script_lines.append(f"initrd {bcd_url} BCD")
+                    if entry.hiren_boot_sdi:
+                        sdi_url = iPXEGenerator._resolve_kernel_url(
+                            entry.hiren_boot_sdi, menu.server_ip, menu.http_port
+                        )
+                        script_lines.append(f"initrd {sdi_url} boot.sdi")
+                    if entry.hiren_boot_wim:
+                        wim_url = iPXEGenerator._resolve_kernel_url(
+                            entry.hiren_boot_wim, menu.server_ip, menu.http_port
+                        )
+                        script_lines.append(f"initrd {wim_url} boot.wim")
+
+                    script_lines.extend(["boot", "goto start", ""])
+                    continue
 
                 # Determine kernel URL
                 if entry.kernel:

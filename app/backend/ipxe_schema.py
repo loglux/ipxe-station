@@ -21,6 +21,11 @@ class IpxeEntryModel(BaseModel):
     requires_internet: bool = False
     parent: Optional[str] = None  # for submenu grouping
     preseed_profile: Optional[str] = None
+    hiren_winpe_ready: bool = False
+    hiren_bootmgr: Optional[str] = None
+    hiren_bcd: Optional[str] = None
+    hiren_boot_sdi: Optional[str] = None
+    hiren_boot_wim: Optional[str] = None
 
     model_config = {
         "extra": "forbid",
@@ -77,6 +82,11 @@ def menu_to_model(menu) -> IpxeMenuModel:
                 requires_internet=entry.requires_internet,
                 parent=entry.parent,
                 preseed_profile=entry.preseed_profile,
+                hiren_winpe_ready=entry.hiren_winpe_ready,
+                hiren_bootmgr=entry.hiren_bootmgr,
+                hiren_bcd=entry.hiren_bcd,
+                hiren_boot_sdi=entry.hiren_boot_sdi,
+                hiren_boot_wim=entry.hiren_boot_wim,
             )
             for entry in menu.entries
         ],
@@ -112,6 +122,11 @@ def model_to_menu(model: IpxeMenuModel):
                 requires_internet=entry.requires_internet,
                 parent=entry.parent,
                 preseed_profile=entry.preseed_profile,
+                hiren_winpe_ready=entry.hiren_winpe_ready,
+                hiren_bootmgr=entry.hiren_bootmgr,
+                hiren_bcd=entry.hiren_bcd,
+                hiren_boot_sdi=entry.hiren_boot_sdi,
+                hiren_boot_wim=entry.hiren_boot_wim,
             )
             for entry in model.entries
         ],

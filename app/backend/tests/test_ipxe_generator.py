@@ -65,3 +65,36 @@ goto start
 """
 
     assert script.strip() == expected.strip()
+
+
+def test_hiren_winpe_wimboot_flow_uses_multi_initrd():
+    menu = iPXEMenu(
+        title="Test Menu",
+        timeout=5000,
+        default_entry="hiren",
+        server_ip="10.0.0.1",
+        http_port=8080,
+        entries=[
+            iPXEEntry(
+                name="hiren",
+                title="Hiren WinPE",
+                kernel="wimboot",
+                initrd="hiren-1.0.8/bootmgr",
+                boot_mode="rescue",
+                entry_type="boot",
+                hiren_winpe_ready=True,
+                hiren_bootmgr="hiren-1.0.8/bootmgr",
+                hiren_bcd="hiren-1.0.8/Boot/BCD",
+                hiren_boot_sdi="hiren-1.0.8/Boot/boot.sdi",
+                hiren_boot_wim="hiren-1.0.8/sources/boot.wim",
+            )
+        ],
+    )
+
+    script = iPXEGenerator.generate_ipxe_script(menu)
+
+    assert "kernel http://10.0.0.1:8080/http/wimboot" in script
+    assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/bootmgr bootmgr" in script
+    assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/Boot/BCD BCD" in script
+    assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/Boot/boot.sdi boot.sdi" in script
+    assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/sources/boot.wim boot.wim" in script
