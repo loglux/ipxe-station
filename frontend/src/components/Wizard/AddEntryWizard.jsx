@@ -63,12 +63,19 @@ const MANUAL_ISO_MATCHERS = {
 }
 
 const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet, httpFiles = []) => {
-  const parentDir = isoPath.includes('/') ? isoPath.split('/').slice(0, -1).join('/') : ''
+  const normalizeHttpPath = (value = '') => value.replace(/^\/+/, '').replace(/^http\//, '')
+  const normalizedIsoPath = normalizeHttpPath(isoPath)
+  const parentDir = normalizedIsoPath.includes('/')
+    ? normalizedIsoPath.split('/').slice(0, -1).join('/')
+    : ''
   const join = (relative) => (parentDir ? `${parentDir}/${relative}` : relative)
-  const has = (relative) => httpFilesSet.has(join(relative))
+  const normalizedSet = new Set(
+    Array.from(httpFilesSet || []).map((p) => normalizeHttpPath(String(p))),
+  )
+  const has = (relative) => normalizedSet.has(normalizeHttpPath(join(relative)))
   const parentPrefix = parentDir ? `${parentDir}/` : ''
   const localFiles = (Array.isArray(httpFiles) ? httpFiles : [])
-    .map((p) => p.replace(/^\/+/, ''))
+    .map((p) => normalizeHttpPath(String(p)))
     .filter((p) => (parentPrefix ? p.startsWith(parentPrefix) : true))
     .map((p) => (parentPrefix ? p.slice(parentPrefix.length) : p))
 
@@ -85,7 +92,7 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet, httpFiles =
 
   if (scenarioId === 'hiren') {
     const localWimboot = has('wimboot') ? 'wimboot' : findLocalBySuffix(['wimboot'])
-    const globalWimboot = httpFilesSet.has('wimboot') ? 'wimboot' : ''
+    const globalWimboot = normalizedSet.has('wimboot') ? 'wimboot' : ''
     const wimbootPath = localWimboot ? join(localWimboot) : (globalWimboot || '')
     const bootmgrLocal = has('bootmgr') ? 'bootmgr' : findLocalBySuffix(['bootmgr'])
     const bcdLocal = has('Boot/BCD')
