@@ -71,6 +71,7 @@
   --footer-height: 40px;
   --sidebar-width: 300px;
   --tab-height: 48px;
+  --content-max-width: 1280px;
 }
 
 /* ========== DARK MODE ========== */
@@ -322,7 +323,9 @@ button {
 .main-content {
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-secondary);
+  background:
+    radial-gradient(circle at 80% -10%, rgba(59, 130, 246, 0.08), transparent 35%),
+    var(--color-bg-secondary);
   overflow: hidden;
 }
 
@@ -408,6 +411,13 @@ button {
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content > * {
+  width: min(100%, var(--content-max-width));
+  margin: 0 auto;
 }
 
 /* ========== BUILDER VIEW ========== */

@@ -45,3 +45,5 @@ frontend/dist/
 # Local UI testing artifacts
 .playwright-cli/
 output/
+frontend/test-results/
+frontend/playwright-report/

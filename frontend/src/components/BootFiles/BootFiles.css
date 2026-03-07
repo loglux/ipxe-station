@@ -1,5 +1,10 @@
 .boot-files {
-  padding: 20px;
+  padding: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   height: 100%;
   overflow: auto;
 }
@@ -12,6 +17,7 @@
 
 .section {
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 20px;
   box-shadow: var(--shadow-sm);
@@ -19,8 +25,9 @@
 
 .section h2 {
   margin: 0 0 8px 0;
-  font-size: 18px;
+  font-size: 20px;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .section-description {
@@ -59,7 +66,7 @@
 
 .template-btn {
   padding: 8px 16px;
-  border: 2px solid var(--color-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg);
   color: var(--color-text);
@@ -78,6 +85,7 @@
   background: var(--color-primary);
   color: white;
   font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
 .template-info {
@@ -134,6 +142,6 @@
 /* Responsive */
 @media (max-width: 768px) {
   .boot-files {
-    padding: 12px;
+    gap: 12px;
   }
 }

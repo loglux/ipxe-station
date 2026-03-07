@@ -1,7 +1,8 @@
 .monitoring-container {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -11,18 +12,25 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  min-width: 0;
 }
 
 .logs-header {
   padding: 16px 20px;
-  border-bottom: 2px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .logs-header h3 {
@@ -36,6 +44,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .log-filter {
@@ -43,7 +52,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  background: var(--color-bg);
+  background: var(--color-bg-tertiary);
   color: var(--color-text);
   cursor: pointer;
 }
@@ -64,7 +73,7 @@
 }
 
 .logs-list {
-  padding: 12px;
+  padding: 16px;
 }
 
 .logs-empty {
@@ -93,6 +102,7 @@
   padding: 4px 8px;
   margin-bottom: 2px;
   border-radius: 3px;
+  border-left: 2px solid transparent;
   display: flex;
   gap: 8px;
   font-family: 'Courier New', monospace;
@@ -127,15 +137,19 @@
 
 .log-error .log-level   { color: #ef4444; }
 .log-error .log-message { color: #fca5a5; }
+.log-error { border-left-color: #ef4444; }
 
 .log-warning .log-level   { color: #f59e0b; }
 .log-warning .log-message { color: #fbbf24; }
+.log-warning { border-left-color: #f59e0b; }
 
 .log-info .log-level   { color: #10b981; }
 .log-info .log-message { color: #d1fae5; }
+.log-info { border-left-color: #10b981; }
 
 .log-debug .log-level   { color: #8b5cf6; }
 .log-debug .log-message { color: #c4b5fd; }
+.log-debug { border-left-color: #8b5cf6; }
 
 .logs-footer {
   padding: 12px 20px;
@@ -144,6 +158,8 @@
   align-items: center;
   justify-content: space-between;
   background: var(--color-bg-secondary);
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .auto-scroll-toggle {
