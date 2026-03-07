@@ -423,7 +423,7 @@ export const SCENARIOS = {
   hiren: {
     id: 'hiren',
     displayName: "Hiren's BootCD PE",
-    description: 'Windows-based recovery toolkit (manual ISO workflow)',
+    description: 'Windows-based recovery toolkit (WinPE or Legacy ISO)',
     icon: '🧰',
     category: 'rescue',
 
@@ -451,14 +451,16 @@ export const SCENARIOS = {
     }),
 
     help: `
-      Hiren's BootCD PE is added from manually uploaded assets.
+      Hiren's BootCD PE supports two explicit boot modes:
+      - WinPE via wimboot (preferred)
+      - Legacy ISO via memdisk (BIOS)
 
       Typical flow:
       - Upload ISO in Assets
-      - Extract required boot files (kernel/initrd or equivalent)
-      - Use this scenario to create/edit the iPXE entry
+      - For WinPE mode, extract PE files near ISO (wimboot + sources/boot.wim)
+      - For legacy mode, keep ISO and choose Legacy ISO (memdisk)
 
-      Note: file layout differs by image build, so verify kernel/initrd/cmdline.
+      Note: file layout differs by image build.
     `,
   },
 

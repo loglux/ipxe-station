@@ -184,22 +184,13 @@ const buildHirenManualBootOptions = (version) => {
   if (isoPath) {
     options.push({
       mode: 'iso',
-      label: 'ISO (legacy memdisk, BIOS)',
+      label: 'Legacy ISO (memdisk, BIOS)',
       kernel: 'memdisk',
       initrd: isoPath,
       cmdline: 'iso raw',
       recommended: options.length === 0,
     })
   }
-
-  options.push({
-    mode: 'manual',
-    label: 'Manual paths',
-    kernel: version?.kernel || '',
-    initrd: version?.initrd || '',
-    cmdline: version?.cmdline || '',
-    recommended: options.length === 0,
-  })
 
   return options
 }
@@ -222,9 +213,9 @@ const buildGenericManualIsoBootOptions = (version) => {
   options.push({
     mode: 'manual',
     label: 'Manual paths',
-    kernel: version?.kernel || '',
-    initrd: version?.initrd || '',
-    cmdline: version?.cmdline || '',
+    kernel: version?.kernel || (version?.iso ? 'memdisk' : ''),
+    initrd: version?.initrd || version?.iso || '',
+    cmdline: version?.cmdline || (version?.iso ? 'iso raw' : ''),
     recommended: options.length === 0,
   })
 
