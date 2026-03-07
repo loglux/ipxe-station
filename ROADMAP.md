@@ -236,6 +236,9 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - drag entry onto a submenu to re-parent it
   - drag entry to root drop-zone to move it to root level
   - invalid moves (self/descendant) are blocked in UI logic
+- Follow-up fix:
+  - drag-and-drop now commits positional reorder (drop after target row), so moved items
+    stay in the new place consistently.
 
 ### Cross-Page UI Consistency Pass
 - Aligned visual tone for `Monitoring`, `Assets`, `DHCP`, and `Boot Files`:

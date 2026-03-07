@@ -16,7 +16,7 @@ function MenuBuilder({
   const [pendingDelete, setPendingDelete] = useState(null) // entry object
   const [query, setQuery] = useState('')
   const [draggingEntryName, setDraggingEntryName] = useState(null)
-  const [dropParentName, setDropParentName] = useState(null)
+  const [dropTargetKey, setDropTargetKey] = useState(null)
 
   const toggleNode = (nodeName, e) => {
     e.stopPropagation()
@@ -151,7 +151,7 @@ function MenuBuilder({
 
   const handleDragEnd = () => {
     setDraggingEntryName(null)
-    setDropParentName(null)
+    setDropTargetKey(null)
   }
 
   const handleDropToParent = (targetParentName, e) => {
@@ -159,7 +159,46 @@ function MenuBuilder({
     e.stopPropagation()
     if (!draggingEntryName) return
     moveEntryToParent(draggingEntryName, targetParentName)
-    setDropParentName(null)
+    setDropTargetKey(null)
+  }
+
+  const moveEntryAfterTarget = (entryName, targetName) => {
+    const source = entries.find((entry) => entry.name === entryName)
+    const target = entries.find((entry) => entry.name === targetName)
+    if (!source || !target || source.name === target.name) return
+
+    const targetParent = target.parent || null
+    if (!canMoveToParent(entryName, targetParent)) return
+
+    const destinationSiblings = entries
+      .filter((entry) => entry.parent === targetParent && entry.name !== entryName)
+      .sort((a, b) => a.order - b.order)
+
+    const targetIndex = destinationSiblings.findIndex((entry) => entry.name === targetName)
+    if (targetIndex < 0) return
+
+    const sourceWithParent = { ...source, parent: targetParent }
+    const reordered = [
+      ...destinationSiblings.slice(0, targetIndex + 1),
+      sourceWithParent,
+      ...destinationSiblings.slice(targetIndex + 1),
+    ]
+
+    reordered.forEach((entry, index) => {
+      const prev = entries.find((item) => item.name === entry.name)
+      if (!prev) return
+      if (prev.order !== index || prev.parent !== entry.parent) {
+        onUpdateEntry(entry.name, { parent: entry.parent, order: index })
+      }
+    })
+  }
+
+  const handleDropAfterEntry = (targetEntry, e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggingEntryName) return
+    moveEntryAfterTarget(draggingEntryName, targetEntry.name)
+    setDropTargetKey(null)
   }
 
   const subtreeMatchesQuery = (entry) => {
@@ -191,17 +230,18 @@ function MenuBuilder({
             handleDragStart(entry.name)
           }}
           onDragEnd={handleDragEnd}
-          onDragOver={isSubmenu ? (e) => {
+          onDragOver={(e) => {
             if (!draggingEntryName) return
-            if (!canMoveToParent(draggingEntryName, entry.name)) return
+            if (draggingEntryName === entry.name) return
+            if (!canMoveToParent(draggingEntryName, entry.parent || null)) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
-            setDropParentName(entry.name)
-          } : undefined}
-          onDragLeave={isSubmenu ? () => {
-            if (dropParentName === entry.name) setDropParentName(null)
-          } : undefined}
-          onDrop={isSubmenu ? (e) => handleDropToParent(entry.name, e) : undefined}
+            setDropTargetKey(`after:${entry.name}`)
+          }}
+          onDragLeave={() => {
+            if (dropTargetKey === `after:${entry.name}`) setDropTargetKey(null)
+          }}
+          onDrop={(e) => handleDropAfterEntry(entry, e)}
         >
           <button
             type="button"
@@ -216,7 +256,7 @@ function MenuBuilder({
 
           <button
             type="button"
-            className={`tree-select-btn ${isSubmenu && dropParentName === entry.name ? 'drop-target' : ''}`}
+            className={`tree-select-btn ${dropTargetKey === `after:${entry.name}` ? 'drop-target' : ''}`}
             onClick={() => onSelectEntry(entry.name)}
             aria-current={isSelected ? 'true' : undefined}
             title={entry.title || entry.name}
@@ -309,16 +349,16 @@ function MenuBuilder({
 
       <div className="menu-tree">
         <div
-          className={`tree-root-drop ${dropParentName === '__root__' ? 'active' : ''}`}
+          className={`tree-root-drop ${dropTargetKey === '__root__' ? 'active' : ''}`}
           onDragOver={(e) => {
             if (!draggingEntryName) return
             if (!canMoveToParent(draggingEntryName, null)) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
-            setDropParentName('__root__')
+            setDropTargetKey('__root__')
           }}
           onDragLeave={() => {
-            if (dropParentName === '__root__') setDropParentName(null)
+            if (dropTargetKey === '__root__') setDropTargetKey(null)
           }}
           onDrop={(e) => handleDropToParent(null, e)}
         >
