@@ -23,5 +23,30 @@ test('builder page renders and preview refresh works without runtime errors', as
   await page.getByRole('button', { name: /Refresh/i }).click()
   await expect(page.locator('.code-preview')).toContainText('#!ipxe')
 
+  const entriesCountText = page.locator('.footer-right span').first()
+  const beforeText = await entriesCountText.textContent()
+  const beforeEntries = Number((beforeText || '').replace(/\D/g, ''))
+
+  const entryButtons = page.locator('.tree-select-btn')
+  if (await entryButtons.count()) {
+    await entryButtons.first().click()
+    await expect(page.getByRole('button', { name: /Duplicate/i })).toBeVisible()
+    await page.getByRole('button', { name: /Duplicate/i }).click()
+
+    await expect.poll(async () => {
+      const text = await entriesCountText.textContent()
+      return Number((text || '').replace(/\D/g, ''))
+    }).toBe(beforeEntries + 1)
+
+    await page.getByRole('button', { name: /Disable all/i }).click()
+    await expect(page.locator('.badge-disabled').first()).toBeVisible()
+
+    await page.getByRole('button', { name: /Enable all/i }).click()
+    await expect(page.locator('.badge-disabled')).toHaveCount(0)
+  } else {
+    await expect(page.getByRole('button', { name: /Enable all/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Disable all/i })).toBeVisible()
+  }
+
   expect(runtimeErrors).toEqual([])
 })

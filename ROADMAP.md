@@ -227,6 +227,11 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - stronger contrast for row states (`default/hover/focus/selected`)
   - clearer subtree hierarchy via subtle guide line
   - improved control readability in action panel
+- Added productivity controls in `Menu Structure`:
+  - `Duplicate` selected entry with deterministic unique naming (`*_copy`, `*_copy2`, ...)
+  - bulk toggles: `Enable all` / `Disable all`
+  - scoped toggles for selected item and selected subtree
+- Extended builder Playwright smoke to cover duplicate + bulk enable/disable flows.
 
 ### Cross-Page UI Consistency Pass
 - Aligned visual tone for `Monitoring`, `Assets`, `DHCP`, and `Boot Files`:

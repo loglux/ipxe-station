@@ -2,7 +2,16 @@ import { useState } from 'react'
 import './MenuBuilder.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
-function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, onUpdateEntry, onDeleteEntry }) {
+function MenuBuilder({
+  entries,
+  selectedEntryId,
+  onSelectEntry,
+  onOpenWizard,
+  onUpdateEntry,
+  onDeleteEntry,
+  onDuplicateEntry,
+  onSetEntriesEnabled,
+}) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
   const [pendingDelete, setPendingDelete] = useState(null) // entry object
   const [query, setQuery] = useState('')
@@ -61,6 +70,19 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     return descendants
   }
 
+  const getSubtreeNames = (entryName) => {
+    const names = new Set()
+    const stack = [entryName]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (names.has(current)) continue
+      names.add(current)
+      const children = entries.filter((entry) => entry.parent === current)
+      children.forEach((child) => stack.push(child.name))
+    }
+    return names
+  }
+
   const handleMoveUp = (entry) => {
     const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
     const idx = siblings.findIndex(s => s.name === entry.name)
@@ -93,6 +115,11 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
   const handleDelete = (entry) => {
     setPendingDelete(entry)
+  }
+
+  const handleDuplicate = (entry) => {
+    const duplicated = onDuplicateEntry?.(entry.name)
+    if (duplicated) onSelectEntry(duplicated)
   }
 
   const subtreeMatchesQuery = (entry) => {
@@ -170,6 +197,8 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
   const moveTargets = selectedEntry
     ? submenus.filter((entry) => entry.name !== selectedEntry.name && !selectedDescendants.has(entry.name))
     : []
+  const selectedSubtreeNames = selectedEntry ? Array.from(getSubtreeNames(selectedEntry.name)) : []
+  const hasEntries = entries.length > 0
 
   return (
     <div className="menu-builder">
@@ -183,6 +212,24 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
           aria-label="Search menu entries"
         />
         <div className="menu-toolbar-actions">
+          <button
+            type="button"
+            className="menu-mini-btn"
+            onClick={() => onSetEntriesEnabled(entries.map((entry) => entry.name), true)}
+            disabled={!hasEntries}
+            title="Enable all entries"
+          >
+            Enable all
+          </button>
+          <button
+            type="button"
+            className="menu-mini-btn"
+            onClick={() => onSetEntriesEnabled(entries.map((entry) => entry.name), false)}
+            disabled={!hasEntries}
+            title="Disable all entries"
+          >
+            Disable all
+          </button>
           <button
             type="button"
             className="menu-mini-btn"
@@ -226,6 +273,45 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
               <small>{selectedEntry.name}</small>
             </div>
             <div className="selected-actions-row">
+              <button
+                className="tree-btn"
+                onClick={() => handleDuplicate(selectedEntry)}
+                title="Duplicate selected entry"
+              >
+                ⎘ Duplicate
+              </button>
+              <button
+                className="tree-btn"
+                onClick={() => onSetEntriesEnabled([selectedEntry.name], true)}
+                disabled={selectedEntry.enabled}
+                title="Enable selected entry"
+              >
+                Enable
+              </button>
+              <button
+                className="tree-btn"
+                onClick={() => onSetEntriesEnabled([selectedEntry.name], false)}
+                disabled={!selectedEntry.enabled}
+                title="Disable selected entry"
+              >
+                Disable
+              </button>
+              <button
+                className="tree-btn"
+                onClick={() => onSetEntriesEnabled(selectedSubtreeNames, true)}
+                disabled={selectedSubtreeNames.length === 0}
+                title="Enable selected entry and its children"
+              >
+                Enable subtree
+              </button>
+              <button
+                className="tree-btn"
+                onClick={() => onSetEntriesEnabled(selectedSubtreeNames, false)}
+                disabled={selectedSubtreeNames.length === 0}
+                title="Disable selected entry and its children"
+              >
+                Disable subtree
+              </button>
               <button
                 className="tree-btn"
                 onClick={() => handleMoveUp(selectedEntry)}

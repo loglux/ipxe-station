@@ -191,6 +191,51 @@ function App() {
     }
   }
 
+  const duplicateEntry = (entryName) => {
+    let duplicatedName = null
+
+    setEntries((prev) => {
+      const source = prev.find((entry) => entry.name === entryName)
+      if (!source) return prev
+
+      const usedNames = new Set(prev.map((entry) => entry.name))
+      const baseName = `${source.name}_copy`
+      let candidate = baseName
+      let index = 2
+      while (usedNames.has(candidate)) {
+        candidate = `${baseName}${index}`
+        index += 1
+      }
+
+      duplicatedName = candidate
+      const siblingOrders = prev
+        .filter((entry) => entry.parent === source.parent)
+        .map((entry) => entry.order)
+      const maxOrder = siblingOrders.length > 0 ? Math.max(...siblingOrders) : -1
+
+      const duplicatedEntry = {
+        ...source,
+        name: candidate,
+        title: source.title ? `${source.title} (copy)` : `${source.name} (copy)`,
+        order: maxOrder + 1,
+      }
+
+      return [...prev, duplicatedEntry]
+    })
+
+    if (duplicatedName) {
+      setSelectedEntryId(duplicatedName)
+    }
+    return duplicatedName
+  }
+
+  const setEntriesEnabled = (entryNames, enabled) => {
+    const targets = new Set(entryNames)
+    setEntries((prev) => prev.map((entry) => (
+      targets.has(entry.name) ? { ...entry, enabled } : entry
+    )))
+  }
+
   const generateScript = useCallback(async () => {
     // Cancel any in-flight request before starting a new one
     if (generateAbortRef.current) {
@@ -320,6 +365,8 @@ function App() {
           onOpenWizard={openWizard}
           onUpdateEntry={updateEntry}
           onDeleteEntry={deleteEntry}
+          onDuplicateEntry={duplicateEntry}
+          onSetEntriesEnabled={setEntriesEnabled}
         />
       )
     }
@@ -701,6 +748,8 @@ function App() {
                 }}
                 onUpdateEntry={updateEntry}
                 onDeleteEntry={deleteEntry}
+                onDuplicateEntry={duplicateEntry}
+                onSetEntriesEnabled={setEntriesEnabled}
               />
             </div>
           </aside>
