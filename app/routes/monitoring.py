@@ -2,7 +2,7 @@
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
@@ -159,14 +159,20 @@ async def download_logs(type: str = None, level: str = None, limit: int = 1000):
         filtered_logs = [log for log in filtered_logs if log.get("level") == level]
 
     selected = filtered_logs[-limit:]
-    log_text = "\n".join(
-        f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('type', '')}] {log.get('message', '')}"
-        for log in selected
-    )
+
+    def _format_log_line(log: dict) -> str:
+        return (
+            f"[{log.get('timestamp', '')}] "
+            f"[{log.get('level', '')}] "
+            f"[{log.get('type', '')}] "
+            f"{log.get('message', '')}"
+        )
+
+    log_text = "\n".join(_format_log_line(log) for log in selected)
     if log_text:
         log_text += "\n"
 
-    filename = f"ipxe-logs-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.txt"
+    filename = f"ipxe-logs-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.txt"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return PlainTextResponse(content=log_text, headers=headers)
 
