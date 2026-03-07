@@ -585,6 +585,16 @@ function AssetManager() {
     return selected?.section || 'all'
   }, [acquirePresets, activeAcquirePresetId])
 
+  const installedSystemRescueVersions = useMemo(() => {
+    const rows = Array.isArray(catalog.rescue) ? catalog.rescue : []
+    return new Set(rows.map(row => String(row.version)))
+  }, [catalog.rescue])
+
+  const installedKasperskyVersions = useMemo(() => {
+    const rows = Array.isArray(catalog.kaspersky) ? catalog.kaspersky : []
+    return new Set(rows.map(row => String(row.version)))
+  }, [catalog.kaspersky])
+
   return (
     <div className="asset-manager">
       <div className="asset-header">
@@ -982,6 +992,25 @@ function AssetManager() {
         <section className="asset-section">
           <h3>🛠️ Tools</h3>
 
+          {catalog.rescue && catalog.rescue.length > 0 && (
+            <div className="distro-group">
+              <h4>📋 Discovered on disk</h4>
+              {catalog.rescue.map((dist, idx) => (
+                <div key={idx} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">✅ SystemRescue {dist.version}</div>
+                    <div className="distro-files">
+                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* SystemRescue */}
           <div className="download-subsection download-subsection-last">
             <h4>🛟 SystemRescue</h4>
@@ -1030,7 +1059,11 @@ function AssetManager() {
                       onClick={downloadSystemRescue}
                       disabled={!selectedSysrescueVersion || downloading['systemrescue-' + selectedSysrescueVersion?.version]}
                     >
-                      {downloading['systemrescue-' + selectedSysrescueVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                      {downloading['systemrescue-' + selectedSysrescueVersion?.version]
+                        ? '⏳ Downloading...'
+                        : installedSystemRescueVersions.has(String(selectedSysrescueVersion?.version))
+                          ? '🔁 Re-download ISO'
+                          : '⬇️ Download ISO'}
                     </button>
                   </div>
                 </div>
@@ -1045,6 +1078,25 @@ function AssetManager() {
         {(activeAcquireSection === 'all' || activeAcquireSection === 'antivirus') && (
         <section className="asset-section">
           <h3>🛡️ Antivirus</h3>
+
+          {catalog.kaspersky && catalog.kaspersky.length > 0 && (
+            <div className="distro-group">
+              <h4>📋 Discovered on disk</h4>
+              {catalog.kaspersky.map((dist, idx) => (
+                <div key={idx} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">✅ Kaspersky Rescue Disk {dist.version}</div>
+                    <div className="distro-files">
+                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Kaspersky Rescue Disk */}
           <div className="download-subsection download-subsection-last">
@@ -1100,7 +1152,11 @@ function AssetManager() {
                     onClick={downloadKaspersky}
                     disabled={!selectedKasperskyVersion || downloading['kaspersky-' + selectedKasperskyVersion?.version]}
                   >
-                    {downloading['kaspersky-' + selectedKasperskyVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                    {downloading['kaspersky-' + selectedKasperskyVersion?.version]
+                      ? '⏳ Downloading...'
+                      : installedKasperskyVersions.has(String(selectedKasperskyVersion?.version))
+                        ? '🔁 Re-download ISO'
+                        : '⬇️ Download ISO'}
                   </button>
                 </div>
               </div>
