@@ -997,14 +997,46 @@ def nfs_status():
 
 @assets_router.get("/check-url")
 def check_url(url: str):
-    """Check if a remote URL is accessible via HEAD request."""
-    try:
-        r = requests.head(url, allow_redirects=True, timeout=10)
-        size = r.headers.get("content-length")
+    """Check if a remote URL is accessible.
+
+    Some mirrors/CDNs reject ``HEAD`` while allowing ``GET`` (common on
+    redirect/download endpoints). We probe with HEAD first, then fall back to
+    a lightweight streamed GET when needed.
+    """
+    headers = {
+        "User-Agent": "iPXE-Station/1.0 (+https://github.com/loglux/ipxe-station)",
+        "Accept": "*/*",
+    }
+
+    def _response_payload(resp: requests.Response) -> dict:
+        size = resp.headers.get("content-length")
         return {
-            "ok": r.status_code == 200,
-            "status": r.status_code,
-            "size": int(size) if size else None,
+            "ok": 200 <= resp.status_code < 400,
+            "status": resp.status_code,
+            "size": int(size) if size and size.isdigit() else None,
         }
+
+    try:
+        r = requests.head(url, allow_redirects=True, timeout=10, headers=headers)
+        payload = _response_payload(r)
+
+        if payload["ok"]:
+            return payload
+
+        # Fallback for hosts that disallow/limit HEAD but allow GET.
+        if r.status_code in {403, 405, 406, 429, 500, 502, 503, 504}:
+            rg = requests.get(
+                url,
+                allow_redirects=True,
+                timeout=10,
+                headers=headers,
+                stream=True,
+            )
+            try:
+                return _response_payload(rg)
+            finally:
+                rg.close()
+
+        return payload
     except Exception as exc:
         return {"ok": False, "status": None, "size": None, "error": str(exc)}
