@@ -292,6 +292,22 @@ def test_upload_rejects_nested_filename():
     assert "Invalid filename" in resp.json()["detail"]
 
 
+def test_upload_uses_form_dest_and_persists_category_label():
+    files = {"file": ("hirens.iso", b"iso-data", "application/octet-stream")}
+    data = {"dest": "custom", "category": "tools"}
+    resp = client.post("/api/assets/upload", files=files, data=data)
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["saved"] == "custom/hirens.iso"
+    assert payload["category"] == "tools"
+
+    assets_resp = client.get("/api/assets")
+    assert assets_resp.status_code == 200
+    assets = assets_resp.json()
+    assert "custom/hirens.iso" in assets["http"]
+    assert assets["asset_labels"]["custom/hirens.iso"] == "tools"
+
+
 def test_download_rejects_absolute_dest():
     resp = client.post(
         "/api/assets/download",

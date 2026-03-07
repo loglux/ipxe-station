@@ -76,7 +76,7 @@ function UrlBadge({ url, urlStatus }) {
 }
 
 function AssetManager() {
-  const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
+  const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [], asset_labels: {} })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
   const [downloading, setDownloading] = useState({})
   const [downloadStatus, setDownloadStatus] = useState({})
@@ -410,12 +410,13 @@ function AssetManager() {
     form.append('file', file)
     const effectiveDest = uploadDest.trim()
     if (effectiveDest) form.append('dest', effectiveDest)
+    const categoryLabel = uploadCategory === 'new' ? uploadCategoryCustom.trim() || 'new' : uploadCategory
+    if (categoryLabel) form.append('category', categoryLabel)
     try {
       const data = await uploadFileWithProgress(form, (progress) => {
         setUploadProgress(progress)
         setPersistentUploadStatus(`Uploading ${file.name}… ${progress.percent}%`, 'progress')
       })
-      const categoryLabel = uploadCategory === 'new' ? uploadCategoryCustom.trim() || 'new' : uploadCategory
       setPersistentUploadStatus(`✅ Saved: ${data.saved} (category: ${categoryLabel})`, 'success')
       if (uploadStatusTimeoutRef.current) clearTimeout(uploadStatusTimeoutRef.current)
       uploadStatusTimeoutRef.current = setTimeout(clearUploadStatus, ASSETS_UPLOAD_SUCCESS_HIDE_MS)
@@ -798,13 +799,19 @@ function AssetManager() {
 
   const manualToolFiles = useMemo(() => {
     const files = Array.isArray(assets.http) ? assets.http : []
-    return files.filter((item) => item.startsWith('tools/'))
-  }, [assets.http])
+    const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
+      ? assets.asset_labels
+      : {}
+    return files.filter((item) => item.startsWith('tools/') || labels[item] === 'tools')
+  }, [assets.http, assets.asset_labels])
 
   const manualAntivirusFiles = useMemo(() => {
     const files = Array.isArray(assets.http) ? assets.http : []
-    return files.filter((item) => item.startsWith('antivirus/'))
-  }, [assets.http])
+    const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
+      ? assets.asset_labels
+      : {}
+    return files.filter((item) => item.startsWith('antivirus/') || labels[item] === 'antivirus')
+  }, [assets.http, assets.asset_labels])
 
   return (
     <div className="asset-manager">

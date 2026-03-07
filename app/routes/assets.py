@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from .state import (
@@ -141,6 +141,7 @@ SYSTEM_PRESETS_SEED = [
 PRESETS_DIR = IPXE_ROOT / "presets"
 SYSTEM_PRESETS_FILE = PRESETS_DIR / "system_presets.json"
 USER_PRESETS_FILE = PRESETS_DIR / "user_presets.json"
+ASSET_LABELS_FILE = PRESETS_DIR / "asset_labels.json"
 
 
 class PresetModel(BaseModel):
@@ -239,6 +240,55 @@ def _save_user_presets(items: list[dict]) -> None:
     USER_PRESETS_FILE.write_text(json.dumps(items, indent=2))
 
 
+def _load_asset_labels() -> dict[str, str]:
+    _ensure_preset_store()
+    if not ASSET_LABELS_FILE.exists():
+        return {}
+    try:
+        raw = json.loads(ASSET_LABELS_FILE.read_text())
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    labels: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        normalized_key = key.strip().lstrip("/")
+        normalized_value = value.strip().lower()
+        if not normalized_key or not normalized_value:
+            continue
+        labels[normalized_key] = normalized_value
+    return labels
+
+
+def _save_asset_labels(labels: dict[str, str]) -> None:
+    _ensure_preset_store()
+    ASSET_LABELS_FILE.write_text(json.dumps(labels, indent=2, sort_keys=True))
+
+
+def _set_asset_label(path_in_http: str, category: str) -> None:
+    key = path_in_http.strip().lstrip("/")
+    cat = category.strip().lower()
+    if not key:
+        return
+    labels = _load_asset_labels()
+    if cat:
+        labels[key] = cat
+    else:
+        labels.pop(key, None)
+    _save_asset_labels(labels)
+
+
+def _prune_asset_labels(existing_http_files: list[str]) -> dict[str, str]:
+    labels = _load_asset_labels()
+    existing = set(existing_http_files)
+    pruned = {k: v for k, v in labels.items() if k in existing}
+    if pruned != labels:
+        _save_asset_labels(pruned)
+    return pruned
+
+
 class DownloadRequest(BaseModel):
     url: str
     dest: str = ""
@@ -278,10 +328,12 @@ def list_assets():
     """List available boot assets in http/tftp/ipxe roots (shallow)."""
     from .state import IPXE_ROOT, TFTP_ROOT
 
+    http_files = _list_relative_files(HTTP_ROOT, max_depth=3)
     return {
-        "http": _list_relative_files(HTTP_ROOT, max_depth=3),
+        "http": http_files,
         "tftp": _list_relative_files(TFTP_ROOT, max_depth=3),
         "ipxe": _list_relative_files(IPXE_ROOT, max_depth=3),
+        "asset_labels": _prune_asset_labels(http_files),
     }
 
 
@@ -572,9 +624,16 @@ def get_all_download_progress():
 
 
 @assets_router.post("/upload")
-async def upload_asset(file: UploadFile = File(...), dest: str = ""):
+async def upload_asset(request: Request, file: UploadFile = File(...), dest: str = ""):
     """Upload a file into /srv/http/<dest> (relative), streamed in chunks."""
-    target_dir = _resolve_within_root(HTTP_ROOT, dest, allow_empty=True, path_label="dest")
+    form = await request.form()
+    form_dest = str(form.get("dest") or "").strip()
+    form_category = str(form.get("category") or "").strip().lower()
+    effective_dest = form_dest or dest
+
+    target_dir = _resolve_within_root(
+        HTTP_ROOT, effective_dest, allow_empty=True, path_label="dest"
+    )
     target_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = _validate_filename(file.filename)
     target_path = _resolve_within_root(target_dir, safe_filename, path_label="filename")
@@ -590,7 +649,9 @@ async def upload_asset(file: UploadFile = File(...), dest: str = ""):
     except Exception as exc:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
-    return {"saved": str(target_path.relative_to(HTTP_ROOT))}
+    saved = str(target_path.relative_to(HTTP_ROOT))
+    _set_asset_label(saved, form_category)
+    return {"saved": saved, "category": form_category}
 
 
 @assets_router.post("/extract-iso")
