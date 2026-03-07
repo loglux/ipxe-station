@@ -757,19 +757,52 @@ function AssetManager() {
       .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
   }, [presets])
 
-  useEffect(() => {
-    // Do not clear saved tab during initial loading.
-    if (!presetsLoaded || !acquirePresets.length) {
-      return
-    }
-    const isValid = acquirePresets.some(preset => preset.id === activeAcquirePresetId)
-    if (!isValid) {
-      setActiveAcquirePresetId(acquirePresets[0].id)
-    }
-  }, [acquirePresets, activeAcquirePresetId, presetsLoaded])
+  const acquireTabs = useMemo(() => {
+    const hasTools = acquirePresets.some((preset) => preset.section === 'tools')
+    const hasAntivirus = acquirePresets.some((preset) => preset.section === 'antivirus')
+    const toolsLike = acquirePresets.filter(
+      (preset) => preset.section === 'tools' || preset.section === 'antivirus'
+    )
+    const toolsOrder = toolsLike.reduce((min, preset) => (
+      Math.min(min, preset.order ?? 100)
+    ), 100)
+
+    const tabs = []
+    acquirePresets.forEach((preset) => {
+      if (preset.section === 'tools' || preset.section === 'antivirus') {
+        if (!hasTools && !hasAntivirus) return
+        if (tabs.some((tab) => tab.id === 'acquire_tools_rescue')) return
+        tabs.push({
+          id: 'acquire_tools_rescue',
+          name: 'Tools & Rescue',
+          section: 'tools_rescue',
+          order: toolsOrder,
+        })
+        return
+      }
+      tabs.push({
+        id: preset.id,
+        name: preset.name,
+        section: preset.section,
+        order: preset.order ?? 100,
+      })
+    })
+    return tabs.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+  }, [acquirePresets])
 
   useEffect(() => {
-    if (!presetsLoaded || !acquirePresets.length) return
+    // Do not clear saved tab during initial loading.
+    if (!presetsLoaded || !acquireTabs.length) {
+      return
+    }
+    const isValid = acquireTabs.some(tab => tab.id === activeAcquirePresetId)
+    if (!isValid) {
+      setActiveAcquirePresetId(acquireTabs[0].id)
+    }
+  }, [acquireTabs, activeAcquirePresetId, presetsLoaded])
+
+  useEffect(() => {
+    if (!presetsLoaded || !acquireTabs.length) return
     try {
       if (!activeAcquirePresetId) {
         sessionStorage.removeItem(ASSETS_ACTIVE_PRESET_KEY)
@@ -779,13 +812,13 @@ function AssetManager() {
     } catch {
       // Ignore storage errors
     }
-  }, [activeAcquirePresetId, acquirePresets.length, presetsLoaded])
+  }, [activeAcquirePresetId, acquireTabs.length, presetsLoaded])
 
   const activeAcquireSection = useMemo(() => {
-    if (!acquirePresets.length) return 'all'
-    const selected = acquirePresets.find(preset => preset.id === activeAcquirePresetId)
+    if (!acquireTabs.length) return 'all'
+    const selected = acquireTabs.find(tab => tab.id === activeAcquirePresetId)
     return selected?.section || 'all'
-  }, [acquirePresets, activeAcquirePresetId])
+  }, [acquireTabs, activeAcquirePresetId])
 
   const installedSystemRescueVersions = useMemo(() => {
     const rows = Array.isArray(catalog.rescue) ? catalog.rescue : []
@@ -885,14 +918,14 @@ function AssetManager() {
 
       <div className="asset-content">
         <div className="acquire-tabs">
-          {acquirePresets.length > 0 ? (
-            acquirePresets.map((preset) => (
+          {acquireTabs.length > 0 ? (
+            acquireTabs.map((tab) => (
               <button
-                key={preset.id}
-                className={`acquire-tab-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
-                onClick={() => setActiveAcquirePresetId(preset.id)}
+                key={tab.id}
+                className={`acquire-tab-btn ${activeAcquirePresetId === tab.id ? 'is-active' : ''}`}
+                onClick={() => setActiveAcquirePresetId(tab.id)}
               >
-                {preset.name}
+                {tab.name}
               </button>
             ))
           ) : (
@@ -1312,7 +1345,7 @@ function AssetManager() {
         )}
 
         {/* ── Tools & Rescue ── */}
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus') && (
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus' || activeAcquireSection === 'tools_rescue') && (
         <section className="asset-section">
           <h3>🛠️ Tools &amp; Rescue</h3>
 
