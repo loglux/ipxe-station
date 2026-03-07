@@ -252,3 +252,7 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - Follow-up polish:
   - removed remaining inline spacing styles in `Boot Files` in favor of CSS classes
   - normalized `Monitoring` control-button height/weight for cleaner toolbar rhythm
+- Wide-screen adaptation pass (layout-only):
+  - removed per-page fixed max-width centering in main tabs
+  - aligned `Builder/Assets/DHCP/Boot/Monitoring` to use the same full content width behavior
+  - no business logic changes; CSS-only adaptation
