@@ -427,6 +427,12 @@ export const SCENARIOS = {
     icon: '🧰',
     category: 'rescue',
 
+    // Keep wizard asset discovery enabled for manual ISO scenarios.
+    // Actual matching/filtering is handled in AddEntryWizard.
+    assetDiscovery: {
+      type: 'manual_iso',
+    },
+
     generated: {
       entry_type: 'boot',
       boot_mode: 'rescue',
