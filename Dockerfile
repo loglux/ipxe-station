@@ -8,7 +8,7 @@ RUN apt-get update && \
         # Syslog
         rsyslog \
         # Download tools
-        wget curl \
+        wget curl rsync \
         # ISO/Archive tools
         p7zip-full unzip gzip cpio \
         # SquashFS tools (merge layers for Ubuntu Server netboot)
