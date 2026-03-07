@@ -13,9 +13,10 @@
 }
 
 .asset-header h2 {
-  font-size: 40px;
+  font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .asset-actions {
@@ -26,7 +27,7 @@
 
 .asset-section {
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   margin-bottom: var(--spacing-lg);
@@ -34,9 +35,10 @@
 }
 
 .asset-section h3 {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 600;
   margin-bottom: var(--spacing-md);
+  letter-spacing: -0.01em;
 }
 
 .distro-group {
@@ -55,6 +57,7 @@
   justify-content: space-between;
   padding: var(--spacing-md);
   background: var(--color-bg-secondary);
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, black 16%);
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-sm);
 }
@@ -64,8 +67,8 @@
 }
 
 .distro-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   margin-bottom: var(--spacing-xs);
 }
 
@@ -130,9 +133,16 @@
   flex-direction: column;
   padding: var(--spacing-md);
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, black 16%);
   border-radius: var(--radius-md);
   text-align: center;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+.download-card:hover {
+  border-color: color-mix(in oklab, var(--color-primary) 40%, var(--color-border) 60%);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .download-card > button {
@@ -140,8 +150,8 @@
 }
 
 .download-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   margin-bottom: var(--spacing-xs);
 }
 
@@ -167,7 +177,7 @@
 
 .download-status {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: var(--spacing-sm);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
@@ -177,7 +187,7 @@
 
 .file-tree {
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -188,7 +198,7 @@
   font-family: monospace;
   font-size: 13px;
   font-weight: 600;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
 }
 
 .file-list {
@@ -203,8 +213,12 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
+  padding: 7px var(--spacing-md);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 88%, transparent);
+}
+
+.file-item:hover {
+  background: color-mix(in oklab, var(--color-bg-tertiary) 78%, white 22%);
 }
 
 .file-item:last-child {
@@ -222,6 +236,6 @@
 
 @media (max-width: 900px) {
   .asset-header h2 {
-    font-size: 30px;
+    font-size: 24px;
   }
 }

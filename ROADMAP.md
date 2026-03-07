@@ -227,3 +227,10 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - stronger contrast for row states (`default/hover/focus/selected`)
   - clearer subtree hierarchy via subtle guide line
   - improved control readability in action panel
+
+### Cross-Page UI Consistency Pass
+- Aligned visual tone for `Monitoring`, `Assets`, `DHCP`, and `Boot Files`:
+  - consistent card borders/contrast and typography scale
+  - cleaner interactive states for filters/buttons/selects
+  - improved readability at half-width desktop layouts
+- Scope intentionally limited to presentation styles; no API or behavior changes.

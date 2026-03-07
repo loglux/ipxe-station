@@ -11,7 +11,7 @@
 .dhcp-header h2 {
   margin: 0 0 8px 0;
   color: var(--color-text);
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -31,7 +31,7 @@
 /* Proxy DHCP Panel */
 .proxy-dhcp-panel {
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-sm);
@@ -46,8 +46,9 @@
 
 .proxy-dhcp-title-row h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 19px;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .proxy-status-pill {
@@ -196,11 +197,12 @@
 .dhcp-mode-toggle {
   display: flex;
   gap: 0;
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, black 22%);
   border-radius: var(--radius-md);
   overflow: hidden;
   align-self: flex-start;
   background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .dhcp-mode-btn {
@@ -215,7 +217,7 @@
   border: none;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
-  border-right: 1px solid var(--color-border);
+  border-right: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
 }
 
 .dhcp-mode-btn:last-child {
@@ -312,7 +314,7 @@
 /* Config Output */
 .config-output {
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-sm);
@@ -325,7 +327,7 @@
   padding: 4px 0 16px 0;
   cursor: pointer;
   list-style: none;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--color-text);
   user-select: none;
@@ -371,7 +373,7 @@ details.config-output[open] .config-summary::before {
   margin: 0;
   padding: 16px;
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   border-radius: var(--radius-md);
   overflow-x: auto;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -387,7 +389,7 @@ details.config-output[open] .config-summary::before {
 /* Network Validation */
 .dhcp-validation {
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-sm);
@@ -395,8 +397,9 @@ details.config-output[open] .config-summary::before {
 
 .dhcp-validation h3 {
   margin: 0 0 8px 0;
-  font-size: 18px;
+  font-size: 19px;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .validation-description {
@@ -484,14 +487,14 @@ details.config-output[open] .config-summary::before {
   text-align: left;
   padding: 6px 10px;
   font-weight: 600;
-  border-bottom: 2px solid var(--color-border);
+  border-bottom: 2px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   white-space: nowrap;
   color: var(--color-text-secondary);
 }
 
 .probe-table td {
   padding: 6px 10px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 86%, transparent);
   vertical-align: middle;
 }
 
@@ -715,7 +718,7 @@ details.probe-details[open] > summary::before {
 /* Help Section */
 .dhcp-help {
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-sm);
@@ -723,8 +726,9 @@ details.probe-details[open] > summary::before {
 
 .dhcp-help h3 {
   margin: 0 0 16px 0;
-  font-size: 18px;
+  font-size: 19px;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .dhcp-help ol {
@@ -749,7 +753,7 @@ details.probe-details[open] > summary::before {
 .help-option {
   padding: 12px 14px;
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   border-radius: var(--radius-md);
   font-size: 13px;
 }

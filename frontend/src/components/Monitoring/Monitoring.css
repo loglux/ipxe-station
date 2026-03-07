@@ -4,6 +4,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  align-items: stretch;
 }
 
 /* Logs Panel (Left) */
@@ -12,7 +13,7 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, black 22%);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -21,7 +22,7 @@
 
 .logs-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   background: var(--color-bg-secondary);
   display: flex;
   align-items: center;
@@ -35,9 +36,10 @@
 
 .logs-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .logs-controls {
@@ -48,13 +50,20 @@
 }
 
 .log-filter {
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
+  padding: 7px 12px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-sm);
-  font-size: 13px;
-  background: var(--color-bg-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-bg);
   color: var(--color-text);
   cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.log-filter:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-bg-tertiary) 88%, white 12%);
 }
 
 .log-filter:focus {
@@ -69,11 +78,11 @@
   background: var(--color-code-bg);
   font-family: 'Courier New', monospace;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .logs-list {
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .logs-empty {
@@ -99,7 +108,7 @@
 }
 
 .log-entry {
-  padding: 4px 8px;
+  padding: 5px 9px;
   margin-bottom: 2px;
   border-radius: 3px;
   border-left: 2px solid transparent;
@@ -110,7 +119,7 @@
 }
 
 .log-entry:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Terminal text colors — intentionally fixed for dark code background */
@@ -153,7 +162,7 @@
 
 .logs-footer {
   padding: 12px 20px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -179,6 +188,7 @@
 .logs-count {
   font-size: 13px;
   color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 /* Sidebar (Right) */
@@ -192,6 +202,7 @@
 
 .status-section {
   background: var(--color-bg);
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, black 22%);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: 16px;
@@ -220,7 +231,7 @@
   padding: 12px;
   background: var(--color-bg-secondary);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, black 16%);
 }
 
 .service-icon {
@@ -264,7 +275,7 @@
 }
 
 .boot-session-card {
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, black 16%);
   border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
   padding: 12px;
@@ -331,7 +342,7 @@
 
 .metric-bar {
   height: 8px;
-  background: var(--color-border);
+  background: color-mix(in oklab, var(--color-border) 88%, var(--color-bg) 12%);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -353,3 +364,22 @@
 .logs-content::-webkit-scrollbar-track  { background: #111827; }
 .logs-content::-webkit-scrollbar-thumb  { background: #374151; border-radius: 5px; }
 .logs-content::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+@media (max-width: 1100px) {
+  .logs-header {
+    padding: 14px 16px;
+  }
+
+  .logs-controls {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .log-filter {
+    min-width: 130px;
+  }
+
+  .logs-footer {
+    padding: 10px 16px;
+  }
+}
