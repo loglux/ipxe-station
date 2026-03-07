@@ -170,6 +170,18 @@ class PresetCreateRequest(BaseModel):
     params: dict = {}
 
 
+class PresetUpdateRequest(BaseModel):
+    name: str | None = None
+    category: str | None = None
+    mode: str | None = None
+    section: str | None = None
+    enabled: bool | None = None
+    order: int | None = None
+    method: str | None = None
+    description: str | None = None
+    params: dict | None = None
+
+
 def _slugify_preset_id(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
     return slug or "preset"
@@ -216,6 +228,15 @@ def _load_merged_presets() -> list[dict]:
     ]
     merged.sort(key=lambda p: (p.get("order", 100), p.get("name", "").lower()))
     return merged
+
+
+def _load_user_presets() -> list[dict]:
+    _ensure_preset_store()
+    return [PresetModel(**p).model_dump() for p in _load_preset_file(USER_PRESETS_FILE, [])]
+
+
+def _save_user_presets(items: list[dict]) -> None:
+    USER_PRESETS_FILE.write_text(json.dumps(items, indent=2))
 
 
 class DownloadRequest(BaseModel):
@@ -312,8 +333,41 @@ def create_preset(payload: PresetCreateRequest):
         params=payload.params,
     ).model_dump()
     user_items.append(new_item)
-    USER_PRESETS_FILE.write_text(json.dumps(user_items, indent=2))
+    _save_user_presets(user_items)
     return {"success": True, "preset": new_item}
+
+
+@assets_router.patch("/presets/{preset_id}")
+def update_preset(preset_id: str, payload: PresetUpdateRequest):
+    """Update a user preset."""
+    user_items = _load_user_presets()
+    idx = next((i for i, item in enumerate(user_items) if item.get("id") == preset_id), None)
+    if idx is None:
+        if any(item.get("id") == preset_id for item in _load_merged_presets()):
+            raise HTTPException(status_code=403, detail="System presets are read-only")
+        raise HTTPException(status_code=404, detail=f"Preset '{preset_id}' not found")
+
+    updated = {**user_items[idx]}
+    patch = payload.model_dump(exclude_unset=True, exclude_none=True)
+    updated.update(patch)
+    updated["id"] = preset_id
+    updated["source"] = "user"
+    user_items[idx] = PresetModel(**updated).model_dump()
+    _save_user_presets(user_items)
+    return {"success": True, "preset": user_items[idx]}
+
+
+@assets_router.delete("/presets/{preset_id}")
+def delete_preset(preset_id: str):
+    """Delete a user preset."""
+    user_items = _load_user_presets()
+    filtered = [item for item in user_items if item.get("id") != preset_id]
+    if len(filtered) == len(user_items):
+        if any(item.get("id") == preset_id for item in _load_merged_presets()):
+            raise HTTPException(status_code=403, detail="System presets are read-only")
+        raise HTTPException(status_code=404, detail=f"Preset '{preset_id}' not found")
+    _save_user_presets(filtered)
+    return {"success": True}
 
 
 def _autodetect_nfs_root() -> str:

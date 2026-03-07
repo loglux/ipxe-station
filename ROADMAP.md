@@ -300,3 +300,7 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - `Library / Resource Inventory` is temporarily hidden from UI
   - keep Acquire flow clean while global sidebar role and full Assets IA are finalized
   - revisit library placement after shell-level navigation decision is fully implemented
+- Antivirus presets note:
+  - `Antivirus` preset group is enabled with Kaspersky flow separated from generic tools
+  - ESET/NOD should be added as `manual-first` preset unless a stable official download source
+    is available again

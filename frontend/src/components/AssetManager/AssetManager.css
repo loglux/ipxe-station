@@ -91,6 +91,45 @@
   background: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg-secondary) 90%);
 }
 
+.preset-manager {
+  margin-top: var(--spacing-sm);
+}
+
+.preset-create-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 160px auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.preset-list {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.preset-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, black 16%);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.preset-item-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.preset-item-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
 .distro-group {
   margin-bottom: var(--spacing-lg);
 }
@@ -497,5 +536,9 @@
 @media (max-width: 900px) {
   .asset-header h2 {
     font-size: 24px;
+  }
+
+  .preset-create-row {
+    grid-template-columns: 1fr;
   }
 }

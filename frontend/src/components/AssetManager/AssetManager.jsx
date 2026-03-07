@@ -95,6 +95,11 @@ function AssetManager() {
   const [pollInterval, setPollInterval] = useState(2000)
   const [presets, setPresets] = useState([])
   const [activeAcquirePresetId, setActiveAcquirePresetId] = useState('')
+  const [showPresetManager, setShowPresetManager] = useState(false)
+  const [newPresetName, setNewPresetName] = useState('')
+  const [newPresetSection, setNewPresetSection] = useState('antivirus')
+  const [presetStatus, setPresetStatus] = useState('')
+  const [presetBusyId, setPresetBusyId] = useState('')
   const uploadStatusTone = uploadStatus.startsWith('✅')
     ? 'upload-status-success'
     : uploadStatus.startsWith('❌')
@@ -219,6 +224,67 @@ function AssetManager() {
       debianProductsRef.current = []
     }
   }, [checkUrl])
+
+  const createPreset = async () => {
+    const name = newPresetName.trim()
+    if (!name) return
+    setPresetStatus('Creating preset...')
+    try {
+      const resp = await fetch('/api/assets/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          mode: 'acquire',
+          section: newPresetSection,
+          category: newPresetSection === 'antivirus' ? 'security' : 'custom',
+        }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.detail || 'Failed to create preset')
+      setNewPresetName('')
+      setPresetStatus('✅ Preset created')
+      await fetchPresets()
+      setTimeout(() => setPresetStatus(''), 2000)
+    } catch (error) {
+      setPresetStatus(`❌ ${error.message}`)
+      setTimeout(() => setPresetStatus(''), 3000)
+    }
+  }
+
+  const toggleUserPreset = async (preset) => {
+    setPresetBusyId(preset.id)
+    try {
+      const resp = await fetch(`/api/assets/presets/${preset.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !preset.enabled }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.detail || 'Failed to update preset')
+      await fetchPresets()
+    } catch (error) {
+      setPresetStatus(`❌ ${error.message}`)
+      setTimeout(() => setPresetStatus(''), 3000)
+    } finally {
+      setPresetBusyId('')
+    }
+  }
+
+  const deleteUserPreset = async (preset) => {
+    setPresetBusyId(preset.id)
+    try {
+      const resp = await fetch(`/api/assets/presets/${preset.id}`, { method: 'DELETE' })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.detail || 'Failed to delete preset')
+      await fetchPresets()
+    } catch (error) {
+      setPresetStatus(`❌ ${error.message}`)
+      setTimeout(() => setPresetStatus(''), 3000)
+    } finally {
+      setPresetBusyId('')
+    }
+  }
 
 
   const handleUpload = async (e) => {
@@ -642,7 +708,75 @@ function AssetManager() {
           ) : (
             <p className="text-sm text-muted">No presets found</p>
           )}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowPresetManager(prev => !prev)}
+          >
+            {showPresetManager ? 'Hide Preset Manager' : 'Manage Presets'}
+          </button>
         </div>
+        {showPresetManager && (
+          <section className="asset-section preset-manager">
+            <h3>Preset Manager</h3>
+            <div className="preset-create-row">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="New preset name"
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+              />
+              <select
+                className="form-control"
+                value={newPresetSection}
+                onChange={(e) => setNewPresetSection(e.target.value)}
+              >
+                <option value="ubuntu">Ubuntu</option>
+                <option value="debian">Debian</option>
+                <option value="tools">Tools</option>
+                <option value="antivirus">Antivirus</option>
+              </select>
+              <button className="btn btn-primary btn-sm" onClick={createPreset}>
+                Add
+              </button>
+            </div>
+            {presetStatus && <div className="upload-status">{presetStatus}</div>}
+            <div className="preset-list">
+              {presets
+                .filter((preset) => preset.mode === 'acquire')
+                .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+                .map((preset) => (
+                  <div key={preset.id} className="preset-item">
+                    <div className="preset-item-name">
+                      {preset.name} <span className="text-sm text-muted">({preset.section})</span>
+                    </div>
+                    <div className="preset-item-actions">
+                      {preset.source === 'user' ? (
+                        <>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={presetBusyId === preset.id}
+                            onClick={() => toggleUserPreset(preset)}
+                          >
+                            {preset.enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={presetBusyId === preset.id}
+                            onClick={() => deleteUserPreset(preset)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted">System preset</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
         {/* ── Ubuntu ── */}
         {(activeAcquireSection === 'all' || activeAcquireSection === 'ubuntu') && (
         <section className="asset-section">

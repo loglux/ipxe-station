@@ -232,6 +232,52 @@ def test_create_user_preset_and_list_it():
     assert any(p["name"] == "Hiren ISO" and p["source"] == "user" for p in data)
 
 
+def test_update_user_preset():
+    create_resp = client.post(
+        "/api/assets/presets",
+        json={"name": "Temp preset", "section": "tools", "mode": "acquire"},
+    )
+    assert create_resp.status_code == 200
+    preset_id = create_resp.json()["preset"]["id"]
+
+    patch_resp = client.patch(
+        f"/api/assets/presets/{preset_id}",
+        json={"name": "Updated preset", "enabled": False, "order": 999},
+    )
+    assert patch_resp.status_code == 200
+    preset = patch_resp.json()["preset"]
+    assert preset["name"] == "Updated preset"
+    assert preset["enabled"] is False
+    assert preset["order"] == 999
+
+
+def test_delete_user_preset():
+    create_resp = client.post(
+        "/api/assets/presets",
+        json={"name": "Delete me", "section": "tools", "mode": "acquire"},
+    )
+    assert create_resp.status_code == 200
+    preset_id = create_resp.json()["preset"]["id"]
+
+    del_resp = client.delete(f"/api/assets/presets/{preset_id}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["success"] is True
+
+    list_resp = client.get("/api/assets/presets")
+    assert list_resp.status_code == 200
+    assert all(p["id"] != preset_id for p in list_resp.json()["presets"])
+
+
+def test_system_preset_is_read_only():
+    patch_resp = client.patch("/api/assets/presets/acquire_ubuntu", json={"enabled": False})
+    assert patch_resp.status_code == 403
+    assert "read-only" in patch_resp.json()["detail"]
+
+    del_resp = client.delete("/api/assets/presets/acquire_ubuntu")
+    assert del_resp.status_code == 403
+    assert "read-only" in del_resp.json()["detail"]
+
+
 def test_upload_rejects_path_traversal_dest():
     files = {"file": ("poc.txt", b"owned", "text/plain")}
     resp = client.post("/api/assets/upload?dest=../../escape", files=files)
