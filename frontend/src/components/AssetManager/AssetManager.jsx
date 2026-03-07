@@ -742,8 +742,8 @@ function AssetManager() {
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
-            <div>
-              <h4 className="download-subsection-title-compact">Ubuntu Desktop (LTS)</h4>
+            <div className="download-subsection download-subsection-last">
+              <h4 className="download-subsection-title">Ubuntu Desktop (LTS)</h4>
               <p className="text-sm text-muted download-retry-note">
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
               </p>
@@ -831,11 +831,11 @@ function AssetManager() {
 
           <div className="download-section">
             <h4>⬇️ Download</h4>
-            <p className="text-sm text-muted download-section-note">
-              Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
-            </p>
-
-            <div className="download-grid">
+            <div className="download-subsection download-subsection-last">
+              <p className="text-sm text-muted download-section-note">
+                Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
+              </p>
+              <div className="download-grid">
                 {debianProducts.map(distro => (
                   <div key={distro.id} className="download-card">
                     <div className="download-name">{distro.name}</div>
@@ -904,6 +904,7 @@ function AssetManager() {
                   </div>
                 ))}
               </div>
+            </div>
           </div>
         </section>
 
@@ -965,11 +966,11 @@ function AssetManager() {
                 </div>
               ) : (
                 <p className="text-sm text-muted">Loading versions...</p>
-              )}
-            </div>
+            )}
+          </div>
 
           {/* Kaspersky Rescue Disk */}
-          <div>
+          <div className="download-subsection download-subsection-last">
             <h4>🛡️ Kaspersky Rescue Disk</h4>
             <p className="text-sm text-muted download-section-note">
               Select a version to download (ISO will be extracted automatically)

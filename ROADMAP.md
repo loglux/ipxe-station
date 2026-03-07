@@ -260,6 +260,8 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - removed remaining inline styles from `AssetManager.jsx`
   - introduced shared progress UI block/classes for Ubuntu/Debian/SystemRescue/Kaspersky
   - kept behavior unchanged (presentation-only refactor)
+  - normalized subsection wrappers/headings across Ubuntu, Debian, and Tools download blocks
+    to use one section rhythm and card template framing (layout-only)
 
 ### Command Line Assistant (Phase 1, frontend-only)
 - Added cmdline helper in `PropertyPanel` without backend/API changes:
