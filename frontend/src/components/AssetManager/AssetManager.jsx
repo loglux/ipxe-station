@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import './AssetManager.css'
 
+const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
+
 // SystemRescue is handled separately with version selection
 const SYSTEMRESCUE_CONFIG = {
   id: 'systemrescue',
@@ -108,6 +110,16 @@ function AssetManager() {
       ? 'upload-status-error'
       : 'upload-status-muted'
 
+  const setPersistentUploadStatus = useCallback((value) => {
+    setUploadStatus(value)
+    try {
+      if (!value) sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
+      else sessionStorage.setItem(ASSETS_UPLOAD_STATUS_KEY, value)
+    } catch {
+      // Ignore storage errors
+    }
+  }, [])
+
   const checkUrl = useCallback(async (url) => {
     if (!url) return
     setUrlStatus(prev => ({ ...prev, [url]: { checking: true } }))
@@ -176,6 +188,15 @@ function AssetManager() {
       .then(r => r.json())
       .then(data => { if (data.poll_interval) setPollInterval(data.poll_interval) })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(ASSETS_UPLOAD_STATUS_KEY)
+      if (saved) setUploadStatus(saved)
+    } catch {
+      // Ignore storage errors
+    }
   }, [])
 
   const fetchAssets = useCallback(async () => {
@@ -293,7 +314,7 @@ function AssetManager() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    setUploadStatus(`Uploading ${file.name}…`)
+    setPersistentUploadStatus(`Uploading ${file.name}…`)
     const form = new FormData()
     form.append('file', file)
     const categoryFolder = uploadCategory === 'new' ? uploadCategoryCustom.trim() : uploadCategory
@@ -303,11 +324,11 @@ function AssetManager() {
       const resp = await fetch('/api/assets/upload', { method: 'POST', body: form })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.detail || 'Upload failed')
-      setUploadStatus(`✅ Saved: ${data.saved}`)
+      setPersistentUploadStatus(`✅ Saved: ${data.saved}`)
       fetchAssets()
       fetchCatalog()
     } catch (err) {
-      setUploadStatus(`❌ ${err.message}`)
+      setPersistentUploadStatus(`❌ ${err.message}`)
     } finally {
       setUploading(false)
       e.target.value = ''
