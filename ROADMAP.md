@@ -277,3 +277,13 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - remove temporary warning text example `nfsroot=SERVER:/path`
   - replace with concrete `nfsroot` from selected backend resource (`resource_id`) once
     Assets/Builder resource linkage is implemented.
+
+### Archive Research Notes
+- Added `docs/boot-variations-catalog.md`:
+  - captures legacy-observed boot variation families as abstractions
+  - explicitly avoids 1:1 legacy menu migration
+  - defines compact initial `boot_method` set for future backend/UI phases
+- Assets UI phase-1 inventory workspace:
+  - replaced flat "All Files" list with `filters + list + details` layout
+  - supports search and source/type/pack/status filters on `/srv/http` assets
+  - keeps backend/API contracts unchanged (frontend-only adaptation)

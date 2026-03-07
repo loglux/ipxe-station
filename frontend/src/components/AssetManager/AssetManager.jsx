@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import './AssetManager.css'
 
 // SystemRescue is handled separately with version selection
@@ -68,6 +68,19 @@ function UrlBadge({ url, urlStatus }) {
   return <span className="url-badge url-badge-error">❌ Not found — URL may be outdated</span>
 }
 
+const MANAGED_PACK_PREFIXES = ['ubuntu-', 'debian-', 'rescue-', 'kaspersky-']
+
+function detectAssetType(path) {
+  const lower = path.toLowerCase()
+  if (lower.endsWith('.iso')) return 'ISO'
+  if (lower.endsWith('.img')) return 'IMG'
+  if (lower.endsWith('.wim')) return 'WIM'
+  if (lower.endsWith('.efi')) return 'EFI'
+  if (lower.endsWith('.ipxe')) return 'iPXE'
+  if (lower.includes('/casper/') || lower.includes('/install.')) return 'Linux Boot'
+  return 'File'
+}
+
 function AssetManager() {
   const [assets, setAssets] = useState({ http: [], tftp: [], ipxe: [] })
   const [catalog, setCatalog] = useState({ ubuntu: [], debian: [], windows: [], rescue: [] })
@@ -93,6 +106,12 @@ function AssetManager() {
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
+  const [inventoryQuery, setInventoryQuery] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [packFilter, setPackFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedInventoryPath, setSelectedInventoryPath] = useState('')
   const uploadStatusTone = uploadStatus.startsWith('✅')
     ? 'upload-status-success'
     : uploadStatus.startsWith('❌')
@@ -545,6 +564,61 @@ function AssetManager() {
       setDownloading(prev => ({ ...prev, [distroId]: false }))
     }
   }
+
+  const inventoryRows = useMemo(() => {
+    const httpFiles = Array.isArray(assets.http) ? assets.http : []
+    return httpFiles.map((path) => {
+      const segments = path.split('/')
+      const pack = segments[0] || 'root'
+      const isManaged = MANAGED_PACK_PREFIXES.some(prefix => pack.startsWith(prefix))
+      const type = detectAssetType(path)
+      const status = path.endsWith('.tmp') ? 'warning' : 'ready'
+
+      return {
+        path,
+        name: segments[segments.length - 1] || path,
+        pack,
+        source: isManaged ? 'managed' : 'manual',
+        type,
+        status,
+      }
+    })
+  }, [assets.http])
+
+  const inventoryPackOptions = useMemo(() => {
+    return Array.from(new Set(inventoryRows.map(row => row.pack))).sort((a, b) => a.localeCompare(b))
+  }, [inventoryRows])
+
+  const inventoryTypeOptions = useMemo(() => {
+    return Array.from(new Set(inventoryRows.map(row => row.type))).sort((a, b) => a.localeCompare(b))
+  }, [inventoryRows])
+
+  const filteredInventoryRows = useMemo(() => {
+    const needle = inventoryQuery.trim().toLowerCase()
+    return inventoryRows.filter((row) => {
+      if (sourceFilter !== 'all' && row.source !== sourceFilter) return false
+      if (typeFilter !== 'all' && row.type !== typeFilter) return false
+      if (packFilter !== 'all' && row.pack !== packFilter) return false
+      if (statusFilter !== 'all' && row.status !== statusFilter) return false
+      if (!needle) return true
+      return row.path.toLowerCase().includes(needle)
+    })
+  }, [inventoryRows, inventoryQuery, sourceFilter, typeFilter, packFilter, statusFilter])
+
+  useEffect(() => {
+    if (!filteredInventoryRows.length) {
+      setSelectedInventoryPath('')
+      return
+    }
+    const selectedExists = filteredInventoryRows.some(row => row.path === selectedInventoryPath)
+    if (!selectedExists) {
+      setSelectedInventoryPath(filteredInventoryRows[0].path)
+    }
+  }, [filteredInventoryRows, selectedInventoryPath])
+
+  const selectedInventoryRow = useMemo(() => {
+    return filteredInventoryRows.find(row => row.path === selectedInventoryPath) || null
+  }, [filteredInventoryRows, selectedInventoryPath])
 
   return (
     <div className="asset-manager">
@@ -1044,25 +1118,121 @@ function AssetManager() {
           </div>
         </section>
 
-        {/* All Files */}
+        {/* Resource Inventory */}
         <section className="asset-section">
-          <h3>📁 All Files</h3>
-          <div className="file-tree">
-            <div className="file-tree-header">/srv/http/</div>
-            {assets.http && assets.http.length > 0 ? (
-              <ul className="file-list">
-                {assets.http.map((file, idx) => (
-                  <li key={idx} className="file-item">
-                    <span className="file-icon">📄</span>
-                    <span className="file-name">{file}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="empty-state">
-                <p className="text-muted">No files found</p>
+          <h3>📁 Resource Inventory</h3>
+          <div className="inventory-layout">
+            <aside className="inventory-filters">
+              <div className="inventory-filter-group">
+                <label htmlFor="inventory-search">Search</label>
+                <input
+                  id="inventory-search"
+                  className="form-control"
+                  placeholder="path or filename"
+                  value={inventoryQuery}
+                  onChange={(e) => setInventoryQuery(e.target.value)}
+                />
               </div>
-            )}
+              <div className="inventory-filter-group">
+                <label htmlFor="inventory-source">Source</label>
+                <select
+                  id="inventory-source"
+                  className="form-control"
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  <option value="managed">Managed</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+              <div className="inventory-filter-group">
+                <label htmlFor="inventory-type">Type</label>
+                <select
+                  id="inventory-type"
+                  className="form-control"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {inventoryTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="inventory-filter-group">
+                <label htmlFor="inventory-pack">Pack</label>
+                <select
+                  id="inventory-pack"
+                  className="form-control"
+                  value={packFilter}
+                  onChange={(e) => setPackFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {inventoryPackOptions.map(pack => (
+                    <option key={pack} value={pack}>{pack}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="inventory-filter-group">
+                <label htmlFor="inventory-status">Status</label>
+                <select
+                  id="inventory-status"
+                  className="form-control"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  <option value="ready">Ready</option>
+                  <option value="warning">Warning</option>
+                </select>
+              </div>
+              <div className="inventory-stats text-sm text-muted">
+                Showing {filteredInventoryRows.length} of {inventoryRows.length}
+              </div>
+            </aside>
+
+            <div className="inventory-list">
+              <div className="inventory-list-header">/srv/http/</div>
+              {filteredInventoryRows.length > 0 ? (
+                <ul className="inventory-list-body">
+                  {filteredInventoryRows.map((row) => (
+                    <li key={row.path}>
+                      <button
+                        className={`inventory-row ${selectedInventoryPath === row.path ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedInventoryPath(row.path)}
+                        title={row.path}
+                      >
+                        <span className="inventory-row-name">{row.name}</span>
+                        <span className="inventory-row-meta">
+                          {row.pack} · {row.type}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="empty-state">
+                  <p className="text-muted">No assets match current filters</p>
+                </div>
+              )}
+            </div>
+
+            <aside className="inventory-details">
+              <h4>Details</h4>
+              {selectedInventoryRow ? (
+                <div className="inventory-detail-list">
+                  <div><strong>Name:</strong> {selectedInventoryRow.name}</div>
+                  <div><strong>Path:</strong> <code>{selectedInventoryRow.path}</code></div>
+                  <div><strong>Pack:</strong> {selectedInventoryRow.pack}</div>
+                  <div><strong>Type:</strong> {selectedInventoryRow.type}</div>
+                  <div><strong>Source:</strong> {selectedInventoryRow.source}</div>
+                  <div><strong>Status:</strong> {selectedInventoryRow.status}</div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Select a file to inspect metadata.</p>
+              )}
+            </aside>
           </div>
         </section>
       </div>
