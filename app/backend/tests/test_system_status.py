@@ -1,7 +1,10 @@
 """Tests for system_status module."""
 
+import os
 import socket
 from datetime import timedelta
+
+import psutil
 
 from app.backend.system_status import (
     DiskUsage,
@@ -116,8 +119,9 @@ class TestServiceCheckerProcessByName:
         assert pids == []
 
     def test_existing_process(self):
-        # "python" should be running (our test process)
-        found, pids = ServiceChecker.check_process_by_name("python")
+        # Use the current interpreter process name to avoid env-specific hardcoding.
+        current_name = psutil.Process(os.getpid()).name()
+        found, pids = ServiceChecker.check_process_by_name(current_name)
         assert found is True
         assert len(pids) > 0
 
