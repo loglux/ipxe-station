@@ -85,6 +85,8 @@ function AssetManager() {
   const [selectedSysrescueVersion, setSelectedSysrescueVersion] = useState(null)
   const [kasperskyVersions, setKasperskyVersions] = useState([])
   const [selectedKasperskyVersion, setSelectedKasperskyVersion] = useState(null)
+  const [hirenVersions, setHirenVersions] = useState([])
+  const [selectedHirenVersion, setSelectedHirenVersion] = useState(null)
   const [debianProducts, setDebianProducts] = useState([])
   const [ubuntuVersions, setUbuntuVersions] = useState([])
   const [selectedUbuntuVersion, setSelectedUbuntuVersion] = useState(null)
@@ -491,6 +493,20 @@ function AssetManager() {
     }
   }, [checkUrl])
 
+  const fetchHirenVersions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/assets/versions/hiren')
+      const data = await response.json()
+      setHirenVersions(data.versions || [])
+      if (data.versions && data.versions.length > 0) {
+        setSelectedHirenVersion(data.versions[0])
+        checkUrl(data.versions[0].iso_url)
+      }
+    } catch (error) {
+      console.error('Failed to fetch Hiren versions:', error)
+    }
+  }, [checkUrl])
+
   const fetchUbuntuVersions = useCallback(async () => {
     setUbuntuLoading(true)
     try {
@@ -534,6 +550,7 @@ function AssetManager() {
     fetchPresets()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
+    fetchHirenVersions()
     fetchNfsStatus()
     pollProgress()
 
@@ -543,6 +560,7 @@ function AssetManager() {
     fetchAssets,
     fetchCatalog,
     fetchDebianProducts,
+    fetchHirenVersions,
     fetchPresets,
     fetchKasperskyVersions,
     fetchNfsStatus,
@@ -781,6 +799,49 @@ function AssetManager() {
     }
   }
 
+  const downloadHiren = async () => {
+    if (!selectedHirenVersion) return
+
+    const distroId = 'hiren-' + selectedHirenVersion.version
+    setDownloading(prev => ({ ...prev, [distroId]: true }))
+
+    try {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: 'Downloading ISO... (this may take a while)' }))
+      const baseFolder = selectedHirenVersion.dest_folder || `hiren-${selectedHirenVersion.version}`
+      const isoDest = `${baseFolder}/${selectedHirenVersion.iso_name}`
+
+      const isoResponse = await fetch('/api/assets/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: selectedHirenVersion.iso_url,
+          dest: isoDest
+        })
+      })
+
+      if (!isoResponse.ok) {
+        const error = await isoResponse.json()
+        throw new Error(error.detail || 'Failed to download ISO')
+      }
+
+      setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded!' }))
+
+      setTimeout(() => {
+        fetchCatalog()
+        fetchNfsStatus()
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 2000)
+
+    } catch (error) {
+      setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
+      setTimeout(() => {
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 5000)
+    } finally {
+      setDownloading(prev => ({ ...prev, [distroId]: false }))
+    }
+  }
+
   const acquirePresets = useMemo(() => {
     return presets
       .filter(preset => preset.mode === 'acquire' && preset.enabled !== false && preset.section)
@@ -859,6 +920,11 @@ function AssetManager() {
     const rows = Array.isArray(catalog.kaspersky) ? catalog.kaspersky : []
     return new Set(rows.map(row => String(row.version)))
   }, [catalog.kaspersky])
+
+  const installedHirenVersions = useMemo(() => {
+    const rows = Array.isArray(catalog.hiren) ? catalog.hiren : []
+    return new Set(rows.map(row => String(row.version)))
+  }, [catalog.hiren])
 
   const manualToolsRescueFiles = useMemo(() => {
     const files = Array.isArray(assets.http) ? assets.http : []
@@ -1503,7 +1569,7 @@ function AssetManager() {
           )}
 
           {/* Kaspersky Rescue Disk */}
-          <div className="download-subsection download-subsection-last">
+          <div className="download-subsection">
             <h4>🛡️ Kaspersky Rescue Disk</h4>
             <p className="text-sm text-muted download-section-note">
               Select a version to download (ISO will be extracted automatically)
@@ -1559,6 +1625,91 @@ function AssetManager() {
                     {downloading['kaspersky-' + selectedKasperskyVersion?.version]
                       ? '⏳ Downloading...'
                       : installedKasperskyVersions.has(String(selectedKasperskyVersion?.version))
+                        ? '🔁 Re-download ISO'
+                        : '⬇️ Download ISO'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">Loading versions...</p>
+            )}
+          </div>
+
+          {catalog.hiren && catalog.hiren.length > 0 && (
+            <div className="distro-group">
+              <h4>📋 Discovered on disk</h4>
+              {catalog.hiren.map((dist, idx) => (
+                <div key={idx} className="distro-item">
+                  <div className="distro-info">
+                    <div className="distro-name">✅ Hiren&apos;s BootCD PE {dist.version}</div>
+                    <div className="distro-files">
+                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
+                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
+                      {dist.iso && <span className="file-badge">✓ ISO</span>}
+                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Modern Hiren's BootCD PE */}
+          <div className="download-subsection download-subsection-last">
+            <h4>🧰 Hiren&apos;s BootCD PE (Modern)</h4>
+            <p className="text-sm text-muted download-section-note">
+              Select a version to download
+            </p>
+            {hirenVersions.length > 0 ? (
+              <div className="download-picker">
+                <label>Version</label>
+                <select
+                  value={selectedHirenVersion?.version || ''}
+                  onChange={(e) => {
+                    const version = hirenVersions.find(v => v.version === e.target.value)
+                    setSelectedHirenVersion(version)
+                    if (version?.iso_url) checkUrl(version.iso_url)
+                  }}
+                >
+                  {hirenVersions.map(v => (
+                    <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
+                  ))}
+                </select>
+                {selectedHirenVersion?.notes && (
+                  <div className="kaspersky-note">
+                    ℹ️ {selectedHirenVersion.notes}
+                  </div>
+                )}
+                {selectedHirenVersion?.iso_url && (
+                  <div className="url-badge-wrap">
+                    <UrlBadge url={selectedHirenVersion.iso_url} urlStatus={urlStatus} />
+                  </div>
+                )}
+                {downloading['hiren-' + selectedHirenVersion?.version] && downloadProgress[`${selectedHirenVersion?.dest_folder || `hiren-${selectedHirenVersion?.version}`}/${selectedHirenVersion?.iso_name}`] && (
+                  <DownloadProgressBlock
+                    title="Hiren ISO"
+                    progress={downloadProgress[`${selectedHirenVersion?.dest_folder || `hiren-${selectedHirenVersion?.version}`}/${selectedHirenVersion?.iso_name}`]}
+                    tone="primary"
+                    unit="GB"
+                    divisor={1024 * 1024 * 1024}
+                    decimals={2}
+                    showExtraction
+                  />
+                )}
+                {downloadStatus['hiren-' + selectedHirenVersion?.version] && (
+                  <div className="download-status download-picker-progress">
+                    {downloadStatus['hiren-' + selectedHirenVersion?.version]}
+                  </div>
+                )}
+                <div className="download-picker-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={downloadHiren}
+                    disabled={!selectedHirenVersion || downloading['hiren-' + selectedHirenVersion?.version]}
+                  >
+                    {downloading['hiren-' + selectedHirenVersion?.version]
+                      ? '⏳ Downloading...'
+                      : installedHirenVersions.has(String(selectedHirenVersion?.version))
                         ? '🔁 Re-download ISO'
                         : '⬇️ Download ISO'}
                   </button>

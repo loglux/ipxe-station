@@ -346,6 +346,7 @@ def assets_catalog():
     windows = _scan_distro_versions("windows", HTTP_ROOT)
     rescue = _scan_distro_versions("rescue", HTTP_ROOT)
     kaspersky = _scan_distro_versions("kaspersky", HTTP_ROOT)
+    hiren = _scan_distro_versions("hiren", HTTP_ROOT)
 
     return {
         "ubuntu": ubuntu,
@@ -353,6 +354,7 @@ def assets_catalog():
         "windows": windows,
         "rescue": rescue,
         "kaspersky": kaspersky,
+        "hiren": hiren,
     }
 
 
@@ -862,6 +864,64 @@ def get_kaspersky_versions():
         },
     ]
     return {"versions": versions}
+
+
+@assets_router.get("/versions/hiren")
+def get_hiren_versions():
+    """Return available modern Hiren's BootCD PE version metadata.
+
+    The ISO filename is typically stable (HBCD_PE_x64.iso), while the version
+    is published on the download page.
+    """
+    import re
+    from urllib.parse import urljoin
+
+    from bs4 import BeautifulSoup
+
+    fallback = {
+        "version": "1.0.8",
+        "name": "Hiren's BootCD PE v1.0.8",
+        "iso_url": "https://www.hirensbootcd.org/files/HBCD_PE_x64.iso",
+        "iso_name": "HBCD_PE_x64.iso",
+        "dest_folder": "hiren-1.0.8",
+        "size_est": "~3.5 GB",
+        "notes": "Modern PE build (Windows-based).",
+    }
+
+    try:
+        page_url = "https://www.hirensbootcd.org/download/"
+        response = requests.get(page_url, timeout=12)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        iso_url = fallback["iso_url"]
+        for link in soup.find_all("a", href=True):
+            href = (link.get("href") or "").strip()
+            if "HBCD_PE_x64.iso" in href:
+                iso_url = urljoin(page_url, href)
+                break
+
+        text = soup.get_text(" ", strip=True)
+        version_candidates = re.findall(r"\b(\d+\.\d+\.\d+)\b", text)
+        if version_candidates:
+            version = max(version_candidates, key=lambda v: [int(n) for n in v.split(".")])
+        else:
+            version = fallback["version"]
+
+        entry = {
+            "version": version,
+            "name": f"Hiren's BootCD PE v{version}",
+            "iso_url": iso_url,
+            "iso_name": "HBCD_PE_x64.iso",
+            "dest_folder": f"hiren-{version}",
+            "size_est": "~3.5 GB",
+            "notes": "Modern PE build (Windows-based).",
+        }
+        return {"versions": [entry]}
+    except Exception as exc:
+        add_log("system", "warning", f"Hiren versions fetch failed, using fallback: {exc}")
+        return {"versions": [fallback]}
 
 
 @assets_router.get("/versions/ubuntu")

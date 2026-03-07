@@ -194,6 +194,55 @@ def test_debian_versions_endpoint_returns_full_download_products():
     assert any(product["experimental"] is True for product in products if "experimental" in product)
 
 
+def test_hiren_versions_endpoint_parses_download_page(monkeypatch):
+    class _Resp:
+        def __init__(self, text):
+            self.text = text
+
+        def raise_for_status(self):
+            return None
+
+    html = """
+    <html>
+      <body>
+        <h1>Hiren's BootCD PE</h1>
+        <p>Current version: 1.0.8</p>
+        <a href="/files/HBCD_PE_x64.iso">Download ISO</a>
+      </body>
+    </html>
+    """
+
+    def _fake_get(url, timeout=0):
+        return _Resp(html)
+
+    monkeypatch.setattr("app.routes.assets.requests.get", _fake_get)
+
+    resp = client.get("/api/assets/versions/hiren")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["versions"]
+    entry = payload["versions"][0]
+    assert entry["version"] == "1.0.8"
+    assert entry["iso_name"] == "HBCD_PE_x64.iso"
+    assert entry["iso_url"] == "https://www.hirensbootcd.org/files/HBCD_PE_x64.iso"
+    assert entry["dest_folder"] == "hiren-1.0.8"
+
+
+def test_hiren_versions_endpoint_fallback_on_fetch_error(monkeypatch):
+    def _boom(url, timeout=0):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("app.routes.assets.requests.get", _boom)
+
+    resp = client.get("/api/assets/versions/hiren")
+    assert resp.status_code == 200
+    payload = resp.json()
+    entry = payload["versions"][0]
+    assert entry["version"] == "1.0.8"
+    assert entry["iso_name"] == "HBCD_PE_x64.iso"
+    assert entry["dest_folder"] == "hiren-1.0.8"
+
+
 def test_presets_endpoint_returns_seeded_system_presets():
     resp = client.get("/api/assets/presets")
     assert resp.status_code == 200
