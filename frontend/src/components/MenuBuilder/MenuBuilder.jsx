@@ -235,6 +235,7 @@ function MenuBuilder({
     const isSubmenu = entry.entry_type === 'submenu'
     const children = isSubmenu ? getChildEntries(entry.name) : []
     const effectiveExpanded = queryNorm ? true : isExpanded
+    const insideDropKey = `inside-zone:${entry.name}`
 
     return (
       <div key={entry.name} className="tree-entry">
@@ -303,6 +304,29 @@ function MenuBuilder({
 
         {isSubmenu && effectiveExpanded && (
           <div className="tree-children">
+            <div
+              className={`tree-inside-drop-zone ${dropTargetKey === insideDropKey ? 'active' : ''}`}
+              onDragOver={(e) => {
+                if (!draggingEntryName) return
+                if (!canMoveToParent(draggingEntryName, entry.name)) return
+                e.preventDefault()
+                e.stopPropagation()
+                e.dataTransfer.dropEffect = 'move'
+                setDropTargetKey(insideDropKey)
+              }}
+              onDragLeave={() => {
+                if (dropTargetKey === insideDropKey) setDropTargetKey(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!draggingEntryName) return
+                moveEntryToParent(draggingEntryName, entry.name)
+                setDropTargetKey(null)
+              }}
+            >
+              Drop inside "{entry.title || entry.name}"
+            </div>
             {children.length > 0
               ? children.map(child => renderEntry(child, level + 1))
               : <div className="tree-empty-submenu" style={{ paddingLeft: `${(level + 1) * 18 + 6}px` }}>empty</div>
