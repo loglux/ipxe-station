@@ -234,3 +234,6 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - cleaner interactive states for filters/buttons/selects
   - improved readability at half-width desktop layouts
 - Scope intentionally limited to presentation styles; no API or behavior changes.
+- Follow-up polish:
+  - removed remaining inline spacing styles in `Boot Files` in favor of CSS classes
+  - normalized `Monitoring` control-button height/weight for cleaner toolbar rhythm

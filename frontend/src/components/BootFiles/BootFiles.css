@@ -23,6 +23,14 @@
   box-shadow: var(--shadow-sm);
 }
 
+.section-separated {
+  margin-top: 20px;
+}
+
+.boot-files-warning {
+  margin-bottom: 16px;
+}
+
 .section h2 {
   margin: 0 0 8px 0;
   font-size: 22px;
@@ -142,6 +150,7 @@
 .editor-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* Responsive */

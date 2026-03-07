@@ -285,7 +285,7 @@ function BootFiles() {
       )}
 
       {!fileExists && (
-        <div className="message warning" style={{ marginBottom: '16px' }}>
+        <div className="message warning boot-files-warning">
           ⚠️ <strong>autoexec.ipxe not found</strong> — iPXE clients won't chain to boot.ipxe.
           Select a template below and click <strong>Apply</strong> to create it.
         </div>
@@ -361,7 +361,7 @@ function BootFiles() {
         </div>
       </div>
 
-      <div className="section" style={{ marginTop: '20px' }}>
+      <div className="section section-separated">
         <h2>preseed.cfg</h2>
         <p className="section-description">
           Debian automated installer profiles served by the backend. The active profile is exposed at
@@ -371,7 +371,7 @@ function BootFiles() {
         </p>
 
         {!preseedExists && (
-          <div className="message warning" style={{ marginBottom: '16px' }}>
+          <div className="message warning boot-files-warning">
             ⚠️ <strong>preseed profile not found</strong> — Debian Preseed entries will boot, but unattended install
             settings will be missing until you create or activate a profile.
           </div>

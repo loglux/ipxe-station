@@ -49,6 +49,12 @@
   flex-wrap: wrap;
 }
 
+.logs-controls .btn.btn-sm {
+  min-height: 34px;
+  padding: 7px 12px;
+  font-weight: 500;
+}
+
 .log-filter {
   padding: 7px 12px;
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
@@ -377,6 +383,11 @@
 
   .log-filter {
     min-width: 130px;
+  }
+
+  .logs-controls .btn.btn-sm {
+    min-height: 32px;
+    padding: 6px 10px;
   }
 
   .logs-footer {
