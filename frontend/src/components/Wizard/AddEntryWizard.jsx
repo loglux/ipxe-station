@@ -31,6 +31,37 @@ const SCENARIO_CATALOG_KEY = {
   kaspersky:      'kaspersky',
 }
 
+const RECIPE_SCENARIOS = new Set([
+  'ubuntu_netboot',
+  'ubuntu_live',
+  'ubuntu_preseed',
+  'debian_netboot',
+  'debian_preseed',
+  'debian_live',
+  'systemrescue',
+  'kaspersky',
+])
+
+const MANUAL_ISO_SCENARIOS = new Set(['systemrescue', 'kaspersky', 'hiren'])
+
+const MANUAL_ISO_MATCHERS = {
+  systemrescue: (path, category) => {
+    const p = path.toLowerCase()
+    const c = (category || '').toLowerCase()
+    return c === 'rescue' || p.includes('systemrescue') || p.includes('sysres')
+  },
+  kaspersky: (path, category) => {
+    const p = path.toLowerCase()
+    const c = (category || '').toLowerCase()
+    return c === 'antivirus' || p.includes('kaspersky') || p.includes('krd')
+  },
+  hiren: (path, category) => {
+    const p = path.toLowerCase()
+    const c = (category || '').toLowerCase()
+    return c === 'tools' || p.includes('hiren') || p.includes('hbcd')
+  },
+}
+
 function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCategory = null }) {
   const [step, setStep] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -82,6 +113,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         `Manual asset selected: ${version.iso || version.path}. ` +
         'Kernel/initrd/cmdline are prefilled as editable defaults.'
       )
+      return
+    }
+
+    if (!RECIPE_SCENARIOS.has(selectedScenario)) {
       return
     }
 
@@ -143,7 +178,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
         ? assets.asset_labels
         : {}
       const httpFiles = Array.isArray(assets?.http) ? assets.http : []
-      const manualIsoVersions = (selectedScenario === 'systemrescue' || selectedScenario === 'kaspersky')
+      const manualIsoVersions = MANUAL_ISO_SCENARIOS.has(selectedScenario)
         ? httpFiles
           .filter((path) => path.toLowerCase().endsWith('.iso'))
           .map((path) => {
@@ -154,9 +189,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             return {
               path,
               category,
-              include:
-                ['tools', 'rescue', 'antivirus'].includes(category)
-                || !path.includes('/'),
+              include: MANUAL_ISO_MATCHERS[selectedScenario]?.(path, category) || false,
             }
           })
           .filter((row) => row.include)

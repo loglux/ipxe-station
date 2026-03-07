@@ -420,6 +420,42 @@ export const SCENARIOS = {
     `,
   },
 
+  hiren: {
+    id: 'hiren',
+    displayName: "Hiren's BootCD PE",
+    description: 'Windows-based recovery toolkit (manual ISO workflow)',
+    icon: '🧰',
+    category: 'rescue',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'rescue',
+      requires_iso: true,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: 'ip=dhcp',
+    }),
+
+    help: `
+      Hiren's BootCD PE is added from manually uploaded assets.
+
+      Typical flow:
+      - Upload ISO in Assets
+      - Extract required boot files (kernel/initrd or equivalent)
+      - Use this scenario to create/edit the iPXE entry
+
+      Note: file layout differs by image build, so verify kernel/initrd/cmdline.
+    `,
+  },
+
   memtest: {
     id: 'memtest',
     displayName: 'Memtest86+',
