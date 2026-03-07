@@ -173,9 +173,13 @@
   cursor: pointer;
 }
 
-.tree-select-btn.drop-target {
-  outline: 2px dashed var(--color-primary);
-  outline-offset: 2px;
+.tree-select-btn.drop-target-before {
+  box-shadow: inset 0 2px 0 0 var(--color-primary);
+  border-radius: 4px;
+}
+
+.tree-select-btn.drop-target-after {
+  box-shadow: inset 0 -2px 0 0 var(--color-primary);
   border-radius: 4px;
 }
 

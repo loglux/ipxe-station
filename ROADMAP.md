@@ -239,6 +239,9 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - Follow-up fix:
   - drag-and-drop now commits positional reorder (drop after target row), so moved items
     stay in the new place consistently.
+- Precision UX update:
+  - row drop now supports `before/after` insertion by cursor position (upper/lower half),
+    improving accurate swaps and neighbor reordering.
 
 ### Cross-Page UI Consistency Pass
 - Aligned visual tone for `Monitoring`, `Assets`, `DHCP`, and `Boot Files`:

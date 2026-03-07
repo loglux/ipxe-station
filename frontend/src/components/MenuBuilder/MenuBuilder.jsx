@@ -162,7 +162,7 @@ function MenuBuilder({
     setDropTargetKey(null)
   }
 
-  const moveEntryAfterTarget = (entryName, targetName) => {
+  const moveEntryRelativeToTarget = (entryName, targetName, place = 'after') => {
     const source = entries.find((entry) => entry.name === entryName)
     const target = entries.find((entry) => entry.name === targetName)
     if (!source || !target || source.name === target.name) return
@@ -178,10 +178,11 @@ function MenuBuilder({
     if (targetIndex < 0) return
 
     const sourceWithParent = { ...source, parent: targetParent }
+    const insertIndex = place === 'before' ? targetIndex : targetIndex + 1
     const reordered = [
-      ...destinationSiblings.slice(0, targetIndex + 1),
+      ...destinationSiblings.slice(0, insertIndex),
       sourceWithParent,
-      ...destinationSiblings.slice(targetIndex + 1),
+      ...destinationSiblings.slice(insertIndex),
     ]
 
     reordered.forEach((entry, index) => {
@@ -193,11 +194,13 @@ function MenuBuilder({
     })
   }
 
-  const handleDropAfterEntry = (targetEntry, e) => {
+  const handleDropOnEntry = (targetEntry, e) => {
     e.preventDefault()
     e.stopPropagation()
     if (!draggingEntryName) return
-    moveEntryAfterTarget(draggingEntryName, targetEntry.name)
+    const rect = e.currentTarget.getBoundingClientRect()
+    const place = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after'
+    moveEntryRelativeToTarget(draggingEntryName, targetEntry.name, place)
     setDropTargetKey(null)
   }
 
@@ -236,12 +239,16 @@ function MenuBuilder({
             if (!canMoveToParent(draggingEntryName, entry.parent || null)) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
-            setDropTargetKey(`after:${entry.name}`)
+            const rect = e.currentTarget.getBoundingClientRect()
+            const place = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after'
+            setDropTargetKey(`${place}:${entry.name}`)
           }}
           onDragLeave={() => {
-            if (dropTargetKey === `after:${entry.name}`) setDropTargetKey(null)
+            if (dropTargetKey === `before:${entry.name}` || dropTargetKey === `after:${entry.name}`) {
+              setDropTargetKey(null)
+            }
           }}
-          onDrop={(e) => handleDropAfterEntry(entry, e)}
+          onDrop={(e) => handleDropOnEntry(entry, e)}
         >
           <button
             type="button"
@@ -256,7 +263,11 @@ function MenuBuilder({
 
           <button
             type="button"
-            className={`tree-select-btn ${dropTargetKey === `after:${entry.name}` ? 'drop-target' : ''}`}
+            className={`tree-select-btn ${
+              dropTargetKey === `before:${entry.name}` ? 'drop-target-before' : ''
+            } ${
+              dropTargetKey === `after:${entry.name}` ? 'drop-target-after' : ''
+            }`}
             onClick={() => onSelectEntry(entry.name)}
             aria-current={isSelected ? 'true' : undefined}
             title={entry.title || entry.name}
