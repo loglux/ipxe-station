@@ -11,6 +11,8 @@ RUN apt-get update && \
         wget curl rsync \
         # ISO/Archive tools
         p7zip-full unzip gzip cpio \
+        # Legacy BIOS helper (memdisk)
+        syslinux-common \
         # SquashFS tools (merge layers for Ubuntu Server netboot)
         squashfs-tools \
         # Mount tools
@@ -60,7 +62,9 @@ RUN mkdir -p /opt/ipxe-initial-files/tftp /opt/ipxe-initial-files/http && \
     wget -q -O ipxe.efi http://boot.ipxe.org/x86_64-efi/ipxe.efi && \
     wget -q -O snponly.efi http://boot.ipxe.org/x86_64-efi/snponly.efi && \
     wget -q http://boot.ipxe.org/ipxe.pxe && \
-    wget -q -O /opt/ipxe-initial-files/http/memdisk http://boot.ipxe.org/memdisk && \
+    MEMDISK_PATH="$(find /usr/lib -type f -name memdisk | head -n1)" && \
+    test -n "$MEMDISK_PATH" && \
+    cp "$MEMDISK_PATH" /opt/ipxe-initial-files/http/memdisk && \
     ls -la /opt/ipxe-initial-files/tftp/ && \
     ls -la /opt/ipxe-initial-files/http/
 
