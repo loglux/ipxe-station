@@ -55,7 +55,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
-  padding: 6px;
+  padding: 8px;
 }
 
 .tree-entry {
@@ -65,9 +65,9 @@
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 8px 6px;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   transition: background 0.08s;
@@ -86,6 +86,7 @@
 .tree-node.selected {
   background: var(--color-primary);
   color: white;
+  border-color: var(--color-primary);
 }
 
 .tree-node.selected .tree-icon {
@@ -93,8 +94,8 @@
 }
 
 .tree-toggle {
-  width: 16px;
-  font-size: 10px;
+  width: 18px;
+  font-size: 11px;
   color: var(--color-text-secondary);
 }
 
@@ -106,7 +107,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 .tree-toggle-btn {
@@ -130,9 +132,9 @@
   color: inherit;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-align: left;
-  padding: 0;
+  padding: 2px 0;
   cursor: pointer;
 }
 
@@ -143,12 +145,12 @@
 }
 
 .tree-icon {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .tree-label {
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -203,7 +205,7 @@
 .selected-actions {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 8px;
+  padding: 10px;
   background: var(--color-bg-secondary);
 }
 
@@ -216,7 +218,7 @@
 }
 
 .selected-actions-head strong {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--color-text);
 }
 
@@ -229,7 +231,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .tree-btn {
@@ -239,7 +241,7 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   line-height: 1.4;
   transition: all 0.1s;
 }
@@ -269,10 +271,10 @@
   border-radius: 4px;
   color: var(--color-text);
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   cursor: pointer;
-  min-width: 108px;
-  max-width: 180px;
+  min-width: 140px;
+  max-width: 240px;
   opacity: 1;
 }
 
@@ -310,11 +312,28 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   font-style: italic;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 @media (max-width: 1360px) {
   .menu-toolbar {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .selected-actions-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tree-move-select {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+  }
+
+  .tree-btn-del {
+    grid-column: 1 / -1;
   }
 }

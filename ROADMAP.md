@@ -217,5 +217,9 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - full-row click selection
   - search + expand/collapse controls
   - reduction of inline control overlap issues
-- Next iteration target: keep tree as navigation-first and place destructive/reordering actions in a
-  dedicated selected-entry action area to reduce accidental clicks.
+- Implemented navigation-first layout:
+  - tree rows are focused on selection/navigation only
+  - reordering/move/delete actions live in selected-entry panel below
+- Added UI polish for half-width layouts:
+  - larger row hit-area and control spacing
+  - improved action panel readability and mobile wrapping behavior
