@@ -23,9 +23,11 @@ function App() {
   const switchTab = (tab) => {
     setActiveTab(tab)
     window.location.hash = tab
+    if (tab !== 'builder') setMobileMenuOpen(false)
   }
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsVersion, setSettingsVersion] = useState(0)
   const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
@@ -66,6 +68,7 @@ function App() {
       if (VALID_TABS.includes(hashTab)) {
         setActiveTab(hashTab)
         if (hashTab !== 'builder') setSelectedEntryId(null)
+        if (hashTab !== 'builder') setMobileMenuOpen(false)
       }
     }
     window.addEventListener('hashchange', onHashChange)
@@ -327,6 +330,17 @@ function App() {
             </button>
           </div>
 
+          {activeTab === 'builder' && (
+            <div className="mobile-structure-trigger">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setMobileMenuOpen(true)}
+              >
+                ☰ Menu Structure
+              </button>
+            </div>
+          )}
+
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === 'builder' && (
@@ -471,6 +485,38 @@ function App() {
         </main>
 
       </div>
+
+      {activeTab === 'builder' && mobileMenuOpen && (
+        <div className="mobile-structure-overlay" onClick={() => setMobileMenuOpen(false)}>
+          <aside className="mobile-structure-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-structure-header">
+              <h2>Menu Structure</h2>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="mobile-structure-content">
+              <MenuBuilder
+                entries={entries}
+                selectedEntryId={selectedEntryId}
+                onSelectEntry={(entryId) => {
+                  setSelectedEntryId(entryId)
+                  setMobileMenuOpen(false)
+                }}
+                onOpenWizard={(category) => {
+                  openWizard(category)
+                  setMobileMenuOpen(false)
+                }}
+                onUpdateEntry={updateEntry}
+                onDeleteEntry={deleteEntry}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="app-footer">
