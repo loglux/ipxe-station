@@ -42,7 +42,13 @@ const RECIPE_SCENARIOS = new Set([
   'kaspersky',
 ])
 
-const MANUAL_ISO_SCENARIOS = new Set(['systemrescue', 'kaspersky', 'hiren'])
+const MANUAL_ISO_SCENARIOS = new Set([
+  'systemrescue',
+  'kaspersky',
+  'hiren',
+  'gparted',
+  'clonezilla',
+])
 
 const MANUAL_ISO_MATCHERS = {
   systemrescue: (path, category) => {
@@ -59,6 +65,16 @@ const MANUAL_ISO_MATCHERS = {
     const p = path.toLowerCase()
     const c = (category || '').toLowerCase()
     return c === 'tools' || p.includes('hiren') || p.includes('hbcd')
+  },
+  gparted: (path, category) => {
+    const p = path.toLowerCase()
+    const c = (category || '').toLowerCase()
+    return c === 'rescue' || c === 'tools' || p.includes('gparted')
+  },
+  clonezilla: (path, category) => {
+    const p = path.toLowerCase()
+    const c = (category || '').toLowerCase()
+    return c === 'rescue' || c === 'tools' || p.includes('clonezilla')
   },
 }
 
@@ -333,7 +349,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       if (
         selectedScenario === 'systemrescue' ||
         selectedScenario === 'kaspersky' ||
-        selectedScenario === 'hiren'
+        selectedScenario === 'hiren' ||
+        selectedScenario === 'gparted' ||
+        selectedScenario === 'clonezilla'
       ) {
         const assetsResp = await fetch('/api/assets')
         assets = await assetsResp.json()
@@ -365,6 +383,10 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               || (path.startsWith('antivirus/') ? 'antivirus' : '')
               || (path.startsWith('hiren-') ? 'tools' : '')
               || (path.startsWith('hiren/') ? 'tools' : '')
+              || (path.startsWith('gparted-') ? 'tools' : '')
+              || (path.startsWith('gparted/') ? 'tools' : '')
+              || (path.startsWith('clonezilla-') ? 'tools' : '')
+              || (path.startsWith('clonezilla/') ? 'tools' : '')
             return { path, category }
           })
           .map((path) => {

@@ -128,3 +128,29 @@ def test_hiren_winpe_minimal_flow_uses_boot_wim():
     assert " Boot/BCD BCD" not in script
     assert "boot.sdi boot.sdi" not in script
     assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/sources/boot.wim boot.wim" in script
+
+
+def test_legacy_iso_memdisk_flow_uses_iso_raw_cmdline():
+    menu = iPXEMenu(
+        title="Test Menu",
+        timeout=5000,
+        default_entry="gparted",
+        server_ip="10.0.0.1",
+        http_port=8080,
+        entries=[
+            iPXEEntry(
+                name="gparted",
+                title="GParted Live",
+                kernel="memdisk",
+                initrd="gparted-live-1.7.0.iso",
+                cmdline="iso raw",
+                boot_mode="rescue",
+                entry_type="boot",
+            )
+        ],
+    )
+
+    script = iPXEGenerator.generate_ipxe_script(menu)
+
+    assert "kernel http://10.0.0.1:8080/http/memdisk iso raw" in script
+    assert "initrd http://10.0.0.1:8080/http/gparted-live-1.7.0.iso" in script

@@ -464,6 +464,82 @@ export const SCENARIOS = {
     `,
   },
 
+  gparted: {
+    id: 'gparted',
+    displayName: 'GParted Live',
+    description: 'Partition editor and disk maintenance (manual ISO)',
+    icon: '🧩',
+    category: 'rescue',
+
+    assetDiscovery: {
+      type: 'manual_iso',
+    },
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'rescue',
+      requires_iso: true,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: 'iso raw',
+    }),
+
+    help: `
+      GParted Live is added from manually uploaded ISO assets.
+
+      Recommended flow:
+      - Upload latest stable GParted ISO in Assets
+      - Create entry from this scenario
+      - Boot via ISO (legacy memdisk) or adjust paths manually if needed
+    `,
+  },
+
+  clonezilla: {
+    id: 'clonezilla',
+    displayName: 'Clonezilla Live',
+    description: 'Disk imaging and cloning toolkit (manual ISO)',
+    icon: '🧪',
+    category: 'rescue',
+
+    assetDiscovery: {
+      type: 'manual_iso',
+    },
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'rescue',
+      requires_iso: true,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: 'iso raw',
+    }),
+
+    help: `
+      Clonezilla Live is added from manually uploaded ISO assets.
+
+      Recommended flow:
+      - Upload latest stable Clonezilla ISO in Assets
+      - Create entry from this scenario
+      - Boot via ISO (legacy memdisk) or adjust paths manually if needed
+    `,
+  },
+
   memtest: {
     id: 'memtest',
     displayName: 'Memtest86+',
