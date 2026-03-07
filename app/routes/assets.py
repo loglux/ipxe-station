@@ -2,6 +2,7 @@
 
 import json
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -652,6 +653,41 @@ async def upload_asset(request: Request, file: UploadFile = File(...), dest: str
     saved = str(target_path.relative_to(HTTP_ROOT))
     _set_asset_label(saved, form_category)
     return {"saved": saved, "category": form_category}
+
+
+@assets_router.delete("/file")
+def delete_asset_file(path: str, recursive: bool = False):
+    """Delete a file (or directory with recursive=true) under /srv/http."""
+    rel_path = (path or "").strip().lstrip("/")
+    if not rel_path:
+        raise HTTPException(status_code=400, detail="path is required")
+
+    target = _resolve_within_root(HTTP_ROOT, rel_path, path_label="path")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
+
+    if target.is_dir():
+        if not recursive:
+            raise HTTPException(
+                status_code=400,
+                detail=("Path is a directory. Pass recursive=true to delete directories."),
+            )
+        shutil.rmtree(target)
+        deleted_kind = "directory"
+    else:
+        target.unlink()
+        deleted_kind = "file"
+
+    # Keep labels storage in sync.
+    labels = _load_asset_labels()
+    prefix = f"{rel_path.rstrip('/')}/"
+    to_delete = [k for k in labels if k == rel_path or k.startswith(prefix)]
+    for key in to_delete:
+        labels.pop(key, None)
+    _save_asset_labels(labels)
+
+    add_log("assets", "info", f"Deleted {deleted_kind}: {rel_path}")
+    return {"success": True, "deleted": rel_path, "kind": deleted_kind}
 
 
 @assets_router.post("/extract-iso")

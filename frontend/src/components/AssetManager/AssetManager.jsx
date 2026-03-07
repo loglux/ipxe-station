@@ -98,6 +98,7 @@ function AssetManager() {
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(null)
+  const [deletingAssetPath, setDeletingAssetPath] = useState('')
   const uploadStatusTimeoutRef = useRef(null)
   const uploadInputRef = useRef(null)
   const debianProductsRef = useRef([])
@@ -432,6 +433,35 @@ function AssetManager() {
       e.target.value = ''
     }
   }
+
+  const deleteAssetPath = useCallback(async (path) => {
+    if (!path) return
+    const confirmed = window.confirm(`Delete resource file "${path}"?`)
+    if (!confirmed) return
+
+    setDeletingAssetPath(path)
+    try {
+      const resp = await fetch(`/api/assets/file?path=${encodeURIComponent(path)}`, {
+        method: 'DELETE',
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.detail || 'Failed to delete resource')
+      }
+      setPersistentUploadStatus(`✅ Deleted: ${data.deleted || path}`, 'success')
+      if (uploadStatusTimeoutRef.current) clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = setTimeout(clearUploadStatus, ASSETS_UPLOAD_SUCCESS_HIDE_MS)
+      await fetchAssets()
+      await fetchCatalog()
+      await fetchNfsStatus()
+    } catch (error) {
+      setPersistentUploadStatus(`❌ ${error.message}`, 'error')
+      if (uploadStatusTimeoutRef.current) clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = setTimeout(clearUploadStatus, ASSETS_UPLOAD_ERROR_HIDE_MS)
+    } finally {
+      setDeletingAssetPath('')
+    }
+  }, [clearUploadStatus, fetchAssets, fetchCatalog, fetchNfsStatus, setPersistentUploadStatus])
 
   const fetchSystemRescueVersions = useCallback(async () => {
     try {
@@ -1360,6 +1390,14 @@ function AssetManager() {
                       <span className="file-badge">category: {category}</span>
                     </div>
                   </div>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => deleteAssetPath(path)}
+                    disabled={deletingAssetPath === path}
+                    title={`Delete ${path}`}
+                  >
+                    {deletingAssetPath === path ? '⏳ Deleting...' : '🗑️ Delete'}
+                  </button>
                 </div>
               ))}
             </div>
