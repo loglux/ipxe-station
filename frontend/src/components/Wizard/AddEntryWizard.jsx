@@ -287,7 +287,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       const response = await fetch('/api/assets/catalog')
       const catalog = await response.json()
       let assets = { http: [], asset_labels: {} }
-      if (selectedScenario === 'systemrescue' || selectedScenario === 'kaspersky') {
+      if (
+        selectedScenario === 'systemrescue' ||
+        selectedScenario === 'kaspersky' ||
+        selectedScenario === 'hiren'
+      ) {
         const assetsResp = await fetch('/api/assets')
         assets = await assetsResp.json()
       }
