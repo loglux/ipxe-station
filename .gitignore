@@ -47,3 +47,4 @@ frontend/dist/
 output/
 frontend/test-results/
 frontend/playwright-report/
+scripts/remote-redeploy.sh
