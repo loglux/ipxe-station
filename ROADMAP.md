@@ -262,6 +262,10 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - kept behavior unchanged (presentation-only refactor)
   - normalized subsection wrappers/headings across Ubuntu, Debian, and Tools download blocks
     to use one section rhythm and card template framing (layout-only)
+- Navigation decision (accepted):
+  - keep a single navigation axis in the app shell (no duplicated global + local sidebars
+    with overlapping purpose on the same screen)
+  - for current stage, keep global sidebar as primary and use in-page tabs/toolbar for local context
 
 ### Command Line Assistant (Phase 1, frontend-only)
 - Added cmdline helper in `PropertyPanel` without backend/API changes:

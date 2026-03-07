@@ -66,36 +66,14 @@
   letter-spacing: -0.01em;
 }
 
-.acquire-layout {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-}
-
-.acquire-sidebar {
-  background: var(--color-bg);
-  border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
-  box-shadow: var(--shadow-sm);
-  height: fit-content;
-}
-
-.acquire-sidebar h3 {
-  font-size: 16px;
-  margin-bottom: var(--spacing-sm);
-}
-
-.acquire-preset-list {
+.acquire-tabs {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
+  margin-bottom: var(--spacing-md);
 }
 
-.acquire-preset-btn {
-  width: 100%;
-  text-align: left;
+.acquire-tab-btn {
   border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   background: var(--color-bg-secondary);
   border-radius: var(--radius-md);
@@ -104,17 +82,13 @@
   font-size: 13px;
 }
 
-.acquire-preset-btn:hover {
+.acquire-tab-btn:hover {
   border-color: color-mix(in oklab, var(--color-primary) 36%, var(--color-border) 64%);
 }
 
-.acquire-preset-btn.is-active {
+.acquire-tab-btn.is-active {
   border-color: color-mix(in oklab, var(--color-primary) 46%, var(--color-border) 54%);
   background: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg-secondary) 90%);
-}
-
-.acquire-main {
-  min-width: 0;
 }
 
 .distro-group {
@@ -631,10 +605,6 @@
 @media (max-width: 900px) {
   .asset-header h2 {
     font-size: 24px;
-  }
-
-  .acquire-layout {
-    grid-template-columns: 1fr;
   }
 
   .inventory-layout {

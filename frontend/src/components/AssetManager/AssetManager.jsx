@@ -692,27 +692,21 @@ function AssetManager() {
       </div>
 
       <div className="asset-content">
-        <div className="acquire-layout">
-          <aside className="acquire-sidebar">
-            <h3>Acquire Presets</h3>
-            {acquirePresets.length > 0 ? (
-              <div className="acquire-preset-list">
-                {acquirePresets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    className={`acquire-preset-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
-                    onClick={() => setActiveAcquirePresetId(preset.id)}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted">No presets found</p>
-            )}
-          </aside>
-
-          <div className="acquire-main">
+        <div className="acquire-tabs">
+          {acquirePresets.length > 0 ? (
+            acquirePresets.map((preset) => (
+              <button
+                key={preset.id}
+                className={`acquire-tab-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
+                onClick={() => setActiveAcquirePresetId(preset.id)}
+              >
+                {preset.name}
+              </button>
+            ))
+          ) : (
+            <p className="text-sm text-muted">No presets found</p>
+          )}
+        </div>
         {/* ── Ubuntu ── */}
         {(activeAcquireSection === 'all' || activeAcquireSection === 'ubuntu') && (
         <section className="asset-section">
@@ -1183,8 +1177,6 @@ function AssetManager() {
           </div>
         </section>
         )}
-          </div>
-        </div>
 
         {/* Resource Inventory */}
         <section className="asset-section">
