@@ -106,6 +106,7 @@ function AssetManager() {
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
+  const [assetsMode, setAssetsMode] = useState('acquire')
   const [presets, setPresets] = useState([])
   const [activeAcquirePresetId, setActiveAcquirePresetId] = useState('')
   const [inventoryQuery, setInventoryQuery] = useState('')
@@ -692,21 +693,39 @@ function AssetManager() {
       </div>
 
       <div className="asset-content">
-        <div className="acquire-tabs">
-          {acquirePresets.length > 0 ? (
-            acquirePresets.map((preset) => (
-              <button
-                key={preset.id}
-                className={`acquire-tab-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
-                onClick={() => setActiveAcquirePresetId(preset.id)}
-              >
-                {preset.name}
-              </button>
-            ))
-          ) : (
-            <p className="text-sm text-muted">No presets found</p>
-          )}
+        <div className="mode-tabs">
+          <button
+            className={`mode-tab-btn ${assetsMode === 'acquire' ? 'is-active' : ''}`}
+            onClick={() => setAssetsMode('acquire')}
+          >
+            Acquire
+          </button>
+          <button
+            className={`mode-tab-btn ${assetsMode === 'library' ? 'is-active' : ''}`}
+            onClick={() => setAssetsMode('library')}
+          >
+            Library
+          </button>
         </div>
+        {assetsMode === 'acquire' && (
+          <div className="acquire-tabs">
+            {acquirePresets.length > 0 ? (
+              acquirePresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  className={`acquire-tab-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
+                  onClick={() => setActiveAcquirePresetId(preset.id)}
+                >
+                  {preset.name}
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-muted">No presets found</p>
+            )}
+          </div>
+        )}
+        {assetsMode === 'acquire' && (
+          <>
         {/* ── Ubuntu ── */}
         {(activeAcquireSection === 'all' || activeAcquireSection === 'ubuntu') && (
         <section className="asset-section">
@@ -1177,8 +1196,11 @@ function AssetManager() {
           </div>
         </section>
         )}
+          </>
+        )}
 
         {/* Resource Inventory */}
+        {assetsMode === 'library' && (
         <section className="asset-section">
           <h3>📁 Resource Inventory</h3>
           <div className="inventory-layout">
@@ -1295,6 +1317,7 @@ function AssetManager() {
             </aside>
           </div>
         </section>
+        )}
       </div>
     </div>
   )

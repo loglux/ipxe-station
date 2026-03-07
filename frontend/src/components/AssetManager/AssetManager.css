@@ -73,6 +73,27 @@
   margin-bottom: var(--spacing-md);
 }
 
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--spacing-md);
+}
+
+.mode-tab-btn {
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mode-tab-btn.is-active {
+  border-color: color-mix(in oklab, var(--color-primary) 46%, var(--color-border) 54%);
+  background: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg-secondary) 90%);
+}
+
 .acquire-tab-btn {
   border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   background: var(--color-bg-secondary);
