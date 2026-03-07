@@ -146,21 +146,29 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       const manualIsoVersions = (selectedScenario === 'systemrescue' || selectedScenario === 'kaspersky')
         ? httpFiles
           .filter((path) => path.toLowerCase().endsWith('.iso'))
-          .filter((path) => {
+          .map((path) => {
             const category = labels[path]
               || (path.startsWith('tools/') ? 'tools' : '')
               || (path.startsWith('rescue/') ? 'rescue' : '')
               || (path.startsWith('antivirus/') ? 'antivirus' : '')
-            return ['tools', 'rescue', 'antivirus'].includes(category)
+            return {
+              path,
+              category,
+              include:
+                ['tools', 'rescue', 'antivirus'].includes(category)
+                || !path.includes('/'),
+            }
           })
-          .map((path) => {
+          .filter((row) => row.include)
+          .map(({ path, category }) => {
             const parts = path.split('/')
             const fileName = parts.at(-1) || path
             const baseName = fileName.replace(/\.iso$/i, '')
             const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
+            const categoryLabel = category || 'uncategorized'
             return {
               version: `manual:${path}`,
-              version_label: `${baseName} (manual ISO)`,
+              version_label: `${baseName} (manual ISO, ${categoryLabel})`,
               kernel: parentDir ? `${parentDir}/vmlinuz` : 'vmlinuz',
               initrd: parentDir ? `${parentDir}/initrd` : 'initrd',
               iso: path,
