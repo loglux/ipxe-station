@@ -296,3 +296,7 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
     backed by `system_presets.json` + `user_presets.json` in server data store
   - moved hardcoded `Ubuntu/Debian/Tools` navigation intent into system preset seeds
   - frontend `Assets` now reads acquire navigation from backend presets list
+- IA hold decision:
+  - `Library / Resource Inventory` is temporarily hidden from UI
+  - keep Acquire flow clean while global sidebar role and full Assets IA are finalized
+  - revisit library placement after shell-level navigation decision is fully implemented
