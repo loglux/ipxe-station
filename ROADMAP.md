@@ -232,6 +232,10 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - bulk toggles: `Enable all` / `Disable all`
   - scoped toggles for selected item and selected subtree
 - Extended builder Playwright smoke to cover duplicate + bulk enable/disable flows.
+- Started Builder phase-1 drag-and-drop:
+  - drag entry onto a submenu to re-parent it
+  - drag entry to root drop-zone to move it to root level
+  - invalid moves (self/descendant) are blocked in UI logic
 
 ### Cross-Page UI Consistency Pass
 - Aligned visual tone for `Monitoring`, `Assets`, `DHCP`, and `Boot Files`:

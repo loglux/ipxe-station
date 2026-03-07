@@ -15,6 +15,8 @@ function MenuBuilder({
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
   const [pendingDelete, setPendingDelete] = useState(null) // entry object
   const [query, setQuery] = useState('')
+  const [draggingEntryName, setDraggingEntryName] = useState(null)
+  const [dropParentName, setDropParentName] = useState(null)
 
   const toggleNode = (nodeName, e) => {
     e.stopPropagation()
@@ -122,6 +124,44 @@ function MenuBuilder({
     if (duplicated) onSelectEntry(duplicated)
   }
 
+  const canMoveToParent = (entryName, targetParent) => {
+    if (entryName === targetParent) return false
+    if (!targetParent) return true
+    const descendants = getDescendantNames(entryName)
+    return !descendants.has(targetParent)
+  }
+
+  const moveEntryToParent = (entryName, targetParent) => {
+    const newParent = targetParent || null
+    const current = entries.find((entry) => entry.name === entryName)
+    if (!current) return
+    if (!canMoveToParent(entryName, newParent)) return
+    if (current.parent === newParent) return
+
+    const targetSiblings = entries.filter((entry) => entry.parent === newParent)
+    const maxOrder = targetSiblings.length > 0
+      ? Math.max(...targetSiblings.map((entry) => entry.order)) + 1
+      : 0
+    onUpdateEntry(entryName, { parent: newParent, order: maxOrder })
+  }
+
+  const handleDragStart = (entryName) => {
+    setDraggingEntryName(entryName)
+  }
+
+  const handleDragEnd = () => {
+    setDraggingEntryName(null)
+    setDropParentName(null)
+  }
+
+  const handleDropToParent = (targetParentName, e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggingEntryName) return
+    moveEntryToParent(draggingEntryName, targetParentName)
+    setDropParentName(null)
+  }
+
   const subtreeMatchesQuery = (entry) => {
     if (matchesQuery(entry)) return true
     if (entry.entry_type !== 'submenu') return false
@@ -144,6 +184,24 @@ function MenuBuilder({
           className={`tree-node ${isSelected ? 'selected' : ''} ${!entry.enabled ? 'disabled' : ''}`}
           style={{ paddingLeft: `${level * 18 + 6}px` }}
           onClick={() => onSelectEntry(entry.name)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', entry.name)
+            handleDragStart(entry.name)
+          }}
+          onDragEnd={handleDragEnd}
+          onDragOver={isSubmenu ? (e) => {
+            if (!draggingEntryName) return
+            if (!canMoveToParent(draggingEntryName, entry.name)) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setDropParentName(entry.name)
+          } : undefined}
+          onDragLeave={isSubmenu ? () => {
+            if (dropParentName === entry.name) setDropParentName(null)
+          } : undefined}
+          onDrop={isSubmenu ? (e) => handleDropToParent(entry.name, e) : undefined}
         >
           <button
             type="button"
@@ -158,7 +216,7 @@ function MenuBuilder({
 
           <button
             type="button"
-            className="tree-select-btn"
+            className={`tree-select-btn ${isSubmenu && dropParentName === entry.name ? 'drop-target' : ''}`}
             onClick={() => onSelectEntry(entry.name)}
             aria-current={isSelected ? 'true' : undefined}
             title={entry.title || entry.name}
@@ -250,6 +308,22 @@ function MenuBuilder({
       </div>
 
       <div className="menu-tree">
+        <div
+          className={`tree-root-drop ${dropParentName === '__root__' ? 'active' : ''}`}
+          onDragOver={(e) => {
+            if (!draggingEntryName) return
+            if (!canMoveToParent(draggingEntryName, null)) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setDropParentName('__root__')
+          }}
+          onDragLeave={() => {
+            if (dropParentName === '__root__') setDropParentName(null)
+          }}
+          onDrop={(e) => handleDropToParent(null, e)}
+        >
+          Drag here to move entry to root
+        </div>
         {rootEntries.length === 0 ? (
           <div className="empty-state">
             <p>No entries yet</p>
