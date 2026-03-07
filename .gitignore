@@ -41,3 +41,7 @@ secrets/
 # Vite outputs to app/frontend/dist/ — never to frontend/dist/
 app/frontend/dist/
 frontend/dist/
+
+# Local UI testing artifacts
+.playwright-cli/
+output/

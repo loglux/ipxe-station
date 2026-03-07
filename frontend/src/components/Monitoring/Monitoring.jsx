@@ -133,17 +133,17 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
   }
 
   const downloadLogs = () => {
-    const logText = logs.map(log =>
-      `[${log.timestamp}] [${log.level}] [${log.type}] ${log.message}`
-    ).join('\n')
+    const params = new URLSearchParams()
+    if (logType !== 'all') params.append('type', logType)
+    if (logLevel !== 'all') params.append('level', logLevel)
+    params.append('limit', '1000')
 
-    const blob = new Blob([logText], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `ipxe-logs-${new Date().toISOString()}.txt`
+    a.href = `/api/monitoring/logs/download?${params.toString()}`
+    a.rel = 'noopener'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
   }
 
   const getLogLevelClass = (level) => {

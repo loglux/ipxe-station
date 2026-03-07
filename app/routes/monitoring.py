@@ -2,8 +2,10 @@
 
 import os
 import time
+from datetime import datetime
 
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 
 from app.backend.proxy_dhcp import ProxyDHCPManager
 
@@ -142,6 +144,31 @@ async def get_logs(type: str = None, level: str = None, limit: int = 100):
         }
     except Exception as e:
         return {"logs": [], "total": 0, "error": str(e)}
+
+
+@monitoring_router.get("/logs/download")
+async def download_logs(type: str = None, level: str = None, limit: int = 1000):
+    """Download filtered system logs as a text file."""
+    _refresh_boot_sessions()
+    filtered_logs = SYSTEM_LOGS.copy()
+
+    if type and type != "all":
+        filtered_logs = [log for log in filtered_logs if log.get("type") == type]
+
+    if level and level != "all":
+        filtered_logs = [log for log in filtered_logs if log.get("level") == level]
+
+    selected = filtered_logs[-limit:]
+    log_text = "\n".join(
+        f"[{log.get('timestamp', '')}] [{log.get('level', '')}] [{log.get('type', '')}] {log.get('message', '')}"
+        for log in selected
+    )
+    if log_text:
+        log_text += "\n"
+
+    filename = f"ipxe-logs-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.txt"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return PlainTextResponse(content=log_text, headers=headers)
 
 
 @monitoring_router.post("/logs/clear")

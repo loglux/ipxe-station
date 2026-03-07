@@ -266,6 +266,32 @@ def test_boot_ping_creates_beacon_event():
     assert any(log["stage"] == "beacon" and log["protocol"] == "http" for log in logs)
 
 
+def test_monitoring_logs_download_returns_attachment_text():
+    SYSTEM_LOGS.extend(
+        [
+            {
+                "timestamp": "2026-03-07 01:00:00",
+                "type": "tftp",
+                "level": "info",
+                "message": "TFTP request from 192.168.10.10",
+            },
+            {
+                "timestamp": "2026-03-07 01:00:01",
+                "type": "http",
+                "level": "warning",
+                "message": "Slow response",
+            },
+        ]
+    )
+
+    resp = client.get("/api/monitoring/logs/download?type=tftp")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/plain")
+    assert "attachment; filename=" in resp.headers["content-disposition"]
+    assert "[info] [tftp] TFTP request from 192.168.10.10" in resp.text
+    assert "[warning] [http] Slow response" not in resp.text
+
+
 def test_boot_sessions_mark_client_as_stalled_after_ipxe_binary():
     PXE_CLIENTS.setdefault(
         "192.168.10.225",
