@@ -13,16 +13,17 @@ import Monitoring from './components/Monitoring/Monitoring'
 import BootFiles from './components/BootFiles/BootFiles'
 import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 
+const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
+const TAB_TITLES = {
+  builder: 'Menu Structure',
+  assets: 'Assets Context',
+  dhcp: 'DHCP Context',
+  boot: 'Boot Files Context',
+  monitoring: 'Monitoring Context',
+}
+
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
-  const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
-  const TAB_TITLES = {
-    builder: 'Menu Structure',
-    assets: 'Assets Context',
-    dhcp: 'DHCP Context',
-    boot: 'Boot Files Context',
-    monitoring: 'Monitoring Context',
-  }
   const [activeTab, setActiveTab] = useState(() => {
     const saved = window.location.hash.slice(1)
     return VALID_TABS.includes(saved) ? saved : 'builder'
@@ -54,6 +55,13 @@ function App() {
     rsyslog: { status: 'unknown' },
     proxy_dhcp: { status: 'unknown' },
   })
+  const [monitoringMetrics, setMonitoringMetrics] = useState({
+    disk_used: 0,
+    disk_total: 0,
+    active_connections: 0,
+    total_requests: 0,
+  })
+  const [monitoringBootSessions, setMonitoringBootSessions] = useState([])
   const generateAbortRef = useRef(null)
 
   const applyMenuFromResponse = (menu) => {
@@ -93,20 +101,30 @@ function App() {
     if (activeTab !== 'monitoring') return undefined
 
     let cancelled = false
-    const loadServices = async () => {
+    const loadMonitoringContext = async () => {
       try {
-        const response = await fetch('/api/monitoring/services')
-        const data = await response.json()
-        if (!cancelled && data?.services) {
-          setMonitoringServices(data.services)
+        const [servicesResp, metricsResp, sessionsResp] = await Promise.all([
+          fetch('/api/monitoring/services'),
+          fetch('/api/monitoring/metrics'),
+          fetch('/api/monitoring/boot-sessions'),
+        ])
+        const [servicesData, metricsData, sessionsData] = await Promise.all([
+          servicesResp.json(),
+          metricsResp.json(),
+          sessionsResp.json(),
+        ])
+        if (!cancelled) {
+          if (servicesData?.services) setMonitoringServices(servicesData.services)
+          if (metricsData?.metrics) setMonitoringMetrics(metricsData.metrics)
+          if (sessionsData?.sessions) setMonitoringBootSessions(sessionsData.sessions)
         }
       } catch {
         // Keep previous status if request fails.
       }
     }
 
-    loadServices()
-    const interval = setInterval(loadServices, 5000)
+    loadMonitoringContext()
+    const interval = setInterval(loadMonitoringContext, 5000)
     return () => {
       cancelled = true
       clearInterval(interval)
@@ -284,6 +302,14 @@ function App() {
     return '❓'
   }
 
+  const formatBytes = (bytes) => {
+    if (!bytes) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`
+  }
+
   const renderContextPanel = () => {
     if (activeTab === 'builder') {
       return (
@@ -377,12 +403,26 @@ function App() {
           </div>
         </div>
         <div className="context-card">
-          <h3>Monitoring Focus</h3>
-          <ul className="context-list">
-            <li>Watch request/error patterns</li>
-            <li>Track service and storage health</li>
-            <li>Review boot sessions for regressions</li>
-          </ul>
+          <h3>Metrics</h3>
+          <div className="context-metrics">
+            <div><span>Disk:</span><strong>{formatBytes(monitoringMetrics.disk_used)} / {formatBytes(monitoringMetrics.disk_total)}</strong></div>
+            <div><span>Active:</span><strong>{monitoringMetrics.active_connections || 0}</strong></div>
+            <div><span>Requests:</span><strong>{monitoringMetrics.total_requests || 0}</strong></div>
+          </div>
+        </div>
+        <div className="context-card">
+          <h3>Boot Sessions</h3>
+          {monitoringBootSessions.length === 0 ? (
+            <small className="text-muted">No PXE/iPXE client sessions yet</small>
+          ) : (
+            <ul className="context-list">
+              {monitoringBootSessions.slice(0, 4).map((session) => (
+                <li key={session.client_ip}>
+                  {session.client_ip} - {session.status}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     )
@@ -629,7 +669,7 @@ function App() {
             {activeTab === 'assets' && <AssetManager />}
             {activeTab === 'dhcp' && <DHCPHelper settingsVersion={settingsVersion} />}
             {activeTab === 'boot' && <BootFiles />}
-            {activeTab === 'monitoring' && <Monitoring showServices={false} />}
+            {activeTab === 'monitoring' && <Monitoring showSidebar={false} />}
           </div>
         </main>
 

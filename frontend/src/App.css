@@ -299,6 +299,24 @@ button {
   font-size: 12px;
 }
 
+.context-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.context-metrics div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  color: var(--color-text-secondary);
+}
+
+.context-metrics strong {
+  color: var(--color-text);
+}
+
 /* ========== MAIN CONTENT ========== */
 
 .main-content {

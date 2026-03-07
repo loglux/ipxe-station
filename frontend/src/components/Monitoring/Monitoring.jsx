@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './Monitoring.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
-export default function Monitoring({ showServices = true }) {
+export default function Monitoring({ showSidebar = true, showServices = true }) {
   const [logs, setLogs] = useState([])
   const [clearLogsConfirmOpen, setClearLogsConfirmOpen] = useState(false)
   const [logType, setLogType] = useState('all')
@@ -264,9 +264,9 @@ export default function Monitoring({ showServices = true }) {
         </div>
       </div>
 
-      {/* Right Panel - Status & Metrics */}
-      <div className="monitoring-sidebar">
-        {showServices && (
+      {showSidebar && (
+        <div className="monitoring-sidebar">
+          {showServices && (
           <div className="status-section">
             <h3>🔧 Services</h3>
             <div className="service-list">
@@ -300,7 +300,7 @@ export default function Monitoring({ showServices = true }) {
               </div>
             </div>
           </div>
-        )}
+          )}
 
         {/* Metrics */}
         <div className="status-section">
@@ -360,7 +360,8 @@ export default function Monitoring({ showServices = true }) {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={clearLogsConfirmOpen}
