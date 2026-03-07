@@ -467,7 +467,7 @@ export const SCENARIOS = {
   gparted: {
     id: 'gparted',
     displayName: 'GParted Live',
-    description: 'Partition editor and disk maintenance (manual ISO)',
+    description: 'Partition editor and disk maintenance (official PXE or ISO)',
     icon: '🧩',
     category: 'rescue',
 
@@ -493,12 +493,18 @@ export const SCENARIOS = {
     }),
 
     help: `
-      GParted Live is added from manually uploaded ISO assets.
+      GParted supports official PXE flow and ISO fallback.
 
       Recommended flow:
       - Upload latest stable GParted ISO in Assets
-      - Create entry from this scenario
-      - Boot via ISO (legacy memdisk) or adjust paths manually if needed
+      - Extract ISO contents near the ISO to expose:
+        live/vmlinuz, live/initrd.img, live/filesystem.squashfs
+      - Wizard will auto-offer "PXE (official fetch)" when files are detected
+      - If files are not extracted, use ISO (legacy memdisk) fallback
+
+      Official docs:
+      - https://gparted.org/livepxe.php
+      - https://gparted.org/download.php
     `,
   },
 
@@ -537,6 +543,10 @@ export const SCENARIOS = {
       - Upload latest stable Clonezilla ISO in Assets
       - Create entry from this scenario
       - Boot via ISO (legacy memdisk) or adjust paths manually if needed
+
+      Official docs:
+      - https://clonezilla.org/livepxe.php
+      - https://clonezilla.org/downloads.php
     `,
   },
 

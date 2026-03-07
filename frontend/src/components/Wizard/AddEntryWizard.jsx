@@ -171,6 +171,44 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet, httpFiles =
     }
   }
 
+  if (scenarioId === 'gparted') {
+    const kernelLocal = has('live/vmlinuz')
+      ? 'live/vmlinuz'
+      : has('vmlinuz')
+        ? 'vmlinuz'
+        : findLocalBySuffix(['live/vmlinuz', 'vmlinuz'])
+    const initrdLocal = has('live/initrd.img')
+      ? 'live/initrd.img'
+      : has('initrd.img')
+        ? 'initrd.img'
+        : findLocalBySuffix(['live/initrd.img', 'initrd.img'])
+    const squashfsLocal = has('live/filesystem.squashfs')
+      ? 'live/filesystem.squashfs'
+      : findLocalBySuffix(['live/filesystem.squashfs'])
+
+    if (kernelLocal && initrdLocal && squashfsLocal) {
+      return {
+        kernel: join(kernelLocal),
+        initrd: join(initrdLocal),
+        cmdline:
+          `boot=live components union=overlay username=user config noswap noeject ip=dhcp ` +
+          `fetch=http://\${server_ip}:\${port}/http/${join(squashfsLocal)}`,
+        autodetected: true,
+        severity: 'success',
+        hint: '✅ Detected GParted PXE files (vmlinuz + initrd.img + filesystem.squashfs).',
+      }
+    }
+
+    return {
+      kernel: '',
+      initrd: '',
+      cmdline: '',
+      autodetected: false,
+      severity: 'warning',
+      hint: 'ℹ️ GParted PXE files not fully detected near ISO. You can still use ISO (legacy memdisk, BIOS).',
+    }
+  }
+
   return {
     kernel: join('vmlinuz'),
     initrd: join('initrd'),
@@ -207,6 +245,44 @@ const buildHirenManualBootOptions = (version) => {
       recommended: options.length === 0,
     })
   }
+
+  return options
+}
+
+const buildGpartedBootOptions = (version) => {
+  const isoPath = version?.iso || ''
+  const options = []
+
+  if (version?.autodetected && version?.kernel && version?.initrd && version?.cmdline) {
+    options.push({
+      mode: 'http',
+      label: 'PXE (official fetch)',
+      kernel: version.kernel,
+      initrd: version.initrd,
+      cmdline: version.cmdline,
+      recommended: true,
+    })
+  }
+
+  if (isoPath) {
+    options.push({
+      mode: 'iso',
+      label: 'ISO (legacy memdisk, BIOS)',
+      kernel: 'memdisk',
+      initrd: isoPath,
+      cmdline: 'iso raw',
+      recommended: options.length === 0,
+    })
+  }
+
+  options.push({
+    mode: 'manual',
+    label: 'Manual paths',
+    kernel: version?.kernel || (version?.iso ? 'memdisk' : ''),
+    initrd: version?.initrd || version?.iso || '',
+    cmdline: version?.cmdline || (version?.iso ? 'iso raw' : ''),
+    recommended: options.length === 0,
+  })
 
   return options
 }
@@ -289,7 +365,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     if (version.manual) {
       const manualOptions = selectedScenario === 'hiren'
         ? buildHirenManualBootOptions(version)
-        : buildGenericManualIsoBootOptions(version)
+        : selectedScenario === 'gparted'
+          ? buildGpartedBootOptions(version)
+          : buildGenericManualIsoBootOptions(version)
       setBootOptions(manualOptions)
       const preferred = manualOptions.find((opt) => opt.recommended) || manualOptions[0]
       setSelectedBootOption(preferred || null)
