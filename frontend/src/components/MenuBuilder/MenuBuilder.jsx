@@ -137,8 +137,24 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
           {/* Inline controls — shown on hover */}
           <span className="tree-controls" onClick={e => e.stopPropagation()}>
-            <button className="tree-btn" onClick={(e) => handleMoveUp(entry, e)} disabled={!canUp} title="Move up">↑</button>
-            <button className="tree-btn" onClick={(e) => handleMoveDown(entry, e)} disabled={!canDown} title="Move down">↓</button>
+            <button
+              className="tree-btn"
+              onClick={(e) => handleMoveUp(entry, e)}
+              disabled={!canUp}
+              title="Move up"
+              aria-label={`Move ${entry.title || entry.name} up`}
+            >
+              ↑
+            </button>
+            <button
+              className="tree-btn"
+              onClick={(e) => handleMoveDown(entry, e)}
+              disabled={!canDown}
+              title="Move down"
+              aria-label={`Move ${entry.title || entry.name} down`}
+            >
+              ↓
+            </button>
 
             {/* Move-to dropdown */}
             <select
@@ -146,6 +162,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
               value={entry.parent || ''}
               onChange={(e) => handleMoveTo(entry, e.target.value, e)}
               title={`Move to submenu (${moveTargets.length} available)`}
+              aria-label={`Move ${entry.title || entry.name} to submenu`}
             >
               <option value="">📁 root</option>
               {moveTargets.map(s => (
@@ -153,7 +170,14 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
               ))}
             </select>
 
-            <button className="tree-btn tree-btn-del" onClick={(e) => handleDelete(entry, e)} title="Delete">✕</button>
+            <button
+              className="tree-btn tree-btn-del"
+              onClick={(e) => handleDelete(entry, e)}
+              title="Delete"
+              aria-label={`Delete ${entry.title || entry.name}`}
+            >
+              ✕
+            </button>
           </span>
         </div>
 

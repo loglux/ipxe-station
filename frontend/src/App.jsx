@@ -301,30 +301,40 @@ function App() {
             <button
               className={`tab ${activeTab === 'builder' ? 'active' : ''}`}
               onClick={() => { switchTab('builder'); setSelectedEntryId(null) }}
+              aria-pressed={activeTab === 'builder'}
+              aria-label="Builder tab"
             >
               🏗️ Builder
             </button>
             <button
               className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
               onClick={() => switchTab('assets')}
+              aria-pressed={activeTab === 'assets'}
+              aria-label="Assets tab"
             >
               📦 Assets
             </button>
             <button
               className={`tab ${activeTab === 'dhcp' ? 'active' : ''}`}
               onClick={() => switchTab('dhcp')}
+              aria-pressed={activeTab === 'dhcp'}
+              aria-label="DHCP tab"
             >
               🌐 DHCP
             </button>
             <button
               className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
               onClick={() => switchTab('boot')}
+              aria-pressed={activeTab === 'boot'}
+              aria-label="Boot Files tab"
             >
               🚀 Boot Files
             </button>
             <button
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
               onClick={() => switchTab('monitoring')}
+              aria-pressed={activeTab === 'monitoring'}
+              aria-label="Monitoring tab"
             >
               📊 Monitoring
             </button>
@@ -335,6 +345,7 @@ function App() {
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open menu structure panel"
               >
                 ☰ Menu Structure
               </button>
