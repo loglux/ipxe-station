@@ -797,20 +797,27 @@ function AssetManager() {
     return new Set(rows.map(row => String(row.version)))
   }, [catalog.kaspersky])
 
-  const manualToolFiles = useMemo(() => {
+  const manualToolsRescueFiles = useMemo(() => {
     const files = Array.isArray(assets.http) ? assets.http : []
     const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
       ? assets.asset_labels
       : {}
-    return files.filter((item) => item.startsWith('tools/') || labels[item] === 'tools')
-  }, [assets.http, assets.asset_labels])
-
-  const manualAntivirusFiles = useMemo(() => {
-    const files = Array.isArray(assets.http) ? assets.http : []
-    const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
-      ? assets.asset_labels
-      : {}
-    return files.filter((item) => item.startsWith('antivirus/') || labels[item] === 'antivirus')
+    const prefixCategory = (path) => {
+      if (path.startsWith('tools/')) return 'tools'
+      if (path.startsWith('antivirus/')) return 'antivirus'
+      if (path.startsWith('rescue/')) return 'rescue'
+      return ''
+    }
+    const out = []
+    const seen = new Set()
+    files.forEach((path) => {
+      const category = labels[path] || prefixCategory(path)
+      if (!['tools', 'antivirus', 'rescue'].includes(category)) return
+      if (seen.has(path)) return
+      seen.add(path)
+      out.push({ path, category })
+    })
+    return out
   }, [assets.http, assets.asset_labels])
 
   return (
@@ -1304,18 +1311,21 @@ function AssetManager() {
         </section>
         )}
 
-        {/* ── Tools ── */}
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools') && (
+        {/* ── Tools & Rescue ── */}
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus') && (
         <section className="asset-section">
-          <h3>🛠️ Tools</h3>
+          <h3>🛠️ Tools &amp; Rescue</h3>
 
-          {manualToolFiles.length > 0 && (
+          {manualToolsRescueFiles.length > 0 && (
             <div className="distro-group">
-              <h4>📂 Manual files (category: tools)</h4>
-              {manualToolFiles.map((path) => (
+              <h4>📂 Manual files (categorized)</h4>
+              {manualToolsRescueFiles.map(({ path, category }) => (
                 <div key={path} className="distro-item">
                   <div className="distro-info">
-                    <div className="distro-name">📄 {path.split('/').at(-1) || path}</div>
+                    <div className="distro-name">
+                      📄 {path.split('/').at(-1) || path}
+                      <span className="file-badge">category: {category}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1342,7 +1352,7 @@ function AssetManager() {
           )}
 
           {/* SystemRescue */}
-          <div className="download-subsection download-subsection-last">
+          <div className="download-subsection">
             <h4>🛟 SystemRescue</h4>
             <p className="text-sm text-muted download-section-note">
               Select a version to download
@@ -1401,26 +1411,6 @@ function AssetManager() {
                 <p className="text-sm text-muted">Loading versions...</p>
             )}
           </div>
-
-        </section>
-        )}
-
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'antivirus') && (
-        <section className="asset-section">
-          <h3>🛡️ Antivirus</h3>
-
-          {manualAntivirusFiles.length > 0 && (
-            <div className="distro-group">
-              <h4>📂 Manual files (category: antivirus)</h4>
-              {manualAntivirusFiles.map((path) => (
-                <div key={path} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">📄 {path.split('/').at(-1) || path}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
           {catalog.kaspersky && catalog.kaspersky.length > 0 && (
             <div className="distro-group">
