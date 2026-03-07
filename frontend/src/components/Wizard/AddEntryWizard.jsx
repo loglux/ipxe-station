@@ -62,6 +62,58 @@ const MANUAL_ISO_MATCHERS = {
   },
 }
 
+const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
+  const parentDir = isoPath.includes('/') ? isoPath.split('/').slice(0, -1).join('/') : ''
+  const join = (relative) => (parentDir ? `${parentDir}/${relative}` : relative)
+  const has = (relative) => httpFilesSet.has(join(relative))
+
+  if (scenarioId === 'hiren') {
+    const winpeReady =
+      has('wimboot') &&
+      has('bootmgr') &&
+      (has('Boot/BCD') || has('boot/BCD')) &&
+      (has('Boot/boot.sdi') || has('boot/boot.sdi')) &&
+      (has('sources/boot.wim') || has('Sources/boot.wim'))
+
+    if (winpeReady) {
+      return {
+        kernel: join('wimboot'),
+        initrd: join('bootmgr'),
+        cmdline: '',
+        autodetected: true,
+        hint: '✅ Detected Hiren WinPE assets (wimboot + bootmgr/BCD/boot.sdi/boot.wim).',
+      }
+    }
+
+    const hasLinuxFallback = has('vmlinuz') && has('initrd')
+    if (hasLinuxFallback) {
+      return {
+        kernel: join('vmlinuz'),
+        initrd: join('initrd'),
+        cmdline: 'ip=dhcp',
+        autodetected: false,
+        hint: '⚠️ Linux fallback detected (vmlinuz/initrd). Verify this image is not PE-only.',
+      }
+    }
+
+    return {
+      kernel: '',
+      initrd: '',
+      cmdline: '',
+      autodetected: false,
+      hint: '❌ Hiren PE boot files not found near ISO. Extract ISO to a folder with wimboot + bootmgr + Boot/BCD + Boot/boot.sdi + sources/boot.wim.',
+    }
+  }
+
+  return {
+    kernel: join('vmlinuz'),
+    initrd: join('initrd'),
+    cmdline: 'ip=dhcp',
+    autodetected: false,
+    hint: `⚠️ Manual asset selected: ${isoPath}. Verify kernel/initrd/cmdline manually.`,
+  }
+}
+
 function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCategory = null }) {
   const [step, setStep] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -82,6 +134,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [selectedPreseedProfile, setSelectedPreseedProfile] = useState('')
   const [createError, setCreateError] = useState(null)
   const [manualAssetsHint, setManualAssetsHint] = useState('')
+  const [manualAssetsHintKind, setManualAssetsHintKind] = useState('info')
 
   // Handle initial category selection
   useEffect(() => {
@@ -103,16 +156,15 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedBootOption(null)
     setRecipeError(null)
     setManualAssetsHint('')
+    setManualAssetsHintKind('info')
 
     // Update title to include version (mode refined after recipe loads)
     const scenario = getScenario(selectedScenario)
     setEntryTitle(`${scenario.displayName} ${version.version_label || version.version}`)
 
     if (version.manual) {
-      setManualAssetsHint(
-        `Manual asset selected: ${version.iso || version.path}. ` +
-        'Kernel/initrd/cmdline are prefilled as editable defaults.'
-      )
+      setManualAssetsHint(version.manual_hint || '')
+      setManualAssetsHintKind(version.autodetected ? 'success' : 'error')
       return
     }
 
@@ -181,19 +233,25 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       const manualIsoVersions = MANUAL_ISO_SCENARIOS.has(selectedScenario)
         ? httpFiles
           .filter((path) => path.toLowerCase().endsWith('.iso'))
+          .map((path) => path.replace(/^\/+/, ''))
           .map((path) => {
             const category = labels[path]
               || (path.startsWith('tools/') ? 'tools' : '')
               || (path.startsWith('rescue/') ? 'rescue' : '')
               || (path.startsWith('antivirus/') ? 'antivirus' : '')
+            return { path, category }
+          })
+          .map((path) => {
             return {
-              path,
-              category,
-              include: MANUAL_ISO_MATCHERS[selectedScenario]?.(path, category) || false,
+              path: path.path,
+              category: path.category,
+              include: MANUAL_ISO_MATCHERS[selectedScenario]?.(path.path, path.category) || false,
             }
           })
           .filter((row) => row.include)
           .map(({ path, category }) => {
+            const httpFilesSet = new Set(httpFiles.map((item) => item.replace(/^\/+/, '')))
+            const defaults = detectManualBootDefaults(selectedScenario, path, httpFilesSet)
             const parts = path.split('/')
             const fileName = parts.at(-1) || path
             const baseName = fileName.replace(/\.iso$/i, '')
@@ -202,11 +260,13 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             return {
               version: `manual:${path}`,
               version_label: `${baseName} (manual ISO, ${categoryLabel})`,
-              kernel: parentDir ? `${parentDir}/vmlinuz` : 'vmlinuz',
-              initrd: parentDir ? `${parentDir}/initrd` : 'initrd',
+              kernel: defaults.kernel,
+              initrd: defaults.initrd,
               iso: path,
-              cmdline: 'ip=dhcp',
+              cmdline: defaults.cmdline,
               manual: true,
+              autodetected: defaults.autodetected,
+              manual_hint: defaults.hint,
             }
           })
         : []
@@ -349,6 +409,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setRecipeLoading(false)
     setRecipeError(null)
     setManualAssetsHint('')
+    setManualAssetsHintKind('info')
     setPreseedProfiles([])
     setSelectedPreseedProfile('')
     setCreateError(null)
@@ -486,7 +547,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             </div>
           )}
           {manualAssetsHint && (
-            <p className="form-hint">{manualAssetsHint}</p>
+            <p className={`form-hint ${manualAssetsHintKind === 'success' ? 'form-hint-success' : manualAssetsHintKind === 'error' ? 'form-hint-error' : ''}`}>
+              {manualAssetsHint}
+            </p>
           )}
 
           {/* Boot mode selector — shown once recipe loads */}
@@ -590,7 +653,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                 onChange={(e) => setKernel(e.target.value)}
                 className="form-control"
                 placeholder="ubuntu-22.04/vmlinuz"
-                readOnly={!!selectedVersion}
+                readOnly={!!selectedVersion && !selectedVersion.manual}
               />
               <small className="form-hint">
                 {selectedVersion ? 'Auto-populated from selected version' : 'Path to kernel file'}
@@ -607,7 +670,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                 onChange={(e) => setInitrd(e.target.value)}
                 className="form-control"
                 placeholder="ubuntu-22.04/initrd"
-                readOnly={!!selectedVersion}
+                readOnly={!!selectedVersion && !selectedVersion.manual}
               />
               <small className="form-hint">
                 {selectedVersion ? 'Auto-populated from selected version' : 'Path to initrd file'}
