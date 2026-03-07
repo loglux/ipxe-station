@@ -18,12 +18,15 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  cursor: pointer;
   border-radius: 6px;
   transition: background 0.08s;
 }
 
 .tree-node:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.tree-node:focus-within {
   background: var(--color-bg-tertiary);
 }
 
@@ -40,11 +43,50 @@
   width: 16px;
   font-size: 10px;
   color: var(--color-text-secondary);
+}
+
+.tree-toggle-btn,
+.tree-toggle-placeholder {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+}
+
+.tree-toggle-btn {
   cursor: pointer;
 }
 
+.tree-toggle-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  border-radius: 4px;
+}
+
 .tree-toggle-placeholder {
-  width: 16px;
+  pointer-events: none;
+}
+
+.tree-select-btn {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tree-select-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .tree-icon {
@@ -114,6 +156,16 @@
 
 .tree-node.selected .tree-controls {
   display: flex;
+}
+
+.tree-node:focus-within .tree-controls {
+  display: flex;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .tree-controls {
+    display: flex;
+  }
 }
 
 .tree-btn {

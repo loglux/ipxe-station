@@ -111,21 +111,29 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
         <div
           className={`tree-node ${isSelected ? 'selected' : ''} ${!entry.enabled ? 'disabled' : ''}`}
           style={{ paddingLeft: `${level * 18 + 6}px` }}
-          onClick={() => onSelectEntry(entry.name)}
         >
-          {/* Expand toggle */}
-          <span
-            className="tree-toggle"
+          <button
+            type="button"
+            className={`tree-toggle ${isSubmenu ? 'tree-toggle-btn' : 'tree-toggle-placeholder'}`}
             onClick={isSubmenu ? (e) => toggleNode(entry.name, e) : undefined}
-            style={{ visibility: isSubmenu ? 'visible' : 'hidden' }}
+            aria-label={isSubmenu ? `${isExpanded ? 'Collapse' : 'Expand'} ${entry.title || entry.name}` : undefined}
+            aria-expanded={isSubmenu ? isExpanded : undefined}
+            tabIndex={isSubmenu ? 0 : -1}
           >
-            {isExpanded ? '▼' : '▶'}
-          </span>
+            {isSubmenu ? (isExpanded ? '▼' : '▶') : ''}
+          </button>
 
-          <span className="tree-icon">{getEntryIcon(entry)}</span>
-          <span className="tree-label">{entry.title || entry.name}</span>
+          <button
+            type="button"
+            className="tree-select-btn"
+            onClick={() => onSelectEntry(entry.name)}
+            aria-current={isSelected ? 'true' : undefined}
+          >
+            <span className="tree-icon">{getEntryIcon(entry)}</span>
+            <span className="tree-label">{entry.title || entry.name}</span>
 
-          {!entry.enabled && <span className="badge badge-disabled">off</span>}
+            {!entry.enabled && <span className="badge badge-disabled">off</span>}
+          </button>
 
           {/* Inline controls — shown on hover */}
           <span className="tree-controls" onClick={e => e.stopPropagation()}>
