@@ -10,6 +10,7 @@ from app.main import (
     _track_ipxe_loop,
     app,
 )
+from app.routes.assets import PRESETS_DIR
 from app.routes.state import SETTINGS_FILE
 
 client = TestClient(app)
@@ -46,6 +47,9 @@ def setup_function():
         for path in preseed_dir.glob("*.cfg"):
             path.unlink()
     SETTINGS_FILE.unlink(missing_ok=True)
+    if PRESETS_DIR.exists():
+        for path in PRESETS_DIR.glob("*.json"):
+            path.unlink()
 
 
 def test_validate_endpoint():
@@ -188,6 +192,42 @@ def test_debian_versions_endpoint_returns_full_download_products():
     assert any(product["kind"] == "installer_iso" for product in products)
     assert any(product["kind"] == "live_iso" for product in products)
     assert any(product["experimental"] is True for product in products if "experimental" in product)
+
+
+def test_presets_endpoint_returns_seeded_system_presets():
+    resp = client.get("/api/assets/presets")
+    assert resp.status_code == 200
+    data = resp.json()
+    names = [preset["name"] for preset in data["presets"]]
+    sections = [preset["section"] for preset in data["presets"]]
+    assert "Ubuntu" in names
+    assert "Debian" in names
+    assert "Tools" in names
+    assert "ubuntu" in sections
+    assert "debian" in sections
+    assert "tools" in sections
+
+
+def test_create_user_preset_and_list_it():
+    payload = {
+        "name": "Hiren ISO",
+        "category": "utility",
+        "mode": "acquire",
+        "section": "tools",
+        "method": "memdisk_iso_or_img",
+        "description": "Manual ISO preset",
+        "params": {"memdisk_mode": "iso"},
+    }
+    create_resp = client.post("/api/assets/presets", json=payload)
+    assert create_resp.status_code == 200
+    created = create_resp.json()["preset"]
+    assert created["source"] == "user"
+    assert created["name"] == "Hiren ISO"
+
+    list_resp = client.get("/api/assets/presets")
+    assert list_resp.status_code == 200
+    data = list_resp.json()["presets"]
+    assert any(p["name"] == "Hiren ISO" and p["source"] == "user" for p in data)
 
 
 def test_upload_rejects_path_traversal_dest():

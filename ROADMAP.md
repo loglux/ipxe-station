@@ -287,3 +287,8 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - replaced flat "All Files" list with `filters + list + details` layout
   - supports search and source/type/pack/status filters on `/srv/http` assets
   - keeps backend/API contracts unchanged (frontend-only adaptation)
+- Acquire presets migration (phase-0 backend contract):
+  - added backend preset catalog endpoint `GET/POST /api/assets/presets`
+    backed by `system_presets.json` + `user_presets.json` in server data store
+  - moved hardcoded `Ubuntu/Debian/Tools` navigation intent into system preset seeds
+  - frontend `Assets` now reads acquire navigation from backend presets list

@@ -6,6 +6,7 @@ import AssetManager from './AssetManager'
 const mockResponses = {
   '/api/settings': { poll_interval: 2000 },
   '/api/assets': { http: [], tftp: [], ipxe: [] },
+  '/api/assets/presets': { presets: [] },
   '/api/assets/catalog': { ubuntu: [], debian: [], windows: [], rescue: [], kaspersky: [] },
   '/api/assets/versions/debian': { products: [] },
   '/api/assets/versions/systemrescue': { versions: [] },

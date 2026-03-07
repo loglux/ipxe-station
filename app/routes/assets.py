@@ -1,5 +1,7 @@
 """Asset management routes (download, upload, extract, catalog)."""
 
+import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -11,6 +13,7 @@ from pydantic import BaseModel
 
 from .state import (
     HTTP_ROOT,
+    IPXE_ROOT,
     _list_relative_files,
     _resolve_within_root,
     _scan_distro_versions,
@@ -92,6 +95,108 @@ DEBIAN_PRODUCTS = [
     },
 ]
 
+SYSTEM_PRESETS_SEED = [
+    {
+        "id": "acquire_ubuntu",
+        "name": "Ubuntu",
+        "category": "linux",
+        "mode": "acquire",
+        "section": "ubuntu",
+        "enabled": True,
+        "order": 10,
+        "source": "system",
+    },
+    {
+        "id": "acquire_debian",
+        "name": "Debian",
+        "category": "linux",
+        "mode": "acquire",
+        "section": "debian",
+        "enabled": True,
+        "order": 20,
+        "source": "system",
+    },
+    {
+        "id": "acquire_tools",
+        "name": "Tools",
+        "category": "utility",
+        "mode": "acquire",
+        "section": "tools",
+        "enabled": True,
+        "order": 30,
+        "source": "system",
+    },
+]
+
+PRESETS_DIR = IPXE_ROOT / "presets"
+SYSTEM_PRESETS_FILE = PRESETS_DIR / "system_presets.json"
+USER_PRESETS_FILE = PRESETS_DIR / "user_presets.json"
+
+
+class PresetModel(BaseModel):
+    id: str
+    name: str
+    category: str = "custom"
+    mode: str = "acquire"
+    section: str = ""
+    enabled: bool = True
+    order: int = 100
+    source: str = "user"
+    method: str = ""
+    description: str = ""
+    params: dict = {}
+
+
+class PresetCreateRequest(BaseModel):
+    name: str
+    id: str = ""
+    category: str = "custom"
+    mode: str = "acquire"
+    section: str = ""
+    enabled: bool = True
+    order: int = 100
+    method: str = ""
+    description: str = ""
+    params: dict = {}
+
+
+def _slugify_preset_id(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
+    return slug or "preset"
+
+
+def _ensure_preset_store() -> None:
+    PRESETS_DIR.mkdir(parents=True, exist_ok=True)
+    if not SYSTEM_PRESETS_FILE.exists():
+        SYSTEM_PRESETS_FILE.write_text(json.dumps(SYSTEM_PRESETS_SEED, indent=2))
+    if not USER_PRESETS_FILE.exists():
+        USER_PRESETS_FILE.write_text("[]")
+
+
+def _load_preset_file(path: Path, fallback: list[dict]) -> list[dict]:
+    try:
+        raw = json.loads(path.read_text())
+    except Exception:
+        return fallback
+    if not isinstance(raw, list):
+        return fallback
+    items = []
+    for item in raw:
+        if isinstance(item, dict):
+            items.append(item)
+    return items
+
+
+def _load_merged_presets() -> list[dict]:
+    _ensure_preset_store()
+    system = _load_preset_file(SYSTEM_PRESETS_FILE, SYSTEM_PRESETS_SEED)
+    users = _load_preset_file(USER_PRESETS_FILE, [])
+    merged = [PresetModel(**p).model_dump() for p in system] + [
+        PresetModel(**p).model_dump() for p in users
+    ]
+    merged.sort(key=lambda p: (p.get("order", 100), p.get("name", "").lower()))
+    return merged
+
 
 class DownloadRequest(BaseModel):
     url: str
@@ -155,6 +260,40 @@ def assets_catalog():
         "rescue": rescue,
         "kaspersky": kaspersky,
     }
+
+
+@assets_router.get("/presets")
+def list_presets():
+    """Return merged preset catalog (system + user)."""
+    return {"presets": _load_merged_presets()}
+
+
+@assets_router.post("/presets")
+def create_preset(payload: PresetCreateRequest):
+    """Create a user preset in catalog."""
+    _ensure_preset_store()
+    merged = _load_merged_presets()
+    preset_id = payload.id.strip() or _slugify_preset_id(payload.name)
+    if any(p["id"] == preset_id for p in merged):
+        raise HTTPException(status_code=409, detail=f"Preset '{preset_id}' already exists")
+
+    user_items = _load_preset_file(USER_PRESETS_FILE, [])
+    new_item = PresetModel(
+        id=preset_id,
+        name=payload.name,
+        category=payload.category,
+        mode=payload.mode,
+        section=payload.section,
+        enabled=payload.enabled,
+        order=payload.order,
+        source="user",
+        method=payload.method,
+        description=payload.description,
+        params=payload.params,
+    ).model_dump()
+    user_items.append(new_item)
+    USER_PRESETS_FILE.write_text(json.dumps(user_items, indent=2))
+    return {"success": True, "preset": new_item}
 
 
 def _autodetect_nfs_root() -> str:

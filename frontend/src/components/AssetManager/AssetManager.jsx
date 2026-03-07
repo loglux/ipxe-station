@@ -106,6 +106,8 @@ function AssetManager() {
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
+  const [presets, setPresets] = useState([])
+  const [activeAcquirePresetId, setActiveAcquirePresetId] = useState('')
   const [inventoryQuery, setInventoryQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -205,6 +207,18 @@ function AssetManager() {
       setCatalog(data)
     } catch (error) {
       console.error('Failed to fetch catalog:', error)
+    }
+  }, [])
+
+  const fetchPresets = useCallback(async () => {
+    try {
+      const response = await fetch('/api/assets/presets')
+      const data = await response.json()
+      const next = Array.isArray(data.presets) ? data.presets : []
+      setPresets(next)
+    } catch (error) {
+      console.error('Failed to fetch presets:', error)
+      setPresets([])
     }
   }, [])
 
@@ -317,6 +331,7 @@ function AssetManager() {
     fetchUbuntuVersions()
     fetchUbuntuDesktopVersions()
     fetchDebianProducts()
+    fetchPresets()
     fetchSystemRescueVersions()
     fetchKasperskyVersions()
     fetchNfsStatus()
@@ -328,6 +343,7 @@ function AssetManager() {
     fetchAssets,
     fetchCatalog,
     fetchDebianProducts,
+    fetchPresets,
     fetchKasperskyVersions,
     fetchNfsStatus,
     fetchSystemRescueVersions,
@@ -585,6 +601,29 @@ function AssetManager() {
     })
   }, [assets.http])
 
+  const acquirePresets = useMemo(() => {
+    return presets
+      .filter(preset => preset.mode === 'acquire' && preset.enabled !== false && preset.section)
+      .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+  }, [presets])
+
+  useEffect(() => {
+    if (!acquirePresets.length) {
+      setActiveAcquirePresetId('')
+      return
+    }
+    const isValid = acquirePresets.some(preset => preset.id === activeAcquirePresetId)
+    if (!isValid) {
+      setActiveAcquirePresetId(acquirePresets[0].id)
+    }
+  }, [acquirePresets, activeAcquirePresetId])
+
+  const activeAcquireSection = useMemo(() => {
+    if (!acquirePresets.length) return 'all'
+    const selected = acquirePresets.find(preset => preset.id === activeAcquirePresetId)
+    return selected?.section || 'all'
+  }, [acquirePresets, activeAcquirePresetId])
+
   const inventoryPackOptions = useMemo(() => {
     return Array.from(new Set(inventoryRows.map(row => row.pack))).sort((a, b) => a.localeCompare(b))
   }, [inventoryRows])
@@ -653,7 +692,29 @@ function AssetManager() {
       </div>
 
       <div className="asset-content">
+        <div className="acquire-layout">
+          <aside className="acquire-sidebar">
+            <h3>Acquire Presets</h3>
+            {acquirePresets.length > 0 ? (
+              <div className="acquire-preset-list">
+                {acquirePresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    className={`acquire-preset-btn ${activeAcquirePresetId === preset.id ? 'is-active' : ''}`}
+                    onClick={() => setActiveAcquirePresetId(preset.id)}
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">No presets found</p>
+            )}
+          </aside>
+
+          <div className="acquire-main">
         {/* ── Ubuntu ── */}
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'ubuntu') && (
         <section className="asset-section">
           <h3>🐧 Ubuntu</h3>
 
@@ -890,8 +951,10 @@ function AssetManager() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ── Debian ── */}
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'debian') && (
         <section className="asset-section">
           <h3>🌀 Debian</h3>
 
@@ -992,8 +1055,10 @@ function AssetManager() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ── Tools ── */}
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools') && (
         <section className="asset-section">
           <h3>🛠️ Tools</h3>
 
@@ -1117,6 +1182,9 @@ function AssetManager() {
             )}
           </div>
         </section>
+        )}
+          </div>
+        </div>
 
         {/* Resource Inventory */}
         <section className="asset-section">
