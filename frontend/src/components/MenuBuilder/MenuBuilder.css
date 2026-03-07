@@ -65,6 +65,7 @@
 .tree-node {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 36px;
   padding: 8px 6px;
@@ -197,37 +198,31 @@
 
 /* Inline tree controls — shown on row hover */
 .tree-controls {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 3px;
-  margin-left: auto;
+  width: 100%;
+  padding-left: 24px;
+  margin-left: 0;
   flex-shrink: 0;
-  width: 104px;
-  justify-content: flex-end;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
+  justify-content: flex-start;
 }
 
 .tree-node:hover .tree-controls {
-  opacity: 1;
-  pointer-events: auto;
+  display: none;
 }
 
 .tree-node.selected .tree-controls {
-  opacity: 1;
-  pointer-events: auto;
+  display: inline-flex;
 }
 
 .tree-node:focus-within .tree-controls {
-  opacity: 1;
-  pointer-events: auto;
+  display: inline-flex;
 }
 
 @media (hover: none), (pointer: coarse) {
   .tree-controls {
-    opacity: 1;
-    pointer-events: auto;
+    display: inline-flex;
   }
 }
 
@@ -270,8 +265,9 @@
   font-size: 11px;
   padding: 1px 4px;
   cursor: pointer;
-  width: 56px;
-  opacity: 0.85;
+  min-width: 108px;
+  max-width: 180px;
+  opacity: 1;
 }
 
 [data-theme="dark"] .tree-move-select {

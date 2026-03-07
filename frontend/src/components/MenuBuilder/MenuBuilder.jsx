@@ -129,6 +129,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
         <div
           className={`tree-node ${isSelected ? 'selected' : ''} ${!entry.enabled ? 'disabled' : ''}`}
           style={{ paddingLeft: `${level * 18 + 6}px` }}
+          onClick={() => onSelectEntry(entry.name)}
         >
           <button
             type="button"
