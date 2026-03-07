@@ -317,14 +317,14 @@ function AssetManager() {
     setPersistentUploadStatus(`Uploading ${file.name}…`)
     const form = new FormData()
     form.append('file', file)
-    const categoryFolder = uploadCategory === 'new' ? uploadCategoryCustom.trim() : uploadCategory
-    const effectiveDest = [categoryFolder, uploadDest.trim()].filter(Boolean).join('/')
+    const effectiveDest = uploadDest.trim()
     if (effectiveDest) form.append('dest', effectiveDest)
     try {
       const resp = await fetch('/api/assets/upload', { method: 'POST', body: form })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.detail || 'Upload failed')
-      setPersistentUploadStatus(`✅ Saved: ${data.saved}`)
+      const categoryLabel = uploadCategory === 'new' ? uploadCategoryCustom.trim() || 'new' : uploadCategory
+      setPersistentUploadStatus(`✅ Saved: ${data.saved} (category: ${categoryLabel})`)
       fetchAssets()
       fetchCatalog()
     } catch (err) {
@@ -730,7 +730,7 @@ function AssetManager() {
             placeholder="subfolder (optional)"
             value={uploadDest}
             onChange={(e) => setUploadDest(e.target.value)}
-            title="Optional subfolder under chosen category"
+            title="Optional subfolder inside /srv/http/ (leave empty for root)"
           />
           <button
             className="btn btn-primary"
