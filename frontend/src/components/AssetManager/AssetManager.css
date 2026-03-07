@@ -28,6 +28,13 @@
   flex-wrap: wrap;
 }
 
+.asset-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .upload-dest-input {
   width: 160px;
   font-size: 13px;
@@ -45,7 +52,7 @@
 
 .upload-status {
   font-size: 13px;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .upload-status-success {
@@ -62,7 +69,7 @@
 
 .upload-progress-wrap {
   width: min(420px, 100%);
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .upload-progress-meta {
@@ -578,8 +585,16 @@
 }
 
 @media (max-width: 900px) {
+  .asset-header {
+    align-items: flex-start;
+  }
+
   .asset-header h2 {
     font-size: 24px;
+  }
+
+  .asset-toolbar {
+    width: 100%;
   }
 
   .preset-create-row {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import './AssetManager.css'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
+const ASSETS_ACTIVE_PRESET_KEY = 'assets_active_preset_v1'
 
 // SystemRescue is handled separately with version selection
 const SYSTEMRESCUE_CONFIG = {
@@ -99,7 +100,13 @@ function AssetManager() {
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
   const [presets, setPresets] = useState([])
-  const [activeAcquirePresetId, setActiveAcquirePresetId] = useState('')
+  const [activeAcquirePresetId, setActiveAcquirePresetId] = useState(() => {
+    try {
+      return sessionStorage.getItem(ASSETS_ACTIVE_PRESET_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
   const [showPresetManager, setShowPresetManager] = useState(false)
   const [newPresetName, setNewPresetName] = useState('')
   const [newPresetSection, setNewPresetSection] = useState('antivirus')
@@ -704,6 +711,18 @@ function AssetManager() {
     }
   }, [acquirePresets, activeAcquirePresetId])
 
+  useEffect(() => {
+    try {
+      if (!activeAcquirePresetId) {
+        sessionStorage.removeItem(ASSETS_ACTIVE_PRESET_KEY)
+      } else {
+        sessionStorage.setItem(ASSETS_ACTIVE_PRESET_KEY, activeAcquirePresetId)
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [activeAcquirePresetId])
+
   const activeAcquireSection = useMemo(() => {
     if (!acquirePresets.length) return 'all'
     const selected = acquirePresets.find(preset => preset.id === activeAcquirePresetId)
@@ -734,61 +753,63 @@ function AssetManager() {
     <div className="asset-manager">
       <div className="asset-header">
         <h2>Asset Manager</h2>
-        <div className="asset-actions">
-          <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
-            🔄 Scan
-          </button>
-          <select
-            className="form-control upload-category-select"
-            value={uploadCategory}
-            onChange={(e) => setUploadCategory(e.target.value)}
-            title="Top-level category folder inside /srv/http/"
-          >
-            <option value="tools">tools</option>
-            <option value="antivirus">antivirus</option>
-            <option value="new">new category…</option>
-          </select>
-          {uploadCategory === 'new' && (
+        <div className="asset-toolbar">
+          <div className="asset-actions">
+            <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
+              🔄 Scan
+            </button>
+            <select
+              className="form-control upload-category-select"
+              value={uploadCategory}
+              onChange={(e) => setUploadCategory(e.target.value)}
+              title="Category label only (does not change upload path)"
+            >
+              <option value="tools">tools</option>
+              <option value="antivirus">antivirus</option>
+              <option value="new">new category…</option>
+            </select>
+            {uploadCategory === 'new' && (
+              <input
+                type="text"
+                className="form-control upload-category-custom-input"
+                placeholder="new category name"
+                value={uploadCategoryCustom}
+                onChange={(e) => setUploadCategoryCustom(e.target.value)}
+                title="Custom category label"
+              />
+            )}
             <input
               type="text"
-              className="form-control upload-category-custom-input"
-              placeholder="new category name"
-              value={uploadCategoryCustom}
-              onChange={(e) => setUploadCategoryCustom(e.target.value)}
-              title="New top-level folder name inside /srv/http/"
+              className="form-control upload-dest-input"
+              placeholder="subfolder (optional)"
+              value={uploadDest}
+              onChange={(e) => setUploadDest(e.target.value)}
+              title="Optional subfolder inside /srv/http/ (leave empty for root)"
             />
-          )}
-          <input
-            type="text"
-            className="form-control upload-dest-input"
-            placeholder="subfolder (optional)"
-            value={uploadDest}
-            onChange={(e) => setUploadDest(e.target.value)}
-            title="Optional subfolder inside /srv/http/ (leave empty for root)"
-          />
-          <button
-            className="btn btn-primary"
-            onClick={() => uploadInputRef.current?.click()}
-            disabled={uploading}
-          >
-            📁 Upload File
-          </button>
-          <input ref={uploadInputRef} type="file" className="visually-hidden" onChange={handleUpload} />
-        </div>
-        {uploadStatus && (
-          <div className={`upload-status ${uploadStatusTone}`}>
-            {uploadStatus}
+            <button
+              className="btn btn-primary"
+              onClick={() => uploadInputRef.current?.click()}
+              disabled={uploading}
+            >
+              📁 Upload File
+            </button>
+            <input ref={uploadInputRef} type="file" className="visually-hidden" onChange={handleUpload} />
           </div>
-        )}
-        {uploading && uploadProgress && (
-          <div className="upload-progress-wrap">
-            <div className="upload-progress-meta">
-              <span>{uploadProgress.percent}%</span>
-              <span>{(uploadProgress.loaded / 1024 / 1024).toFixed(1)} MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)} MB</span>
+          {uploadStatus && (
+            <div className={`upload-status ${uploadStatusTone}`}>
+              {uploadStatus}
             </div>
-            <progress className="upload-progress-meter" value={uploadProgress.percent} max="100" />
-          </div>
-        )}
+          )}
+          {uploading && uploadProgress && (
+            <div className="upload-progress-wrap">
+              <div className="upload-progress-meta">
+                <span>{uploadProgress.percent}%</span>
+                <span>{(uploadProgress.loaded / 1024 / 1024).toFixed(1)} MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)} MB</span>
+              </div>
+              <progress className="upload-progress-meter" value={uploadProgress.percent} max="100" />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="asset-content">
