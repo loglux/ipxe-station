@@ -1311,11 +1311,11 @@ function AssetManager() {
 
           {manualToolFiles.length > 0 && (
             <div className="distro-group">
-              <h4>📂 Manual files (tools/)</h4>
+              <h4>📂 Manual files (category: tools)</h4>
               {manualToolFiles.map((path) => (
                 <div key={path} className="distro-item">
                   <div className="distro-info">
-                    <div className="distro-name">📄 {path.replace(/^tools\//, '')}</div>
+                    <div className="distro-name">📄 {path.split('/').at(-1) || path}</div>
                   </div>
                 </div>
               ))}
@@ -1411,11 +1411,11 @@ function AssetManager() {
 
           {manualAntivirusFiles.length > 0 && (
             <div className="distro-group">
-              <h4>📂 Manual files (antivirus/)</h4>
+              <h4>📂 Manual files (category: antivirus)</h4>
               {manualAntivirusFiles.map((path) => (
                 <div key={path} className="distro-item">
                   <div className="distro-info">
-                    <div className="distro-name">📄 {path.replace(/^antivirus\//, '')}</div>
+                    <div className="distro-name">📄 {path.split('/').at(-1) || path}</div>
                   </div>
                 </div>
               ))}
