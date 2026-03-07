@@ -1,5 +1,5 @@
 .asset-manager {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -7,21 +7,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-md);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .asset-header h2 {
-  font-size: 24px;
+  font-size: 40px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .asset-actions {
   display: flex;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .asset-section {
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   margin-bottom: var(--spacing-lg);
@@ -172,6 +177,7 @@
 
 .file-tree {
   background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -212,4 +218,10 @@
 .file-name {
   font-family: monospace;
   font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .asset-header h2 {
+    font-size: 30px;
+  }
 }
