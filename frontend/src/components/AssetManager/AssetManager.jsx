@@ -92,6 +92,7 @@ function AssetManager() {
   const [uploadCategoryCustom, setUploadCategoryCustom] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(null)
   const uploadInputRef = useRef(null)
   const debianProductsRef = useRef([])
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
@@ -309,20 +310,52 @@ function AssetManager() {
     }
   }
 
+  const uploadFileWithProgress = useCallback((formData, onProgress) => (
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', '/api/assets/upload')
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return
+        onProgress({
+          loaded: event.loaded,
+          total: event.total,
+          percent: Math.round((event.loaded / event.total) * 100),
+        })
+      }
+      xhr.onerror = () => reject(new Error('Upload failed'))
+      xhr.onload = () => {
+        let payload = {}
+        try {
+          payload = xhr.responseType === 'json' ? (xhr.response || {}) : JSON.parse(xhr.responseText || '{}')
+        } catch {
+          payload = {}
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(payload)
+          return
+        }
+        reject(new Error(payload.detail || 'Upload failed'))
+      }
+      xhr.send(formData)
+    })
+  ), [])
+
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
     setPersistentUploadStatus(`Uploading ${file.name}…`)
+    setUploadProgress({ loaded: 0, total: file.size || 0, percent: 0 })
     const form = new FormData()
     form.append('file', file)
     const effectiveDest = uploadDest.trim()
     if (effectiveDest) form.append('dest', effectiveDest)
     try {
-      const resp = await fetch('/api/assets/upload', { method: 'POST', body: form })
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data.detail || 'Upload failed')
+      const data = await uploadFileWithProgress(form, (progress) => {
+        setUploadProgress(progress)
+        setPersistentUploadStatus(`Uploading ${file.name}… ${progress.percent}%`)
+      })
       const categoryLabel = uploadCategory === 'new' ? uploadCategoryCustom.trim() || 'new' : uploadCategory
       setPersistentUploadStatus(`✅ Saved: ${data.saved} (category: ${categoryLabel})`)
       fetchAssets()
@@ -331,6 +364,7 @@ function AssetManager() {
       setPersistentUploadStatus(`❌ ${err.message}`)
     } finally {
       setUploading(false)
+      setUploadProgress(null)
       e.target.value = ''
     }
   }
@@ -744,6 +778,15 @@ function AssetManager() {
         {uploadStatus && (
           <div className={`upload-status ${uploadStatusTone}`}>
             {uploadStatus}
+          </div>
+        )}
+        {uploading && uploadProgress && (
+          <div className="upload-progress-wrap">
+            <div className="upload-progress-meta">
+              <span>{uploadProgress.percent}%</span>
+              <span>{(uploadProgress.loaded / 1024 / 1024).toFixed(1)} MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)} MB</span>
+            </div>
+            <progress className="upload-progress-meter" value={uploadProgress.percent} max="100" />
           </div>
         )}
       </div>
