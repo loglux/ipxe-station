@@ -22,6 +22,12 @@ if [ ! -f "/srv/http/memdisk" ] && [ -f "/opt/ipxe-initial-files/http/memdisk" ]
     echo "✅ memdisk copied to /srv/http/"
 fi
 
+# Keep local wimboot available for WinPE-based entries (e.g. Hiren PE).
+if [ ! -f "/srv/http/wimboot" ] && [ -f "/opt/ipxe-initial-files/http/wimboot" ]; then
+    cp /opt/ipxe-initial-files/http/wimboot /srv/http/wimboot
+    echo "✅ wimboot copied to /srv/http/"
+fi
+
 # Create initial directory structure
 mkdir -p /srv/http/ubuntu-samples
 mkdir -p /srv/ipxe
@@ -53,6 +59,7 @@ This directory contains bootable images and resources served over HTTP.
 │   ├── vmlinuz
 │   └── initrd
 ├── memdisk                # Legacy ISO boot helper (syslinux memdisk)
+├── wimboot                # WinPE boot helper (iPXE wimboot)
 └── iso/                   # ISO images storage
     ├── ubuntu-22.04.iso
     └── ubuntu-24.04.iso

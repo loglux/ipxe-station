@@ -65,6 +65,8 @@ RUN mkdir -p /opt/ipxe-initial-files/tftp /opt/ipxe-initial-files/http && \
     MEMDISK_PATH="$(find /usr/lib -type f -name memdisk | head -n1)" && \
     test -n "$MEMDISK_PATH" && \
     cp "$MEMDISK_PATH" /opt/ipxe-initial-files/http/memdisk && \
+    wget -q -O /opt/ipxe-initial-files/http/wimboot https://github.com/ipxe/wimboot/releases/latest/download/wimboot && \
+    chmod 644 /opt/ipxe-initial-files/http/wimboot && \
     ls -la /opt/ipxe-initial-files/tftp/ && \
     ls -la /opt/ipxe-initial-files/http/
 
