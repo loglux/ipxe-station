@@ -33,6 +33,16 @@
   font-size: 13px;
 }
 
+.upload-category-select {
+  width: 140px;
+  font-size: 13px;
+}
+
+.upload-category-custom-input {
+  width: 170px;
+  font-size: 13px;
+}
+
 .upload-status {
   font-size: 13px;
   margin-top: 6px;

@@ -86,6 +86,8 @@ function AssetManager() {
   const [selectedUbuntuDesktopVersion, setSelectedUbuntuDesktopVersion] = useState(null)
   const [ubuntuDesktopLoading, setUbuntuDesktopLoading] = useState(false)
   const [uploadDest, setUploadDest] = useState('')
+  const [uploadCategory, setUploadCategory] = useState('tools')
+  const [uploadCategoryCustom, setUploadCategoryCustom] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const uploadInputRef = useRef(null)
@@ -294,7 +296,9 @@ function AssetManager() {
     setUploadStatus(`Uploading ${file.name}…`)
     const form = new FormData()
     form.append('file', file)
-    if (uploadDest) form.append('dest', uploadDest)
+    const categoryFolder = uploadCategory === 'new' ? uploadCategoryCustom.trim() : uploadCategory
+    const effectiveDest = [categoryFolder, uploadDest.trim()].filter(Boolean).join('/')
+    if (effectiveDest) form.append('dest', effectiveDest)
     try {
       const resp = await fetch('/api/assets/upload', { method: 'POST', body: form })
       const data = await resp.json()
@@ -669,13 +673,33 @@ function AssetManager() {
           <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
             🔄 Scan
           </button>
+          <select
+            className="form-control upload-category-select"
+            value={uploadCategory}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            title="Top-level category folder inside /srv/http/"
+          >
+            <option value="tools">tools</option>
+            <option value="antivirus">antivirus</option>
+            <option value="new">new category…</option>
+          </select>
+          {uploadCategory === 'new' && (
+            <input
+              type="text"
+              className="form-control upload-category-custom-input"
+              placeholder="new category name"
+              value={uploadCategoryCustom}
+              onChange={(e) => setUploadCategoryCustom(e.target.value)}
+              title="New top-level folder name inside /srv/http/"
+            />
+          )}
           <input
             type="text"
             className="form-control upload-dest-input"
             placeholder="subfolder (optional)"
             value={uploadDest}
             onChange={(e) => setUploadDest(e.target.value)}
-            title="Destination subfolder inside /srv/http/ — leave empty for root"
+            title="Optional subfolder under chosen category"
           />
           <button
             className="btn btn-primary"
