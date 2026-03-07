@@ -335,7 +335,11 @@ function AssetManager() {
         throw new Error(err.detail || 'Failed to download ISO')
       }
       setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded!' }))
-      setTimeout(() => { fetchCatalog(); setDownloadStatus(prev => ({ ...prev, [distroId]: '' })) }, 2000)
+      setTimeout(() => {
+        fetchCatalog()
+        fetchNfsStatus()
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 2000)
     } catch (error) {
       setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
       setTimeout(() => setDownloadStatus(prev => ({ ...prev, [distroId]: '' })), 5000)
@@ -361,7 +365,11 @@ function AssetManager() {
         throw new Error(err.detail || 'Failed to download ISO')
       }
       setDownloadStatus(prev => ({ ...prev, [distroId]: '✅ Downloaded!' }))
-      setTimeout(() => { fetchCatalog(); setDownloadStatus(prev => ({ ...prev, [distroId]: '' })) }, 2000)
+      setTimeout(() => {
+        fetchCatalog()
+        fetchNfsStatus()
+        setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
+      }, 2000)
     } catch (error) {
       setDownloadStatus(prev => ({ ...prev, [distroId]: `❌ Error: ${error.message}` }))
       setTimeout(() => setDownloadStatus(prev => ({ ...prev, [distroId]: '' })), 5000)
@@ -439,6 +447,7 @@ function AssetManager() {
       // Refresh catalog after successful download
       setTimeout(() => {
         fetchCatalog()
+        fetchNfsStatus()
         setDownloadStatus(prev => ({ ...prev, [distro.id]: '' }))
       }, 2000)
 
@@ -480,6 +489,7 @@ function AssetManager() {
 
       setTimeout(() => {
         fetchCatalog()
+        fetchNfsStatus()
         setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
       }, 2000)
 
@@ -522,6 +532,7 @@ function AssetManager() {
 
       setTimeout(() => {
         fetchCatalog()
+        fetchNfsStatus()
         setDownloadStatus(prev => ({ ...prev, [distroId]: '' }))
       }, 3000)
 
@@ -540,7 +551,7 @@ function AssetManager() {
       <div className="asset-header">
         <h2>Asset Manager</h2>
         <div className="asset-actions">
-          <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog() }}>
+          <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
             🔄 Scan
           </button>
           <input
