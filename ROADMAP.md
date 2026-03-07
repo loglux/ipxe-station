@@ -223,3 +223,7 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - Added UI polish for half-width layouts:
   - larger row hit-area and control spacing
   - improved action panel readability and mobile wrapping behavior
+- Visual consistency pass (Menu Structure):
+  - stronger contrast for row states (`default/hover/focus/selected`)
+  - clearer subtree hierarchy via subtle guide line
+  - improved control readability in action panel
