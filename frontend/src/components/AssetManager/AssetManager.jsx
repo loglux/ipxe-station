@@ -17,15 +17,55 @@ const KASPERSKY_CONFIG = {
   dynamic_versions: true
 }
 
+function DownloadProgressBlock({
+  title,
+  progress,
+  tone = 'primary',
+  unit = 'GB',
+  divisor = 1024 * 1024 * 1024,
+  decimals = 2,
+  showExtraction = false,
+  extractingTone = 'success',
+}) {
+  if (!progress) return null
+  const downloaded = ((progress.downloaded || 0) / divisor).toFixed(decimals)
+  const total = ((progress.total || 0) / divisor).toFixed(decimals)
+
+  return (
+    <div className="dl-progress-block">
+      <div className="dl-progress-title">
+        {title}
+        {showExtraction && progress.status === 'extracting' && (
+          <span className={`dl-progress-stage dl-progress-stage-${extractingTone}`}>(Extracting...)</span>
+        )}
+        {showExtraction && progress.status === 'extracted' && (
+          <span className="dl-progress-stage dl-progress-stage-success">
+            ✓ Extracted ({progress.file_count || 0} files)
+          </span>
+        )}
+      </div>
+      <div className="dl-progress-meta">
+        <span>{progress.percentage || 0}%</span>
+        <span>{downloaded} {unit} / {total} {unit}</span>
+      </div>
+      <progress
+        className={`dl-progress-meter dl-progress-meter-${tone}`}
+        value={progress.percentage || 0}
+        max="100"
+      />
+    </div>
+  )
+}
+
 function UrlBadge({ url, urlStatus }) {
   const st = urlStatus[url]
   if (!st) return null
-  if (st.checking) return <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>🔍 Checking...</span>
+  if (st.checking) return <span className="url-badge url-badge-checking">🔍 Checking...</span>
   if (st.ok) {
     const gb = st.size ? ` · ${(st.size / 1024 / 1024 / 1024).toFixed(1)} GB` : ''
-    return <span style={{ fontSize: '11px', color: 'var(--color-success)' }}>✅ Available{gb}</span>
+    return <span className="url-badge url-badge-ok">✅ Available{gb}</span>
   }
-  return <span style={{ fontSize: '11px', color: 'var(--color-danger)' }}>❌ Not found — URL may be outdated</span>
+  return <span className="url-badge url-badge-error">❌ Not found — URL may be outdated</span>
 }
 
 function AssetManager() {
@@ -53,6 +93,11 @@ function AssetManager() {
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
+  const uploadStatusTone = uploadStatus.startsWith('✅')
+    ? 'upload-status-success'
+    : uploadStatus.startsWith('❌')
+      ? 'upload-status-error'
+      : 'upload-status-muted'
 
   const checkUrl = useCallback(async (url) => {
     if (!url) return
@@ -500,8 +545,7 @@ function AssetManager() {
           </button>
           <input
             type="text"
-            className="form-control"
-            style={{ width: '160px', fontSize: '13px' }}
+            className="form-control upload-dest-input"
             placeholder="subfolder (optional)"
             value={uploadDest}
             onChange={(e) => setUploadDest(e.target.value)}
@@ -514,10 +558,10 @@ function AssetManager() {
           >
             📁 Upload File
           </button>
-          <input ref={uploadInputRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
+          <input ref={uploadInputRef} type="file" className="visually-hidden" onChange={handleUpload} />
         </div>
         {uploadStatus && (
-          <div style={{ fontSize: '13px', marginTop: '6px', color: uploadStatus.startsWith('✅') ? 'var(--color-success)' : uploadStatus.startsWith('❌') ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+          <div className={`upload-status ${uploadStatusTone}`}>
             {uploadStatus}
           </div>
         )}
@@ -550,34 +594,33 @@ function AssetManager() {
 
           {/* NFS Boot Status */}
           {catalog.ubuntu && catalog.ubuntu.length > 0 && (
-            <div className="distro-group" style={{ marginTop: '12px' }}>
+            <div className="distro-group distro-group-nfs">
               <h4>
                 📡 NFS Boot
                 <button
-                  className="btn btn-sm btn-secondary"
-                  style={{ marginLeft: '10px', fontSize: '11px', padding: '2px 8px' }}
+                  className="btn btn-sm btn-secondary nfs-refresh-btn"
                   onClick={fetchNfsStatus}
                   title="Refresh NFS status"
                 >↻ Check</button>
               </h4>
               {!nfsStatus || nfsStatus.loading ? (
-                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Checking NFS…</p>
+                <p className="nfs-text-muted">Checking NFS…</p>
               ) : !nfsStatus.running ? (
-                <div style={{ fontSize: '13px' }}>
-                  <span style={{ color: 'var(--color-danger)' }}>❌ NFS not running on host</span>
-                  <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                <div className="nfs-text">
+                  <span className="nfs-status-danger">❌ NFS not running on host</span>
+                  <span className="nfs-status-note">
                     — needed for Ubuntu Server PXE boot
                   </span>
-                  <div style={{ marginTop: '6px', color: 'var(--color-text-secondary)', fontFamily: 'monospace', fontSize: '12px' }}>
+                  <div className="nfs-command-hint">
                     sudo bash scripts/setup-nfs.sh
                   </div>
                 </div>
               ) : (
-                <div style={{ fontSize: '13px' }}>
-                  <div style={{ marginBottom: '6px' }}>
-                    <span style={{ color: 'var(--color-success)' }}>✅ NFS running</span>
+                <div className="nfs-text">
+                  <div className="nfs-status-line">
+                    <span className="nfs-status-success">✅ NFS running</span>
                     {nfsStatus.exports?.length > 0 && (
-                      <span style={{ color: 'var(--color-text-secondary)', marginLeft: '10px' }}>
+                      <span className="nfs-status-note">
                         exports: {nfsStatus.exports.join(', ')}
                       </span>
                     )}
@@ -595,23 +638,22 @@ function AssetManager() {
                       ? `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
                       : null
                     return (
-                      <div key={dir} style={{ marginBottom: '8px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: '6px' }}>
-                        <div style={{ marginBottom: '4px' }}>
+                      <div key={dir} className="nfs-entry-card">
+                        <div className="nfs-entry-state">
                           {covered
-                            ? <span style={{ color: 'var(--color-success)' }}>✅ Ubuntu {dist.version} — export confirmed</span>
+                            ? <span className="nfs-status-success">✅ Ubuntu {dist.version} — export confirmed</span>
                             : cmdline
-                              ? <span style={{ color: 'var(--color-warning)' }}>⚠️ Ubuntu {dist.version} — path from Settings, verify manually</span>
-                              : <span style={{ color: 'var(--color-danger)' }}>❌ Ubuntu {dist.version} — set NFS Root Path in Settings first</span>
+                              ? <span className="nfs-status-warning">⚠️ Ubuntu {dist.version} — path from Settings, verify manually</span>
+                              : <span className="nfs-status-danger">❌ Ubuntu {dist.version} — set NFS Root Path in Settings first</span>
                           }
                         </div>
                         {cmdline ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <code style={{ fontSize: '11px', color: 'var(--color-text-secondary)', flex: 1, wordBreak: 'break-all' }}>
+                          <div className="nfs-cmdline-row">
+                            <code className="nfs-cmdline-code">
                               {cmdline}
                             </code>
                             <button
-                              className="btn btn-sm btn-secondary"
-                              style={{ flexShrink: 0, fontSize: '11px', padding: '2px 8px' }}
+                              className="btn btn-sm btn-secondary nfs-copy-btn"
                               onClick={() => {
                                 try { navigator.clipboard.writeText(cmdline) } catch {
                                   const ta = document.createElement('textarea')
@@ -625,7 +667,7 @@ function AssetManager() {
                             >📋 Copy</button>
                           </div>
                         ) : (
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                          <div className="nfs-empty-hint">
                             Go to <strong>Settings → NFS Boot</strong> and set the host export path
                           </div>
                         )}
@@ -642,8 +684,8 @@ function AssetManager() {
             <h4>⬇️ Download</h4>
 
             {/* Ubuntu Server — dynamic version picker */}
-            <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
-              <h4 style={{ marginBottom: '8px' }}>Ubuntu Server (LTS)</h4>
+            <div className="download-subsection">
+              <h4 className="download-subsection-title">Ubuntu Server (LTS)</h4>
               {ubuntuLoading ? (
                 <p className="text-sm text-muted">Loading available versions...</p>
               ) : ubuntuVersions.length > 0 ? (
@@ -662,25 +704,20 @@ function AssetManager() {
                     ))}
                   </select>
                   {selectedUbuntuVersion?.iso_url && (
-                    <div style={{ marginTop: '4px' }}>
+                    <div className="url-badge-wrap">
                       <UrlBadge url={selectedUbuntuVersion.iso_url} urlStatus={urlStatus} />
                     </div>
                   )}
                   {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
                     downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
-                    <div className="download-picker-progress">
-                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>Ubuntu ISO</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                        <span>{downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%</span>
-                        <span>
-                          {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                          {(downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
-                        </span>
-                      </div>
-                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ width: `${downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                      </div>
-                    </div>
+                    <DownloadProgressBlock
+                      title="Ubuntu ISO"
+                      progress={downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`]}
+                      tone="primary"
+                      unit="GB"
+                      divisor={1024 * 1024 * 1024}
+                      decimals={2}
+                    />
                   )}
                   {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version] && (
                     <div className="download-status download-picker-progress">
@@ -699,15 +736,15 @@ function AssetManager() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>Could not load versions from releases.ubuntu.com</p>
+                  <p className="text-sm text-muted download-retry-note">Could not load versions from releases.ubuntu.com</p>
                   <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuVersions}>🔄 Retry</button>
                 </div>
               )}
             </div>
             {/* Ubuntu Desktop — dynamic version picker */}
             <div>
-              <h4 style={{ marginBottom: '4px' }}>Ubuntu Desktop (LTS)</h4>
-              <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>
+              <h4 className="download-subsection-title-compact">Ubuntu Desktop (LTS)</h4>
+              <p className="text-sm text-muted download-retry-note">
                 Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
               </p>
               {ubuntuDesktopLoading ? (
@@ -728,35 +765,21 @@ function AssetManager() {
                     ))}
                   </select>
                   {selectedUbuntuDesktopVersion?.iso_url && (
-                    <div style={{ marginTop: '4px' }}>
+                    <div className="url-badge-wrap">
                       <UrlBadge url={selectedUbuntuDesktopVersion.iso_url} urlStatus={urlStatus} />
                     </div>
                   )}
                   {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
                     downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
-                    <div className="download-picker-progress">
-                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                        Ubuntu Desktop ISO
-                        {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracting' &&
-                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                        }
-                        {downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].status === 'extracted' &&
-                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                            ✓ Extracted ({downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].file_count} files)
-                          </span>
-                        }
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                        <span>{downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%</span>
-                        <span>
-                          {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                          {(downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
-                        </span>
-                      </div>
-                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ width: `${downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                      </div>
-                    </div>
+                    <DownloadProgressBlock
+                      title="Ubuntu Desktop ISO"
+                      progress={downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`]}
+                      tone="primary"
+                      unit="GB"
+                      divisor={1024 * 1024 * 1024}
+                      decimals={2}
+                      showExtraction
+                    />
                   )}
                   {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] && (
                     <div className="download-status download-picker-progress">
@@ -775,7 +798,7 @@ function AssetManager() {
                 </div>
               ) : (
                 <div>
-                  <p className="text-sm text-muted" style={{ marginBottom: '8px' }}>Could not load versions from releases.ubuntu.com</p>
+                  <p className="text-sm text-muted download-retry-note">Could not load versions from releases.ubuntu.com</p>
                   <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuDesktopVersions}>🔄 Retry</button>
                 </div>
               )}
@@ -808,7 +831,7 @@ function AssetManager() {
 
           <div className="download-section">
             <h4>⬇️ Download</h4>
-            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+            <p className="text-sm text-muted download-section-note">
               Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
             </p>
 
@@ -824,69 +847,45 @@ function AssetManager() {
                     </div>
 
                     {distro.iso_url && (
-                      <div style={{ marginBottom: '8px' }}>
+                      <div className="download-card-url">
                         <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
                       </div>
                     )}
 
                     {downloading[distro.id] && (
-                      <div style={{ marginTop: '8px' }}>
+                      <div className="download-card-progress">
                         {distro.files.kernel && downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`] && (
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>linux</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].percentage}%</span>
-                              <span>
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].downloaded / 1024 / 1024).toFixed(1)} MB /
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].total / 1024 / 1024).toFixed(1)} MB
-                              </span>
-                            </div>
-                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                            </div>
-                          </div>
+                          <DownloadProgressBlock
+                            title="linux"
+                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`]}
+                            tone="primary"
+                            unit="MB"
+                            divisor={1024 * 1024}
+                            decimals={1}
+                          />
                         )}
 
                         {distro.files.initrd && downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`] && (
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>initrd.gz</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].percentage}%</span>
-                              <span>
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].downloaded / 1024 / 1024).toFixed(1)} MB /
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].total / 1024 / 1024).toFixed(1)} MB
-                              </span>
-                            </div>
-                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`].percentage}%`, height: '100%', background: 'var(--color-primary)', transition: 'width 0.3s' }}></div>
-                            </div>
-                          </div>
+                          <DownloadProgressBlock
+                            title="initrd.gz"
+                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`]}
+                            tone="primary"
+                            unit="MB"
+                            divisor={1024 * 1024}
+                            decimals={1}
+                          />
                         )}
 
                         {distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                              ISO
-                              {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracting' &&
-                                <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                              }
-                              {downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].status === 'extracted' &&
-                                <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                                  ✓ Extracted ({downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].file_count} files)
-                                </span>
-                              }
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                              <span>{downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%</span>
-                              <span>
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                                {(downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
-                              </span>
-                            </div>
-                            <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                              <div style={{ width: `${downloadProgress[`${distro.dest_folder}/${distro.files.iso}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
-                            </div>
-                          </div>
+                          <DownloadProgressBlock
+                            title="ISO"
+                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.iso}`]}
+                            tone="success"
+                            unit="GB"
+                            divisor={1024 * 1024 * 1024}
+                            decimals={2}
+                            showExtraction
+                          />
                         )}
                       </div>
                     )}
@@ -913,9 +912,9 @@ function AssetManager() {
           <h3>🛠️ Tools</h3>
 
           {/* SystemRescue */}
-          <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
+          <div className="download-subsection">
             <h4>🛟 SystemRescue</h4>
-            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+            <p className="text-sm text-muted download-section-note">
               Select a version to download
             </p>
               {systemRescueVersions.length > 0 ? (
@@ -934,34 +933,20 @@ function AssetManager() {
                     ))}
                   </select>
                   {selectedSysrescueVersion?.iso_url && (
-                    <div style={{ marginTop: '4px' }}>
+                    <div className="url-badge-wrap">
                       <UrlBadge url={selectedSysrescueVersion.iso_url} urlStatus={urlStatus} />
                     </div>
                   )}
                   {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
-                    <div className="download-picker-progress">
-                      <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                        SystemRescue ISO
-                        {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracting' &&
-                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>(Extracting...)</span>
-                        }
-                        {downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].status === 'extracted' &&
-                          <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                            ✓ Extracted ({downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].file_count} files)
-                          </span>
-                        }
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                        <span>{downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%</span>
-                        <span>
-                          {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].downloaded / 1024 / 1024 / 1024).toFixed(2)} GB /
-                          {(downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].total / 1024 / 1024 / 1024).toFixed(2)} GB
-                        </span>
-                      </div>
-                      <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ width: `${downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-success)', transition: 'width 0.3s' }}></div>
-                      </div>
-                    </div>
+                    <DownloadProgressBlock
+                      title="SystemRescue ISO"
+                      progress={downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`]}
+                      tone="success"
+                      unit="GB"
+                      divisor={1024 * 1024 * 1024}
+                      decimals={2}
+                      showExtraction
+                    />
                   )}
                   {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version] && (
                     <div className="download-status download-picker-progress">
@@ -986,7 +971,7 @@ function AssetManager() {
           {/* Kaspersky Rescue Disk */}
           <div>
             <h4>🛡️ Kaspersky Rescue Disk</h4>
-            <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
+            <p className="text-sm text-muted download-section-note">
               Select a version to download (ISO will be extracted automatically)
             </p>
             {kasperskyVersions.length > 0 ? (
@@ -1005,39 +990,26 @@ function AssetManager() {
                   ))}
                 </select>
                 {selectedKasperskyVersion?.notes && (
-                  <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--color-text-secondary)' }}>
+                  <div className="kaspersky-note">
                     ℹ️ {selectedKasperskyVersion.notes}
                   </div>
                 )}
                 {selectedKasperskyVersion?.iso_url && (
-                  <div style={{ marginTop: '4px' }}>
+                  <div className="url-badge-wrap">
                     <UrlBadge url={selectedKasperskyVersion.iso_url} urlStatus={urlStatus} />
                   </div>
                 )}
                 {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
-                  <div className="download-picker-progress">
-                    <div style={{ fontSize: '11px', marginBottom: '2px', color: 'var(--color-text-secondary)' }}>
-                      Kaspersky ISO
-                      {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracting' &&
-                        <span style={{ marginLeft: '8px', color: 'var(--color-warning)' }}>(Extracting...)</span>
-                      }
-                      {downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].status === 'extracted' &&
-                        <span style={{ marginLeft: '8px', color: 'var(--color-success)' }}>
-                          ✓ Extracted ({downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].file_count} files)
-                        </span>
-                      }
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
-                      <span>{downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%</span>
-                      <span>
-                        {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].downloaded / 1024 / 1024).toFixed(0)} MB /
-                        {(downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].total / 1024 / 1024).toFixed(0)} MB
-                      </span>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`].percentage}%`, height: '100%', background: 'var(--color-warning)', transition: 'width 0.3s' }}></div>
-                    </div>
-                  </div>
+                  <DownloadProgressBlock
+                    title="Kaspersky ISO"
+                    progress={downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`]}
+                    tone="warning"
+                    unit="MB"
+                    divisor={1024 * 1024}
+                    decimals={0}
+                    showExtraction
+                    extractingTone="warning"
+                  />
                 )}
                 {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version] && (
                   <div className="download-status download-picker-progress">

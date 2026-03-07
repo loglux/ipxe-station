@@ -256,6 +256,10 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - removed per-page fixed max-width centering in main tabs
   - aligned `Builder/Assets/DHCP/Boot/Monitoring` to use the same full content width behavior
   - no business logic changes; CSS-only adaptation
+- Assets visual cleanup (step-by-step):
+  - removed remaining inline styles from `AssetManager.jsx`
+  - introduced shared progress UI block/classes for Ubuntu/Debian/SystemRescue/Kaspersky
+  - kept behavior unchanged (presentation-only refactor)
 
 ### Command Line Assistant (Phase 1, frontend-only)
 - Added cmdline helper in `PropertyPanel` without backend/API changes:
@@ -267,3 +271,7 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - Replaced placeholder path tokens in helper flow:
   - generic sets keep only non-path overlays
   - exact path/value tokens (`nfsroot`, `url`, etc.) are sourced from backend boot recipe suggestions.
+- Explicit follow-up after resource model:
+  - remove temporary warning text example `nfsroot=SERVER:/path`
+  - replace with concrete `nfsroot` from selected backend resource (`resource_id`) once
+    Assets/Builder resource linkage is implemented.

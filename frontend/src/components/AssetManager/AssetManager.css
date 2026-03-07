@@ -2,6 +2,10 @@
   width: 100%;
 }
 
+.visually-hidden {
+  display: none;
+}
+
 .asset-header {
   display: flex;
   align-items: center;
@@ -24,6 +28,28 @@
   flex-wrap: wrap;
 }
 
+.upload-dest-input {
+  width: 160px;
+  font-size: 13px;
+}
+
+.upload-status {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.upload-status-success {
+  color: var(--color-success);
+}
+
+.upload-status-error {
+  color: var(--color-danger);
+}
+
+.upload-status-muted {
+  color: var(--color-text-secondary);
+}
+
 .asset-section {
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
@@ -44,10 +70,92 @@
   margin-bottom: var(--spacing-lg);
 }
 
+.distro-group-nfs {
+  margin-top: 12px;
+}
+
 .distro-group h4 {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: var(--spacing-sm);
+}
+
+.nfs-refresh-btn {
+  margin-left: 10px;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.nfs-text {
+  font-size: 13px;
+}
+
+.nfs-text-muted {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.nfs-status-line {
+  margin-bottom: 6px;
+}
+
+.nfs-status-success {
+  color: var(--color-success);
+}
+
+.nfs-status-warning {
+  color: var(--color-warning);
+}
+
+.nfs-status-danger {
+  color: var(--color-danger);
+}
+
+.nfs-status-note {
+  color: var(--color-text-secondary);
+  margin-left: 10px;
+}
+
+.nfs-command-hint {
+  margin-top: 6px;
+  color: var(--color-text-secondary);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.nfs-entry-card {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+}
+
+.nfs-entry-state {
+  margin-bottom: 4px;
+}
+
+.nfs-cmdline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nfs-cmdline-code {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex: 1;
+  word-break: break-all;
+}
+
+.nfs-copy-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.nfs-empty-hint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }
 
 .distro-item {
@@ -88,6 +196,124 @@
 
 .download-section {
   margin-top: var(--spacing-xl);
+}
+
+.download-subsection {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.download-subsection-title {
+  margin-bottom: 8px;
+}
+
+.url-badge {
+  font-size: 11px;
+}
+
+.url-badge-checking {
+  color: var(--color-text-secondary);
+}
+
+.url-badge-ok {
+  color: var(--color-success);
+}
+
+.url-badge-error {
+  color: var(--color-danger);
+}
+
+.url-badge-wrap {
+  margin-top: 4px;
+}
+
+.download-retry-note {
+  margin-bottom: 8px;
+}
+
+.download-section-note {
+  margin-bottom: 16px;
+}
+
+.download-card-url {
+  margin-bottom: 8px;
+}
+
+.download-card-progress {
+  margin-top: 8px;
+}
+
+.download-subsection-title-compact {
+  margin-bottom: 4px;
+}
+
+.kaspersky-note {
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+}
+
+.dl-progress-block {
+  margin-bottom: 8px;
+}
+
+.dl-progress-title {
+  font-size: 11px;
+  margin-bottom: 2px;
+  color: var(--color-text-secondary);
+}
+
+.dl-progress-stage {
+  margin-left: 8px;
+}
+
+.dl-progress-stage-success {
+  color: var(--color-success);
+}
+
+.dl-progress-stage-warning {
+  color: var(--color-warning);
+}
+
+.dl-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.dl-progress-meter {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: none;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--color-border);
+}
+
+.dl-progress-meter::-webkit-progress-bar {
+  background: var(--color-border);
+}
+
+.dl-progress-meter::-webkit-progress-value {
+  transition: width 0.3s;
+  background: var(--color-primary);
+}
+
+.dl-progress-meter::-moz-progress-bar {
+  background: var(--color-primary);
+}
+
+.dl-progress-meter-success::-webkit-progress-value,
+.dl-progress-meter-success::-moz-progress-bar {
+  background: var(--color-success);
+}
+
+.dl-progress-meter-warning::-webkit-progress-value,
+.dl-progress-meter-warning::-moz-progress-bar {
+  background: var(--color-warning);
 }
 
 /* Stacked version-picker layout used by Ubuntu/SystemRescue/Kaspersky downloaders */
