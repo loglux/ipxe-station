@@ -178,6 +178,13 @@
   border-radius: 4px;
 }
 
+.tree-select-btn.drop-target-inside {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-primary-subtle) 60%, transparent);
+}
+
 .tree-select-btn.drop-target-after {
   box-shadow: inset 0 -2px 0 0 var(--color-primary);
   border-radius: 4px;

@@ -162,6 +162,19 @@ function MenuBuilder({
     setDropTargetKey(null)
   }
 
+  const getDropPlacement = (entry, event) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const relativeY = event.clientY - rect.top
+    const ratio = rect.height > 0 ? (relativeY / rect.height) : 0.5
+
+    if (entry.entry_type === 'submenu') {
+      if (ratio < 0.3) return 'before'
+      if (ratio > 0.7) return 'after'
+      return 'inside'
+    }
+    return ratio < 0.5 ? 'before' : 'after'
+  }
+
   const moveEntryRelativeToTarget = (entryName, targetName, place = 'after') => {
     const source = entries.find((entry) => entry.name === entryName)
     const target = entries.find((entry) => entry.name === targetName)
@@ -198,9 +211,12 @@ function MenuBuilder({
     e.preventDefault()
     e.stopPropagation()
     if (!draggingEntryName) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const place = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after'
-    moveEntryRelativeToTarget(draggingEntryName, targetEntry.name, place)
+    const placement = getDropPlacement(targetEntry, e)
+    if (placement === 'inside' && targetEntry.entry_type === 'submenu') {
+      moveEntryToParent(draggingEntryName, targetEntry.name)
+    } else {
+      moveEntryRelativeToTarget(draggingEntryName, targetEntry.name, placement)
+    }
     setDropTargetKey(null)
   }
 
@@ -236,15 +252,19 @@ function MenuBuilder({
           onDragOver={(e) => {
             if (!draggingEntryName) return
             if (draggingEntryName === entry.name) return
-            if (!canMoveToParent(draggingEntryName, entry.parent || null)) return
+            const placement = getDropPlacement(entry, e)
+            const targetParent = placement === 'inside' ? entry.name : (entry.parent || null)
+            if (!canMoveToParent(draggingEntryName, targetParent)) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
-            const rect = e.currentTarget.getBoundingClientRect()
-            const place = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after'
-            setDropTargetKey(`${place}:${entry.name}`)
+            setDropTargetKey(`${placement}:${entry.name}`)
           }}
           onDragLeave={() => {
-            if (dropTargetKey === `before:${entry.name}` || dropTargetKey === `after:${entry.name}`) {
+            if (
+              dropTargetKey === `before:${entry.name}` ||
+              dropTargetKey === `inside:${entry.name}` ||
+              dropTargetKey === `after:${entry.name}`
+            ) {
               setDropTargetKey(null)
             }
           }}
@@ -265,6 +285,8 @@ function MenuBuilder({
             type="button"
             className={`tree-select-btn ${
               dropTargetKey === `before:${entry.name}` ? 'drop-target-before' : ''
+            } ${
+              dropTargetKey === `inside:${entry.name}` ? 'drop-target-inside' : ''
             } ${
               dropTargetKey === `after:${entry.name}` ? 'drop-target-after' : ''
             }`}
