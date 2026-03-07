@@ -65,13 +65,13 @@
 .tree-node {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   min-height: 36px;
   padding: 8px 6px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   transition: background 0.08s;
+  cursor: pointer;
 }
 
 .tree-node:hover {
@@ -168,6 +168,10 @@
 .menu-actions {
   padding: var(--spacing-md) 0 0;
   margin-top: 0;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .btn-block {
@@ -196,52 +200,54 @@
   margin-bottom: var(--spacing-sm);
 }
 
-/* Inline tree controls — shown on row hover */
-.tree-controls {
-  display: none;
+.selected-actions {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  background: var(--color-bg-secondary);
+}
+
+.selected-actions-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.selected-actions-head strong {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.selected-actions-head small {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.selected-actions-row {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 3px;
-  width: 100%;
-  padding-left: 24px;
-  margin-left: 0;
-  flex-shrink: 0;
-  justify-content: flex-start;
-}
-
-.tree-node:hover .tree-controls {
-  display: none;
-}
-
-.tree-node.selected .tree-controls {
-  display: inline-flex;
-}
-
-.tree-node:focus-within .tree-controls {
-  display: inline-flex;
-}
-
-@media (hover: none), (pointer: coarse) {
-  .tree-controls {
-    display: inline-flex;
-  }
+  gap: 6px;
 }
 
 .tree-btn {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  color: inherit;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  font-size: 11px;
-  padding: 1px 5px;
+  font-size: 12px;
+  padding: 4px 8px;
   line-height: 1.4;
-  opacity: 0.7;
-  transition: opacity 0.1s, background 0.1s;
+  transition: all 0.1s;
 }
 
 .tree-btn:hover:not(:disabled) {
-  opacity: 1;
-  background: rgba(255,255,255,0.15);
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-bg-tertiary);
 }
 
 .tree-btn:disabled {
@@ -262,8 +268,8 @@
   border: 1px solid var(--color-border);
   border-radius: 4px;
   color: var(--color-text);
-  font-size: 11px;
-  padding: 1px 4px;
+  font-size: 12px;
+  padding: 4px 8px;
   cursor: pointer;
   min-width: 108px;
   max-width: 180px;

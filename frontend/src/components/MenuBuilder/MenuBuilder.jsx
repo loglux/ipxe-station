@@ -61,8 +61,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     return descendants
   }
 
-  const handleMoveUp = (entry, e) => {
-    e.stopPropagation()
+  const handleMoveUp = (entry) => {
     const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
     const idx = siblings.findIndex(s => s.name === entry.name)
     if (idx > 0) {
@@ -72,8 +71,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     }
   }
 
-  const handleMoveDown = (entry, e) => {
-    e.stopPropagation()
+  const handleMoveDown = (entry) => {
     const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
     const idx = siblings.findIndex(s => s.name === entry.name)
     if (idx < siblings.length - 1) {
@@ -83,8 +81,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     }
   }
 
-  const handleMoveTo = (entry, targetParent, e) => {
-    e.stopPropagation()
+  const handleMoveTo = (entry, targetParent) => {
     const newParent = targetParent === '' ? null : targetParent
     // Assign order at end of target group
     const targetSiblings = entries.filter(s => s.parent === newParent)
@@ -94,8 +91,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     onUpdateEntry(entry.name, { parent: newParent, order: maxOrder })
   }
 
-  const handleDelete = (entry, e) => {
-    e.stopPropagation()
+  const handleDelete = (entry) => {
     setPendingDelete(entry)
   }
 
@@ -114,15 +110,6 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     const isSubmenu = entry.entry_type === 'submenu'
     const children = isSubmenu ? getChildEntries(entry.name) : []
     const effectiveExpanded = queryNorm ? true : isExpanded
-
-    const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
-    const idx = siblings.findIndex(s => s.name === entry.name)
-    const canUp = idx > 0
-    const canDown = idx < siblings.length - 1
-
-    // Submenus this entry can move into (excluding itself and its own descendants)
-    const descendantNames = getDescendantNames(entry.name)
-    const moveTargets = submenus.filter(s => s.name !== entry.name && !descendantNames.has(s.name))
 
     return (
       <div key={entry.name} className="tree-entry">
@@ -154,51 +141,6 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
             {!entry.enabled && <span className="badge badge-disabled">off</span>}
           </button>
-
-          {/* Inline controls — shown on hover */}
-          <span className="tree-controls" onClick={e => e.stopPropagation()}>
-            <button
-              className="tree-btn"
-              onClick={(e) => handleMoveUp(entry, e)}
-              disabled={!canUp}
-              title="Move up"
-              aria-label={`Move ${entry.title || entry.name} up`}
-            >
-              ↑
-            </button>
-            <button
-              className="tree-btn"
-              onClick={(e) => handleMoveDown(entry, e)}
-              disabled={!canDown}
-              title="Move down"
-              aria-label={`Move ${entry.title || entry.name} down`}
-            >
-              ↓
-            </button>
-
-            {/* Move-to dropdown */}
-            <select
-              className="tree-move-select"
-              value={entry.parent || ''}
-              onChange={(e) => handleMoveTo(entry, e.target.value, e)}
-              title={`Move to submenu (${moveTargets.length} available)`}
-              aria-label={`Move ${entry.title || entry.name} to submenu`}
-            >
-              <option value="">📁 root</option>
-              {moveTargets.map(s => (
-                <option key={s.name} value={s.name}>📂 {s.title || s.name}</option>
-              ))}
-            </select>
-
-            <button
-              className="tree-btn tree-btn-del"
-              onClick={(e) => handleDelete(entry, e)}
-              title="Delete"
-              aria-label={`Delete ${entry.title || entry.name}`}
-            >
-              ✕
-            </button>
-          </span>
         </div>
 
         {isSubmenu && effectiveExpanded && (
@@ -215,6 +157,19 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
 
   const rootEntries = entries.filter(e => !e.parent).sort((a, b) => a.order - b.order)
   const visibleRootEntries = rootEntries.filter(subtreeMatchesQuery)
+  const selectedEntry = entries.find((entry) => entry.name === selectedEntryId)
+  const selectedSiblings = selectedEntry
+    ? entries.filter((entry) => entry.parent === selectedEntry.parent).sort((a, b) => a.order - b.order)
+    : []
+  const selectedIndex = selectedEntry
+    ? selectedSiblings.findIndex((entry) => entry.name === selectedEntry.name)
+    : -1
+  const canMoveUp = selectedEntry && selectedIndex > 0
+  const canMoveDown = selectedEntry && selectedIndex < selectedSiblings.length - 1
+  const selectedDescendants = selectedEntry ? getDescendantNames(selectedEntry.name) : new Set()
+  const moveTargets = selectedEntry
+    ? submenus.filter((entry) => entry.name !== selectedEntry.name && !selectedDescendants.has(entry.name))
+    : []
 
   return (
     <div className="menu-builder">
@@ -264,6 +219,51 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
       </div>
 
       <div className="menu-actions">
+        {selectedEntry && (
+          <div className="selected-actions">
+            <div className="selected-actions-head">
+              <strong>{selectedEntry.title || selectedEntry.name}</strong>
+              <small>{selectedEntry.name}</small>
+            </div>
+            <div className="selected-actions-row">
+              <button
+                className="tree-btn"
+                onClick={() => handleMoveUp(selectedEntry)}
+                disabled={!canMoveUp}
+                title="Move selected entry up"
+              >
+                ↑ Up
+              </button>
+              <button
+                className="tree-btn"
+                onClick={() => handleMoveDown(selectedEntry)}
+                disabled={!canMoveDown}
+                title="Move selected entry down"
+              >
+                ↓ Down
+              </button>
+              <select
+                className="tree-move-select"
+                value={selectedEntry.parent || ''}
+                onChange={(e) => handleMoveTo(selectedEntry, e.target.value)}
+                title={`Move to submenu (${moveTargets.length} available)`}
+                aria-label={`Move ${selectedEntry.title || selectedEntry.name} to submenu`}
+              >
+                <option value="">📁 root</option>
+                {moveTargets.map((entry) => (
+                  <option key={entry.name} value={entry.name}>📂 {entry.title || entry.name}</option>
+                ))}
+              </select>
+              <button
+                className="tree-btn tree-btn-del"
+                onClick={() => handleDelete(selectedEntry)}
+                title="Delete selected entry"
+              >
+                ✕ Delete
+              </button>
+            </div>
+          </div>
+        )}
         <button className="btn btn-primary btn-block" onClick={() => onOpenWizard()}>
           ➕ Add Entry
         </button>

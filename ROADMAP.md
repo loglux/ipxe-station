@@ -201,3 +201,21 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - **HTTP ISO** (`url=`): downloads full ISO to RAM disk; Server needs ≥ 4 GB RAM, Desktop ≥ 8 GB
 - **squashfs via `fetch=`**: broken on Ubuntu 22.04+ via iPXE ("no medium found") — do NOT use
 - `root=/dev/nfs` is for traditional kernel NFS root, NOT for casper live boot — do not add it to casper cmdlines
+
+## Recent Delivery Notes
+
+### Smart Deploy Strategy
+- Prefer the lightest deploy path:
+  - `./deploy.sh frontend` for frontend-only changes
+  - `./deploy.sh restart` for Python backend changes without image dependency changes
+  - `./deploy.sh redeploy` for Dockerfile / requirements / runtime stack changes
+- Fixed `deploy.sh` fallback path for hosts without `npm`: Docker-based frontend builds now mount the
+  whole project (`$(pwd):/workspace`) so `app/frontend/dist` is updated on host reliably.
+
+### Builder UX Direction
+- `Menu Structure` received usability improvements:
+  - full-row click selection
+  - search + expand/collapse controls
+  - reduction of inline control overlap issues
+- Next iteration target: keep tree as navigation-first and place destructive/reordering actions in a
+  dedicated selected-entry action area to reduce accidental clicks.
