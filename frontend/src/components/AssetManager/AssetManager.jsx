@@ -100,6 +100,7 @@ function AssetManager() {
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
   const [presets, setPresets] = useState([])
+  const [presetsLoaded, setPresetsLoaded] = useState(false)
   const [activeAcquirePresetId, setActiveAcquirePresetId] = useState(() => {
     try {
       return sessionStorage.getItem(ASSETS_ACTIVE_PRESET_KEY) || ''
@@ -236,6 +237,8 @@ function AssetManager() {
     } catch (error) {
       console.error('Failed to fetch presets:', error)
       setPresets([])
+    } finally {
+      setPresetsLoaded(true)
     }
   }, [])
 
@@ -701,17 +704,18 @@ function AssetManager() {
   }, [presets])
 
   useEffect(() => {
-    if (!acquirePresets.length) {
-      setActiveAcquirePresetId('')
+    // Do not clear saved tab during initial loading.
+    if (!presetsLoaded || !acquirePresets.length) {
       return
     }
     const isValid = acquirePresets.some(preset => preset.id === activeAcquirePresetId)
     if (!isValid) {
       setActiveAcquirePresetId(acquirePresets[0].id)
     }
-  }, [acquirePresets, activeAcquirePresetId])
+  }, [acquirePresets, activeAcquirePresetId, presetsLoaded])
 
   useEffect(() => {
+    if (!presetsLoaded || !acquirePresets.length) return
     try {
       if (!activeAcquirePresetId) {
         sessionStorage.removeItem(ASSETS_ACTIVE_PRESET_KEY)
@@ -721,7 +725,7 @@ function AssetManager() {
     } catch {
       // Ignore storage errors
     }
-  }, [activeAcquirePresetId])
+  }, [activeAcquirePresetId, acquirePresets.length, presetsLoaded])
 
   const activeAcquireSection = useMemo(() => {
     if (!acquirePresets.length) return 'all'
