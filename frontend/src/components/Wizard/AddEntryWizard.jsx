@@ -114,6 +114,71 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet) => {
   }
 }
 
+const buildHirenManualBootOptions = (version) => {
+  const isoPath = version?.iso || ''
+  const options = []
+
+  if (version?.autodetected && version?.kernel && version?.initrd) {
+    options.push({
+      mode: 'winpe',
+      label: 'WinPE (auto-detected)',
+      kernel: version.kernel,
+      initrd: version.initrd,
+      cmdline: version.cmdline || '',
+      recommended: true,
+    })
+  }
+
+  if (isoPath) {
+    options.push({
+      mode: 'iso',
+      label: 'ISO (legacy memdisk, BIOS)',
+      kernel: 'http://boot.ipxe.org/memdisk',
+      initrd: isoPath,
+      cmdline: 'iso raw',
+      recommended: options.length === 0,
+    })
+  }
+
+  options.push({
+    mode: 'manual',
+    label: 'Manual paths',
+    kernel: version?.kernel || '',
+    initrd: version?.initrd || '',
+    cmdline: version?.cmdline || '',
+    recommended: options.length === 0,
+  })
+
+  return options
+}
+
+const buildGenericManualIsoBootOptions = (version) => {
+  const isoPath = version?.iso || ''
+  const options = []
+
+  if (isoPath) {
+    options.push({
+      mode: 'iso',
+      label: 'ISO (legacy memdisk, BIOS)',
+      kernel: 'http://boot.ipxe.org/memdisk',
+      initrd: isoPath,
+      cmdline: 'iso raw',
+      recommended: true,
+    })
+  }
+
+  options.push({
+    mode: 'manual',
+    label: 'Manual paths',
+    kernel: version?.kernel || '',
+    initrd: version?.initrd || '',
+    cmdline: version?.cmdline || '',
+    recommended: options.length === 0,
+  })
+
+  return options
+}
+
 function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCategory = null }) {
   const [step, setStep] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -163,6 +228,18 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setEntryTitle(`${scenario.displayName} ${version.version_label || version.version}`)
 
     if (version.manual) {
+      const manualOptions = selectedScenario === 'hiren'
+        ? buildHirenManualBootOptions(version)
+        : buildGenericManualIsoBootOptions(version)
+      setBootOptions(manualOptions)
+      const preferred = manualOptions.find((opt) => opt.recommended) || manualOptions[0]
+      setSelectedBootOption(preferred || null)
+      if (preferred) {
+        setKernel(preferred.kernel || '')
+        setInitrd(preferred.initrd || '')
+        setCmdline(preferred.cmdline || '')
+        setEntryTitle(buildTitle(scenario.displayName, version.version, preferred.mode))
+      }
       setManualAssetsHint(version.manual_hint || '')
       setManualAssetsHintKind(version.autodetected ? 'success' : 'error')
       return
