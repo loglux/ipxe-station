@@ -256,3 +256,11 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - removed per-page fixed max-width centering in main tabs
   - aligned `Builder/Assets/DHCP/Boot/Monitoring` to use the same full content width behavior
   - no business logic changes; CSS-only adaptation
+
+### Command Line Assistant (Phase 1, frontend-only)
+- Added cmdline helper in `PropertyPanel` without backend/API changes:
+  - generic overlay sets (not distro templates) for fine tuning
+  - token suggestions with insert/replace-by-key behavior
+  - user custom sets (`Save current as set`) persisted in browser localStorage
+  - soft warnings for common cmdline issues
+- Existing Ubuntu/Debian backend recipe/template flow remains unchanged.

@@ -1,11 +1,90 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './PropertyPanel.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
+
+const CMDLINE_BASE_SETS = [
+  {
+    id: 'base',
+    name: 'Base network',
+    description: 'Minimal network defaults',
+    tokens: ['ip=dhcp'],
+  },
+  {
+    id: 'quiet_ui',
+    name: 'Quiet UI',
+    description: 'Reduce noise and keep splash',
+    tokens: ['quiet', 'splash'],
+  },
+  {
+    id: 'casper_nfs_overlay',
+    name: 'Casper NFS overlay',
+    description: 'Overlay for casper live boot via NFS',
+    tokens: ['boot=casper', 'netboot=nfs', 'nfsroot=SERVER:/path'],
+  },
+  {
+    id: 'casper_iso_overlay',
+    name: 'Casper ISO overlay',
+    description: 'Overlay for casper live boot with URL',
+    tokens: ['boot=casper', 'url=http://SERVER/ubuntu.iso'],
+  },
+  {
+    id: 'installer_auto_overlay',
+    name: 'Installer auto overlay',
+    description: 'Auto-install priority defaults',
+    tokens: ['auto=true', 'priority=critical'],
+  },
+]
+
+const CMDLINE_SUGGESTIONS = [
+  { token: 'ip=dhcp', hint: 'DHCP network config' },
+  { token: 'boot=casper', hint: 'Ubuntu casper live boot' },
+  { token: 'netboot=nfs', hint: 'Stream rootfs via NFS' },
+  { token: 'nfsroot=SERVER:/path', hint: 'NFS export path' },
+  { token: 'url=http://SERVER/ubuntu.iso', hint: 'ISO URL for live boot' },
+  { token: 'auto=true', hint: 'Enable unattended install flow' },
+  { token: 'priority=critical', hint: 'Installer non-interactive priority' },
+  { token: 'cloud-init=disabled', hint: 'Disable cloud-init stage' },
+  { token: 'ignore_uuid', hint: 'Ignore media UUID checks' },
+  { token: 'fsck.mode=skip', hint: 'Skip filesystem check' },
+  { token: 'quiet', hint: 'Reduce boot verbosity' },
+  { token: 'splash', hint: 'Enable splash screen' },
+]
+
+const tokenizeCmdline = (value) => {
+  if (!value?.trim()) return []
+  return value.match(/(?:[^\s"]+|"[^"]*")+/g) || []
+}
+
+const getTokenKey = (token) => (token.includes('=') ? token.split('=')[0] : token)
 
 function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [preseedProfiles, setPreseedProfiles] = useState([])
+  const [customCmdlineSets, setCustomCmdlineSets] = useState(() => {
+    try {
+      const raw = localStorage.getItem('ipxe_cmdline_custom_sets')
+      const parsed = raw ? JSON.parse(raw) : []
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })
+  const [selectedCmdlineSet, setSelectedCmdlineSet] = useState('base')
+  const [newSetName, setNewSetName] = useState('')
+
+  const cmdlineSetLibrary = useMemo(
+    () => [...CMDLINE_BASE_SETS, ...customCmdlineSets],
+    [customCmdlineSets]
+  )
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ipxe_cmdline_custom_sets', JSON.stringify(customCmdlineSets))
+    } catch {
+      // ignore storage write errors
+    }
+  }, [customCmdlineSets])
 
   const isDebianPreseedEntry = (
     entry?.entry_type === 'boot' &&
@@ -89,6 +168,79 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const handleFieldChange = (field, value) => {
     onUpdateEntry(entry.name, { [field]: value })
   }
+
+  const mergeTokensIntoCmdline = (incomingTokens) => {
+    const currentTokens = tokenizeCmdline(entry.cmdline || '')
+    let nextTokens = [...currentTokens]
+    incomingTokens.forEach((token) => {
+      const key = getTokenKey(token)
+      const idx = nextTokens.findIndex((existing) => getTokenKey(existing) === key)
+      if (idx >= 0) nextTokens[idx] = token
+      else nextTokens.push(token)
+    })
+    handleFieldChange('cmdline', nextTokens.join(' ').trim())
+  }
+
+  const replaceCmdlineWithSet = () => {
+    const set = cmdlineSetLibrary.find((item) => item.id === selectedCmdlineSet)
+    if (!set) return
+    handleFieldChange('cmdline', set.tokens.join(' '))
+  }
+
+  const mergeCmdlineSet = () => {
+    const set = cmdlineSetLibrary.find((item) => item.id === selectedCmdlineSet)
+    if (!set) return
+    mergeTokensIntoCmdline(set.tokens)
+  }
+
+  const insertTokenSuggestion = (token) => {
+    mergeTokensIntoCmdline([token])
+  }
+
+  const saveCurrentAsCustomSet = () => {
+    const name = newSetName.trim()
+    if (!name) return
+    const tokens = tokenizeCmdline(entry.cmdline || '')
+    if (tokens.length === 0) return
+    const id = `custom_${name.toLowerCase().replace(/[^a-z0-9_-]+/g, '_')}_${Date.now()}`
+    const set = {
+      id,
+      name,
+      description: 'User custom set',
+      tokens,
+    }
+    setCustomCmdlineSets((prev) => [...prev, set])
+    setSelectedCmdlineSet(id)
+    setNewSetName('')
+  }
+
+  const deleteSelectedCustomSet = () => {
+    if (!selectedCmdlineSet.startsWith('custom_')) return
+    setCustomCmdlineSets((prev) => prev.filter((set) => set.id !== selectedCmdlineSet))
+    setSelectedCmdlineSet('base')
+  }
+
+  const cmdlineWarnings = (() => {
+    const tokens = tokenizeCmdline(entry.cmdline || '')
+    const keys = tokens.map(getTokenKey)
+    const warnings = []
+    const keyCounts = keys.reduce((acc, key) => ({ ...acc, [key]: (acc[key] || 0) + 1 }), {})
+
+    Object.entries(keyCounts).forEach(([key, count]) => {
+      if (count > 1 && key.includes('.')) {
+        warnings.push(`Duplicate key "${key}" detected (${count}x).`)
+      }
+    })
+
+    const has = (prefix) => tokens.some((token) => token === prefix || token.startsWith(`${prefix}=`))
+    if (has('netboot') && !has('nfsroot') && tokens.some((token) => token.startsWith('netboot=nfs'))) {
+      warnings.push('netboot=nfs usually requires nfsroot=SERVER:/path.')
+    }
+    if (has('boot') && !tokens.some((token) => token.startsWith('boot=casper')) && has('cloud-init')) {
+      warnings.push('cloud-init options are commonly used with boot=casper flows.')
+    }
+    return warnings
+  })()
 
   const handleMoveUp = () => {
     const siblings = entries.filter(e => e.parent === entry.parent).sort((a, b) => a.order - b.order)
@@ -214,6 +366,66 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                 className="form-control"
                 placeholder="ip=dhcp ..."
               />
+              <div className="cmdline-builder">
+                <div className="cmdline-builder-row">
+                  <select
+                    className="form-control cmdline-set-select"
+                    value={selectedCmdlineSet}
+                    onChange={(e) => setSelectedCmdlineSet(e.target.value)}
+                  >
+                    {cmdlineSetLibrary.map((set) => (
+                      <option key={set.id} value={set.id}>{set.name}</option>
+                    ))}
+                  </select>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={mergeCmdlineSet}>
+                    Merge set
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={replaceCmdlineWithSet}>
+                    Replace cmdline
+                  </button>
+                </div>
+                <small className="form-hint">
+                  {cmdlineSetLibrary.find((set) => set.id === selectedCmdlineSet)?.description}
+                </small>
+                <div className="cmdline-builder-row">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Custom set name"
+                    value={newSetName}
+                    onChange={(e) => setNewSetName(e.target.value)}
+                  />
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={saveCurrentAsCustomSet}>
+                    Save current as set
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={deleteSelectedCustomSet}
+                    disabled={!selectedCmdlineSet.startsWith('custom_')}
+                  >
+                    Delete set
+                  </button>
+                </div>
+                <div className="cmdline-suggestions">
+                  {CMDLINE_SUGGESTIONS.map((item) => (
+                    <button
+                      key={item.token}
+                      type="button"
+                      className="cmdline-token-chip"
+                      onClick={() => insertTokenSuggestion(item.token)}
+                      title={item.hint}
+                    >
+                      {item.token}
+                    </button>
+                  ))}
+                </div>
+                {cmdlineWarnings.length > 0 && (
+                  <ul className="cmdline-warnings">
+                    {cmdlineWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {isDebianPreseedEntry && (

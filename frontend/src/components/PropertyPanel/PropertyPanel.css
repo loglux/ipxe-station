@@ -124,6 +124,56 @@ textarea.form-control {
   color: var(--color-text-secondary);
 }
 
+.cmdline-builder {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cmdline-builder-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cmdline-set-select {
+  min-width: 220px;
+}
+
+.cmdline-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cmdline-token-chip {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.cmdline-token-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.cmdline-warnings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--color-warning-text);
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;
