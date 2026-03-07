@@ -28,8 +28,8 @@ build_frontend() {
     else
         info "npm not found — building via Docker Node container..."
         docker run --rm \
-            -v "$(pwd)/$FRONTEND_DIR:/frontend" \
-            -w /frontend \
+            -v "$(pwd):/workspace" \
+            -w /workspace/frontend \
             node:20-alpine \
             sh -c "npm install && npm run build"
     fi
