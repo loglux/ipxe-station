@@ -264,3 +264,6 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
   - user custom sets (`Save current as set`) persisted in browser localStorage
   - soft warnings for common cmdline issues
 - Existing Ubuntu/Debian backend recipe/template flow remains unchanged.
+- Replaced placeholder path tokens in helper flow:
+  - generic sets keep only non-path overlays
+  - exact path/value tokens (`nfsroot`, `url`, etc.) are sourced from backend boot recipe suggestions.

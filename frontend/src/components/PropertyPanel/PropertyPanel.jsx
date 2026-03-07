@@ -19,13 +19,13 @@ const CMDLINE_BASE_SETS = [
     id: 'casper_nfs_overlay',
     name: 'Casper NFS overlay',
     description: 'Overlay for casper live boot via NFS',
-    tokens: ['boot=casper', 'netboot=nfs', 'nfsroot=SERVER:/path'],
+    tokens: ['boot=casper', 'netboot=nfs', 'ignore_uuid', 'fsck.mode=skip', 'cloud-init=disabled'],
   },
   {
     id: 'casper_iso_overlay',
     name: 'Casper ISO overlay',
     description: 'Overlay for casper live boot with URL',
-    tokens: ['boot=casper', 'url=http://SERVER/ubuntu.iso'],
+    tokens: ['boot=casper', 'cloud-init=disabled'],
   },
   {
     id: 'installer_auto_overlay',
@@ -72,6 +72,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   })
   const [selectedCmdlineSet, setSelectedCmdlineSet] = useState('base')
   const [newSetName, setNewSetName] = useState('')
+  const [recipeSuggestionState, setRecipeSuggestionState] = useState({ key: '', tokens: [] })
 
   const cmdlineSetLibrary = useMemo(
     () => [...CMDLINE_BASE_SETS, ...customCmdlineSets],
@@ -85,6 +86,65 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
       // ignore storage write errors
     }
   }, [customCmdlineSets])
+
+  const detectScenarioFromEntry = useCallback(() => {
+    if (entry?.entry_type !== 'boot') return null
+    const versionPath = (entry?.kernel || '').split('/')[0]
+    if (!versionPath) return null
+
+    if (versionPath.startsWith('ubuntu-')) {
+      if (entry?.boot_mode === 'live') return 'ubuntu_live'
+      if (entry?.boot_mode === 'preseed') return 'ubuntu_preseed'
+      return 'ubuntu_netboot'
+    }
+
+    if (versionPath.startsWith('debian-')) {
+      if (entry?.boot_mode === 'preseed') return 'debian_preseed'
+      if (entry?.boot_mode === 'live') return 'debian_live'
+      return 'debian_netboot'
+    }
+
+    if (versionPath.startsWith('systemrescue-')) return 'systemrescue'
+    if (versionPath.startsWith('kaspersky-')) return 'kaspersky'
+    return null
+  }, [entry])
+
+  const recipeScenario = detectScenarioFromEntry()
+  const recipeVersionPath = (entry?.kernel || '').split('/')[0]
+  const recipeKey = recipeScenario && recipeVersionPath
+    ? `${recipeScenario}:${recipeVersionPath}:${entry?.preseed_profile || ''}`
+    : ''
+  const recipeTokenSuggestions = recipeSuggestionState.key === recipeKey ? recipeSuggestionState.tokens : []
+
+  useEffect(() => {
+    if (!recipeKey || !recipeScenario || !recipeVersionPath) return
+
+    let cancelled = false
+    const params = new URLSearchParams({
+      version_path: recipeVersionPath,
+      scenario: recipeScenario,
+    })
+    if (entry?.preseed_profile) {
+      params.set('preseed_profile', entry.preseed_profile)
+    }
+
+    fetch(`/api/assets/boot-recipe?${params.toString()}`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled) return
+        const options = data?.options || []
+        const recipe = options.find((opt) => opt.recommended) || options[0]
+        const tokens = tokenizeCmdline(recipe?.cmdline || '')
+        setRecipeSuggestionState({ key: recipeKey, tokens })
+      })
+      .catch(() => {
+        if (!cancelled) setRecipeSuggestionState({ key: recipeKey, tokens: [] })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [entry, recipeKey, recipeScenario, recipeVersionPath])
 
   const isDebianPreseedEntry = (
     entry?.entry_type === 'boot' &&
@@ -420,6 +480,24 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                     </button>
                   ))}
                 </div>
+                {recipeTokenSuggestions.length > 0 && (
+                  <>
+                    <small className="form-hint">Exact tokens from backend recipe</small>
+                    <div className="cmdline-suggestions">
+                      {recipeTokenSuggestions.map((token) => (
+                        <button
+                          key={token}
+                          type="button"
+                          className="cmdline-token-chip cmdline-token-chip-precise"
+                          onClick={() => insertTokenSuggestion(token)}
+                          title="Use exact value from backend recipe"
+                        >
+                          {token}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {cmdlineWarnings.length > 0 && (
                   <ul className="cmdline-warnings">
                     {cmdlineWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
