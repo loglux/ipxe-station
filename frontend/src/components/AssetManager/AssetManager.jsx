@@ -983,7 +983,7 @@ function AssetManager() {
           <h3>🛠️ Tools</h3>
 
           {/* SystemRescue */}
-          <div className="download-subsection">
+          <div className="download-subsection download-subsection-last">
             <h4>🛟 SystemRescue</h4>
             <p className="text-sm text-muted download-section-note">
               Select a version to download
@@ -1038,6 +1038,13 @@ function AssetManager() {
                 <p className="text-sm text-muted">Loading versions...</p>
             )}
           </div>
+
+        </section>
+        )}
+
+        {(activeAcquireSection === 'all' || activeAcquireSection === 'antivirus') && (
+        <section className="asset-section">
+          <h3>🛡️ Antivirus</h3>
 
           {/* Kaspersky Rescue Disk */}
           <div className="download-subsection download-subsection-last">

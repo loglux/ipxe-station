@@ -126,6 +126,16 @@ SYSTEM_PRESETS_SEED = [
         "order": 30,
         "source": "system",
     },
+    {
+        "id": "acquire_antivirus",
+        "name": "Antivirus",
+        "category": "security",
+        "mode": "acquire",
+        "section": "antivirus",
+        "enabled": True,
+        "order": 40,
+        "source": "system",
+    },
 ]
 
 PRESETS_DIR = IPXE_ROOT / "presets"
@@ -169,6 +179,16 @@ def _ensure_preset_store() -> None:
     PRESETS_DIR.mkdir(parents=True, exist_ok=True)
     if not SYSTEM_PRESETS_FILE.exists():
         SYSTEM_PRESETS_FILE.write_text(json.dumps(SYSTEM_PRESETS_SEED, indent=2))
+    else:
+        existing = _load_preset_file(SYSTEM_PRESETS_FILE, [])
+        by_id = {item.get("id"): item for item in existing if isinstance(item, dict)}
+        changed = False
+        for seed in SYSTEM_PRESETS_SEED:
+            if seed["id"] not in by_id:
+                existing.append(seed)
+                changed = True
+        if changed:
+            SYSTEM_PRESETS_FILE.write_text(json.dumps(existing, indent=2))
     if not USER_PRESETS_FILE.exists():
         USER_PRESETS_FILE.write_text("[]")
 

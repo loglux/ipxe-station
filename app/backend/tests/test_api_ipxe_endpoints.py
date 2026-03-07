@@ -203,9 +203,11 @@ def test_presets_endpoint_returns_seeded_system_presets():
     assert "Ubuntu" in names
     assert "Debian" in names
     assert "Tools" in names
+    assert "Antivirus" in names
     assert "ubuntu" in sections
     assert "debian" in sections
     assert "tools" in sections
+    assert "antivirus" in sections
 
 
 def test_create_user_preset_and_list_it():
