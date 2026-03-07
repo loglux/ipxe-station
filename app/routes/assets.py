@@ -903,11 +903,8 @@ def get_hiren_versions():
                 break
 
         text = soup.get_text(" ", strip=True)
-        version_candidates = re.findall(r"\b(\d+\.\d+\.\d+)\b", text)
-        if version_candidates:
-            version = max(version_candidates, key=lambda v: [int(n) for n in v.split(".")])
-        else:
-            version = fallback["version"]
+        m = re.search(r"\b(?:version|v)\s*[:=]?\s*(\d+\.\d+\.\d+)\b", text, re.IGNORECASE)
+        version = m.group(1) if m else fallback["version"]
 
         entry = {
             "version": version,
