@@ -750,10 +750,9 @@ class iPXEGenerator:
                     )
                     script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
-                    bootmgr_path = entry.hiren_bootmgr or entry.initrd
-                    if bootmgr_path:
+                    if entry.hiren_bootmgr:
                         bootmgr_url = iPXEGenerator._resolve_kernel_url(
-                            bootmgr_path, menu.server_ip, menu.http_port
+                            entry.hiren_bootmgr, menu.server_ip, menu.http_port
                         )
                         script_lines.append(f"initrd {bootmgr_url} bootmgr")
                     if entry.hiren_bcd:
@@ -766,9 +765,10 @@ class iPXEGenerator:
                             entry.hiren_boot_sdi, menu.server_ip, menu.http_port
                         )
                         script_lines.append(f"initrd {sdi_url} boot.sdi")
-                    if entry.hiren_boot_wim:
+                    boot_wim_path = entry.hiren_boot_wim or entry.initrd
+                    if boot_wim_path:
                         wim_url = iPXEGenerator._resolve_kernel_url(
-                            entry.hiren_boot_wim, menu.server_ip, menu.http_port
+                            boot_wim_path, menu.server_ip, menu.http_port
                         )
                         script_lines.append(f"initrd {wim_url} boot.wim")
 

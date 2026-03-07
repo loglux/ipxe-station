@@ -98,3 +98,33 @@ def test_hiren_winpe_wimboot_flow_uses_multi_initrd():
     assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/Boot/BCD BCD" in script
     assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/Boot/boot.sdi boot.sdi" in script
     assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/sources/boot.wim boot.wim" in script
+
+
+def test_hiren_winpe_minimal_flow_uses_boot_wim():
+    menu = iPXEMenu(
+        title="Test Menu",
+        timeout=5000,
+        default_entry="hiren",
+        server_ip="10.0.0.1",
+        http_port=8080,
+        entries=[
+            iPXEEntry(
+                name="hiren",
+                title="Hiren WinPE Minimal",
+                kernel="wimboot",
+                initrd="hiren-1.0.8/sources/boot.wim",
+                boot_mode="rescue",
+                entry_type="boot",
+                hiren_winpe_ready=True,
+                hiren_boot_wim="hiren-1.0.8/sources/boot.wim",
+            )
+        ],
+    )
+
+    script = iPXEGenerator.generate_ipxe_script(menu)
+
+    assert "kernel http://10.0.0.1:8080/http/wimboot" in script
+    assert "bootmgr bootmgr" not in script
+    assert " Boot/BCD BCD" not in script
+    assert "boot.sdi boot.sdi" not in script
+    assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/sources/boot.wim boot.wim" in script

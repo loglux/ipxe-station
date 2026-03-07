@@ -103,21 +103,24 @@ const detectManualBootDefaults = (scenarioId, isoPath, httpFilesSet, httpFiles =
       : has('Sources/boot.wim')
         ? 'Sources/boot.wim'
         : findLocalBySuffix(['sources/boot.wim', 'Sources/boot.wim'])
-    const winpeReady = Boolean(wimbootPath && bootmgrLocal && bcdLocal && sdiLocal && wimLocal)
+    const winpeReady = Boolean(wimbootPath && wimLocal)
+    const fullBundleReady = Boolean(bootmgrLocal && bcdLocal && sdiLocal)
 
     if (winpeReady) {
       return {
         kernel: wimbootPath,
-        initrd: join(bootmgrLocal),
+        initrd: fullBundleReady ? join(bootmgrLocal) : join(wimLocal),
         cmdline: '',
         autodetected: true,
         severity: 'success',
         hiren_winpe_ready: true,
-        hiren_bootmgr: join(bootmgrLocal),
-        hiren_bcd: join(bcdLocal),
-        hiren_boot_sdi: join(sdiLocal),
+        hiren_bootmgr: fullBundleReady ? join(bootmgrLocal) : '',
+        hiren_bcd: fullBundleReady ? join(bcdLocal) : '',
+        hiren_boot_sdi: fullBundleReady ? join(sdiLocal) : '',
         hiren_boot_wim: join(wimLocal),
-        hint: '✅ Detected Hiren WinPE assets (wimboot + bootmgr/BCD/boot.sdi/boot.wim).',
+        hint: fullBundleReady
+          ? '✅ Detected Hiren WinPE assets (wimboot + bootmgr/BCD/boot.sdi/boot.wim).'
+          : '✅ Detected minimal WinPE assets (wimboot + boot.wim). Full bundle (bootmgr/BCD/boot.sdi) is optional.',
       }
     }
 
