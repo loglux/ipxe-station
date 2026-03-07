@@ -16,6 +16,12 @@ if [ ! -f "/srv/tftp/snponly.efi" ] && [ -f "/opt/ipxe-initial-files/tftp/snponl
     echo "✅ snponly.efi copied to /srv/tftp/"
 fi
 
+# Keep local memdisk fallback available for legacy ISO boot entries.
+if [ ! -f "/srv/http/memdisk" ] && [ -f "/opt/ipxe-initial-files/http/memdisk" ]; then
+    cp /opt/ipxe-initial-files/http/memdisk /srv/http/memdisk
+    echo "✅ memdisk copied to /srv/http/"
+fi
+
 # Create initial directory structure
 mkdir -p /srv/http/ubuntu-samples
 mkdir -p /srv/ipxe
@@ -46,6 +52,7 @@ This directory contains bootable images and resources served over HTTP.
 ├── custom-os/             # Custom OS files
 │   ├── vmlinuz
 │   └── initrd
+├── memdisk                # Legacy ISO boot helper (syslinux memdisk)
 └── iso/                   # ISO images storage
     ├── ubuntu-22.04.iso
     └── ubuntu-24.04.iso

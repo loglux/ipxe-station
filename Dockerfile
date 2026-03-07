@@ -54,13 +54,15 @@ RUN mkdir -p /mnt/iso /tmp/extract && \
     chmod 755 /mnt/iso /tmp/extract
 
 # Download iPXE binaries — stored outside /app so volume-mount of ./app doesn't shadow them
-RUN mkdir -p /opt/ipxe-initial-files/tftp && \
+RUN mkdir -p /opt/ipxe-initial-files/tftp /opt/ipxe-initial-files/http && \
     cd /opt/ipxe-initial-files/tftp && \
     wget -q http://boot.ipxe.org/undionly.kpxe && \
     wget -q -O ipxe.efi http://boot.ipxe.org/x86_64-efi/ipxe.efi && \
     wget -q -O snponly.efi http://boot.ipxe.org/x86_64-efi/snponly.efi && \
     wget -q http://boot.ipxe.org/ipxe.pxe && \
-    ls -la /opt/ipxe-initial-files/tftp/
+    wget -q -O /opt/ipxe-initial-files/http/memdisk http://boot.ipxe.org/memdisk && \
+    ls -la /opt/ipxe-initial-files/tftp/ && \
+    ls -la /opt/ipxe-initial-files/http/
 
 # Copy setup and startup scripts to /usr/local/bin so ./app:/app mount doesn't shadow them
 COPY scripts/setup-volumes.sh /usr/local/bin/setup-volumes.sh

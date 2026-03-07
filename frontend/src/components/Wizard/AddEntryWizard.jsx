@@ -160,7 +160,7 @@ const buildGenericManualIsoBootOptions = (version) => {
     options.push({
       mode: 'iso',
       label: 'ISO (legacy memdisk, BIOS)',
-      kernel: 'http://boot.ipxe.org/memdisk',
+      kernel: 'memdisk',
       initrd: isoPath,
       cmdline: 'iso raw',
       recommended: true,
