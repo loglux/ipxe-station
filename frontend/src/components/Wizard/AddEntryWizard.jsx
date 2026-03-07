@@ -500,6 +500,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       cmdline,
     }
 
+    if (selectedBootOption?.mode === 'manual' && (!kernel || kernel.trim() === '')) {
+      setCreateError('For "Manual paths", field "kernel" is required. Fill kernel path or switch Boot Mode to ISO.')
+      return
+    }
+
     for (const field of required) {
       const value = requiredValues[field]
       if (typeof value === 'string' && value.trim() === '') {
