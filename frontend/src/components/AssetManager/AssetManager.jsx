@@ -3,6 +3,10 @@ import './AssetManager.css'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
 const ASSETS_ACTIVE_PRESET_KEY = 'assets_active_preset_v1'
+const ASSETS_UPLOAD_STATUS_TTL_MS = 60_000
+const ASSETS_UPLOAD_SUCCESS_RESTORE_MS = 15_000
+const ASSETS_UPLOAD_SUCCESS_HIDE_MS = 8_000
+const ASSETS_UPLOAD_ERROR_HIDE_MS = 12_000
 
 // SystemRescue is handled separately with version selection
 const SYSTEMRESCUE_CONFIG = {
@@ -94,6 +98,7 @@ function AssetManager() {
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(null)
+  const uploadStatusTimeoutRef = useRef(null)
   const uploadInputRef = useRef(null)
   const debianProductsRef = useRef([])
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
@@ -119,11 +124,31 @@ function AssetManager() {
       ? 'upload-status-error'
       : 'upload-status-muted'
 
-  const setPersistentUploadStatus = useCallback((value) => {
+  const clearUploadStatus = useCallback(() => {
+    if (uploadStatusTimeoutRef.current) {
+      clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = null
+    }
+    setUploadStatus('')
+    try {
+      sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
+    } catch {
+      // Ignore storage errors
+    }
+  }, [])
+
+  const setPersistentUploadStatus = useCallback((value, kind = 'info') => {
     setUploadStatus(value)
     try {
-      if (!value) sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
-      else sessionStorage.setItem(ASSETS_UPLOAD_STATUS_KEY, value)
+      if (!value) {
+        sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
+        return
+      }
+      sessionStorage.setItem(ASSETS_UPLOAD_STATUS_KEY, JSON.stringify({
+        message: value,
+        kind,
+        ts: Date.now(),
+      }))
     } catch {
       // Ignore storage errors
     }
@@ -201,10 +226,34 @@ function AssetManager() {
 
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(ASSETS_UPLOAD_STATUS_KEY)
-      if (saved) setUploadStatus(saved)
+      const raw = sessionStorage.getItem(ASSETS_UPLOAD_STATUS_KEY)
+      if (!raw) return
+      const saved = JSON.parse(raw)
+      const message = typeof saved?.message === 'string' ? saved.message : ''
+      const kind = saved?.kind || 'info'
+      const ts = Number(saved?.ts || 0)
+      const age = Date.now() - ts
+      const isExpired = !ts || age > ASSETS_UPLOAD_STATUS_TTL_MS
+      const shouldDropSuccess = kind === 'success' && age > ASSETS_UPLOAD_SUCCESS_RESTORE_MS
+      if (!message || isExpired || shouldDropSuccess) {
+        sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
+        return
+      }
+      setUploadStatus(message)
     } catch {
-      // Ignore storage errors
+      // Clear legacy/plain-string stale format from older versions
+      try {
+        sessionStorage.removeItem(ASSETS_UPLOAD_STATUS_KEY)
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [])
+
+  useEffect(() => () => {
+    if (uploadStatusTimeoutRef.current) {
+      clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = null
     }
   }, [])
 
@@ -355,7 +404,7 @@ function AssetManager() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    setPersistentUploadStatus(`Uploading ${file.name}…`)
+    setPersistentUploadStatus(`Uploading ${file.name}…`, 'progress')
     setUploadProgress({ loaded: 0, total: file.size || 0, percent: 0 })
     const form = new FormData()
     form.append('file', file)
@@ -364,14 +413,18 @@ function AssetManager() {
     try {
       const data = await uploadFileWithProgress(form, (progress) => {
         setUploadProgress(progress)
-        setPersistentUploadStatus(`Uploading ${file.name}… ${progress.percent}%`)
+        setPersistentUploadStatus(`Uploading ${file.name}… ${progress.percent}%`, 'progress')
       })
       const categoryLabel = uploadCategory === 'new' ? uploadCategoryCustom.trim() || 'new' : uploadCategory
-      setPersistentUploadStatus(`✅ Saved: ${data.saved} (category: ${categoryLabel})`)
+      setPersistentUploadStatus(`✅ Saved: ${data.saved} (category: ${categoryLabel})`, 'success')
+      if (uploadStatusTimeoutRef.current) clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = setTimeout(clearUploadStatus, ASSETS_UPLOAD_SUCCESS_HIDE_MS)
       fetchAssets()
       fetchCatalog()
     } catch (err) {
-      setPersistentUploadStatus(`❌ ${err.message}`)
+      setPersistentUploadStatus(`❌ ${err.message}`, 'error')
+      if (uploadStatusTimeoutRef.current) clearTimeout(uploadStatusTimeoutRef.current)
+      uploadStatusTimeoutRef.current = setTimeout(clearUploadStatus, ASSETS_UPLOAD_ERROR_HIDE_MS)
     } finally {
       setUploading(false)
       setUploadProgress(null)
