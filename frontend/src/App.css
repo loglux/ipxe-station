@@ -276,6 +276,29 @@ button {
   line-height: 1.5;
 }
 
+.context-services-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.context-service-item {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  font-size: 13px;
+}
+
+.context-service-item small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
 /* ========== MAIN CONTENT ========== */
 
 .main-content {

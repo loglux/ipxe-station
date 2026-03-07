@@ -48,6 +48,12 @@ function App() {
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
   const [entries, setEntries] = useState([])
+  const [monitoringServices, setMonitoringServices] = useState({
+    tftp: { status: 'unknown' },
+    http: { status: 'unknown', port: 9021 },
+    rsyslog: { status: 'unknown' },
+    proxy_dhcp: { status: 'unknown' },
+  })
   const generateAbortRef = useRef(null)
 
   const applyMenuFromResponse = (menu) => {
@@ -82,6 +88,30 @@ function App() {
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
+
+  useEffect(() => {
+    if (activeTab !== 'monitoring') return undefined
+
+    let cancelled = false
+    const loadServices = async () => {
+      try {
+        const response = await fetch('/api/monitoring/services')
+        const data = await response.json()
+        if (!cancelled && data?.services) {
+          setMonitoringServices(data.services)
+        }
+      } catch {
+        // Keep previous status if request fails.
+      }
+    }
+
+    loadServices()
+    const interval = setInterval(loadServices, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [activeTab])
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -248,6 +278,12 @@ function App() {
     setWizardInitialCategory(null)
   }
 
+  const serviceIcon = (status) => {
+    if (status === 'running') return '✅'
+    if (status === 'stopped') return '❌'
+    return '❓'
+  }
+
   const renderContextPanel = () => {
     if (activeTab === 'builder') {
       return (
@@ -315,6 +351,31 @@ function App() {
 
     return (
       <div className="context-panel">
+        <div className="context-card">
+          <h3>Services</h3>
+          <div className="context-services-list">
+            <div className="context-service-item">
+              <span>{serviceIcon(monitoringServices.tftp?.status)}</span>
+              <span>TFTP</span>
+              <small>{monitoringServices.tftp?.status || 'unknown'}</small>
+            </div>
+            <div className="context-service-item">
+              <span>{serviceIcon(monitoringServices.http?.status)}</span>
+              <span>HTTP</span>
+              <small>:{monitoringServices.http?.port || 9021}</small>
+            </div>
+            <div className="context-service-item">
+              <span>{serviceIcon(monitoringServices.rsyslog?.status)}</span>
+              <span>Rsyslog</span>
+              <small>{monitoringServices.rsyslog?.status || 'unknown'}</small>
+            </div>
+            <div className="context-service-item">
+              <span>{serviceIcon(monitoringServices.proxy_dhcp?.status)}</span>
+              <span>Proxy DHCP</span>
+              <small>{monitoringServices.proxy_dhcp?.status || 'unknown'}</small>
+            </div>
+          </div>
+        </div>
         <div className="context-card">
           <h3>Monitoring Focus</h3>
           <ul className="context-list">
@@ -568,7 +629,7 @@ function App() {
             {activeTab === 'assets' && <AssetManager />}
             {activeTab === 'dhcp' && <DHCPHelper settingsVersion={settingsVersion} />}
             {activeTab === 'boot' && <BootFiles />}
-            {activeTab === 'monitoring' && <Monitoring />}
+            {activeTab === 'monitoring' && <Monitoring showServices={false} />}
           </div>
         </main>
 

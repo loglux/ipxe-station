@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './Monitoring.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
-export default function Monitoring() {
+export default function Monitoring({ showServices = true }) {
   const [logs, setLogs] = useState([])
   const [clearLogsConfirmOpen, setClearLogsConfirmOpen] = useState(false)
   const [logType, setLogType] = useState('all')
@@ -266,40 +266,41 @@ export default function Monitoring() {
 
       {/* Right Panel - Status & Metrics */}
       <div className="monitoring-sidebar">
-        {/* Services Status */}
-        <div className="status-section">
-          <h3>🔧 Services</h3>
-          <div className="service-list">
-            <div className="service-item">
-              <span className="service-icon">{getServiceStatusIcon(services.tftp?.status)}</span>
-              <div className="service-info">
-                <strong>TFTP Server</strong>
-                <small>{services.tftp?.status || 'unknown'}</small>
+        {showServices && (
+          <div className="status-section">
+            <h3>🔧 Services</h3>
+            <div className="service-list">
+              <div className="service-item">
+                <span className="service-icon">{getServiceStatusIcon(services.tftp?.status)}</span>
+                <div className="service-info">
+                  <strong>TFTP Server</strong>
+                  <small>{services.tftp?.status || 'unknown'}</small>
+                </div>
               </div>
-            </div>
-            <div className="service-item">
-              <span className="service-icon">{getServiceStatusIcon(services.http?.status)}</span>
-              <div className="service-info">
-                <strong>HTTP Server</strong>
-                <small>Port {services.http?.port || 9021}</small>
+              <div className="service-item">
+                <span className="service-icon">{getServiceStatusIcon(services.http?.status)}</span>
+                <div className="service-info">
+                  <strong>HTTP Server</strong>
+                  <small>Port {services.http?.port || 9021}</small>
+                </div>
               </div>
-            </div>
-            <div className="service-item">
-              <span className="service-icon">{getServiceStatusIcon(services.rsyslog?.status)}</span>
-              <div className="service-info">
-                <strong>Rsyslog</strong>
-                <small>{services.rsyslog?.status || 'unknown'}</small>
+              <div className="service-item">
+                <span className="service-icon">{getServiceStatusIcon(services.rsyslog?.status)}</span>
+                <div className="service-info">
+                  <strong>Rsyslog</strong>
+                  <small>{services.rsyslog?.status || 'unknown'}</small>
+                </div>
               </div>
-            </div>
-            <div className="service-item">
-              <span className="service-icon">{getServiceStatusIcon(services.proxy_dhcp?.status)}</span>
-              <div className="service-info">
-                <strong>Proxy DHCP</strong>
-                <small>{services.proxy_dhcp?.status || 'unknown'}</small>
+              <div className="service-item">
+                <span className="service-icon">{getServiceStatusIcon(services.proxy_dhcp?.status)}</span>
+                <div className="service-info">
+                  <strong>Proxy DHCP</strong>
+                  <small>{services.proxy_dhcp?.status || 'unknown'}</small>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Metrics */}
         <div className="status-section">
