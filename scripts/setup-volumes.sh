@@ -117,8 +117,8 @@ This directory contains iPXE menu scripts and configurations.
 EOFREADME
 fi
 
-# Set proper permissions
-chown -R root:root /srv/
-chmod -R 755 /srv/
+# Keep host volume ownership intact (do not force root:root on mounted data).
+# Only ensure readable/traversable permissions for service processes.
+chmod -R u+rwX,go+rX /srv/
 
 echo "✅ Volume setup completed"
