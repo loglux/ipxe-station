@@ -250,6 +250,32 @@ button {
   padding: var(--spacing-md);
 }
 
+.context-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.context-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.context-card h3 {
+  font-size: 14px;
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.context-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* ========== MAIN CONTENT ========== */
 
 .main-content {

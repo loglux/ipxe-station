@@ -16,6 +16,13 @@ import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
   const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
+  const TAB_TITLES = {
+    builder: 'Menu Structure',
+    assets: 'Assets Context',
+    dhcp: 'DHCP Context',
+    boot: 'Boot Files Context',
+    monitoring: 'Monitoring Context',
+  }
   const [activeTab, setActiveTab] = useState(() => {
     const saved = window.location.hash.slice(1)
     return VALID_TABS.includes(saved) ? saved : 'builder'
@@ -24,6 +31,7 @@ function App() {
     setActiveTab(tab)
     window.location.hash = tab
     if (tab !== 'builder') setMobileMenuOpen(false)
+    if (tab !== 'builder') setSelectedEntryId(null)
   }
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -240,6 +248,85 @@ function App() {
     setWizardInitialCategory(null)
   }
 
+  const renderContextPanel = () => {
+    if (activeTab === 'builder') {
+      return (
+        <MenuBuilder
+          entries={entries}
+          selectedEntryId={selectedEntryId}
+          onSelectEntry={setSelectedEntryId}
+          onOpenWizard={openWizard}
+          onUpdateEntry={updateEntry}
+          onDeleteEntry={deleteEntry}
+        />
+      )
+    }
+
+    if (activeTab === 'assets') {
+      return (
+        <div className="context-panel">
+          <div className="context-card">
+            <h3>Workflow</h3>
+            <ul className="context-list">
+              <li>Scan current assets</li>
+              <li>Download or upload missing images</li>
+              <li>Verify NFS/ISO readiness</li>
+            </ul>
+          </div>
+          <div className="context-card">
+            <h3>Quick Nav</h3>
+            <button className="btn btn-secondary btn-sm btn-block" onClick={() => switchTab('builder')}>
+              Open Builder
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    if (activeTab === 'dhcp') {
+      return (
+        <div className="context-panel">
+          <div className="context-card">
+            <h3>Checklist</h3>
+            <ul className="context-list">
+              <li>Validate DHCP range overlaps</li>
+              <li>Review Proxy DHCP mode</li>
+              <li>Apply settings and test boot client</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    if (activeTab === 'boot') {
+      return (
+        <div className="context-panel">
+          <div className="context-card">
+            <h3>Templates</h3>
+            <ul className="context-list">
+              <li>Edit boot files from templates</li>
+              <li>Preview before save</li>
+              <li>Keep deterministic generated output</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="context-panel">
+        <div className="context-card">
+          <h3>Monitoring Focus</h3>
+          <ul className="context-list">
+            <li>Watch request/error patterns</li>
+            <li>Track service and storage health</li>
+            <li>Review boot sessions for regressions</li>
+          </ul>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       {/* Header */}
@@ -274,25 +361,15 @@ function App() {
       </header>
 
       {/* Main Layout */}
-      <div className={`main-layout${activeTab !== 'builder' ? ' full-width' : ''}`}>
-        {/* Left Sidebar - Menu Tree (builder only) */}
-        {activeTab === 'builder' && (
-          <aside className="sidebar-left">
-            <div className="sidebar-header">
-              <h2>Menu Structure</h2>
-            </div>
-            <div className="sidebar-content">
-              <MenuBuilder
-                entries={entries}
-                selectedEntryId={selectedEntryId}
-                onSelectEntry={setSelectedEntryId}
-                onOpenWizard={openWizard}
-                onUpdateEntry={updateEntry}
-                onDeleteEntry={deleteEntry}
-              />
-            </div>
-          </aside>
-        )}
+      <div className="main-layout">
+        <aside className="sidebar-left">
+          <div className="sidebar-header">
+            <h2>{TAB_TITLES[activeTab]}</h2>
+          </div>
+          <div className="sidebar-content">
+            {renderContextPanel()}
+          </div>
+        </aside>
 
         {/* Center - Main Content Area */}
         <main className="main-content">
