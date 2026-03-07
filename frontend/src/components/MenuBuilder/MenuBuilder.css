@@ -3,6 +3,50 @@
   flex-direction: column;
   height: 100%;
   gap: var(--spacing-sm);
+  min-height: 0;
+}
+
+.menu-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-search {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.menu-search:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.menu-toolbar-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.menu-mini-btn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.menu-mini-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
 }
 
 .menu-tree {
@@ -22,7 +66,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
+  min-height: 36px;
+  padding: 8px 6px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   transition: background 0.08s;
@@ -104,6 +149,9 @@
   flex: 1;
   font-size: 14px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tree-children {
@@ -149,28 +197,37 @@
 
 /* Inline tree controls — shown on row hover */
 .tree-controls {
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 3px;
   margin-left: auto;
   flex-shrink: 0;
+  width: 104px;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
 }
 
 .tree-node:hover .tree-controls {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tree-node.selected .tree-controls {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tree-node:focus-within .tree-controls {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 @media (hover: none), (pointer: coarse) {
   .tree-controls {
-    display: flex;
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
@@ -213,7 +270,7 @@
   font-size: 11px;
   padding: 1px 4px;
   cursor: pointer;
-  max-width: 130px;
+  width: 56px;
   opacity: 0.85;
 }
 
@@ -252,4 +309,10 @@
   color: var(--color-text-secondary);
   font-style: italic;
   padding: 4px 0;
+}
+
+@media (max-width: 1360px) {
+  .menu-toolbar {
+    grid-template-columns: 1fr;
+  }
 }

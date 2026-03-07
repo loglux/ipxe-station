@@ -5,6 +5,7 @@ import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, onUpdateEntry, onDeleteEntry }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['root']))
   const [pendingDelete, setPendingDelete] = useState(null) // entry object
+  const [query, setQuery] = useState('')
 
   const toggleNode = (nodeName, e) => {
     e.stopPropagation()
@@ -34,6 +35,13 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     entries.filter(e => e.parent === parentName).sort((a, b) => a.order - b.order)
 
   const submenus = entries.filter(e => e.entry_type === 'submenu')
+  const queryNorm = query.trim().toLowerCase()
+
+  const matchesQuery = (entry) => {
+    if (!queryNorm) return true
+    const haystack = `${entry.title || ''} ${entry.name || ''}`.toLowerCase()
+    return haystack.includes(queryNorm)
+  }
 
   const getDescendantNames = (entryName) => {
     const descendants = new Set()
@@ -91,11 +99,21 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
     setPendingDelete(entry)
   }
 
+  const subtreeMatchesQuery = (entry) => {
+    if (matchesQuery(entry)) return true
+    if (entry.entry_type !== 'submenu') return false
+    const children = getChildEntries(entry.name)
+    return children.some(subtreeMatchesQuery)
+  }
+
   const renderEntry = (entry, level = 0) => {
+    if (!subtreeMatchesQuery(entry)) return null
+
     const isSelected = entry.name === selectedEntryId
     const isExpanded = expandedNodes.has(entry.name)
     const isSubmenu = entry.entry_type === 'submenu'
     const children = isSubmenu ? getChildEntries(entry.name) : []
+    const effectiveExpanded = queryNorm ? true : isExpanded
 
     const siblings = entries.filter(s => s.parent === entry.parent).sort((a, b) => a.order - b.order)
     const idx = siblings.findIndex(s => s.name === entry.name)
@@ -116,11 +134,11 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
             type="button"
             className={`tree-toggle ${isSubmenu ? 'tree-toggle-btn' : 'tree-toggle-placeholder'}`}
             onClick={isSubmenu ? (e) => toggleNode(entry.name, e) : undefined}
-            aria-label={isSubmenu ? `${isExpanded ? 'Collapse' : 'Expand'} ${entry.title || entry.name}` : undefined}
-            aria-expanded={isSubmenu ? isExpanded : undefined}
+            aria-label={isSubmenu ? `${effectiveExpanded ? 'Collapse' : 'Expand'} ${entry.title || entry.name}` : undefined}
+            aria-expanded={isSubmenu ? effectiveExpanded : undefined}
             tabIndex={isSubmenu ? 0 : -1}
           >
-            {isSubmenu ? (isExpanded ? '▼' : '▶') : ''}
+            {isSubmenu ? (effectiveExpanded ? '▼' : '▶') : ''}
           </button>
 
           <button
@@ -128,6 +146,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
             className="tree-select-btn"
             onClick={() => onSelectEntry(entry.name)}
             aria-current={isSelected ? 'true' : undefined}
+            title={entry.title || entry.name}
           >
             <span className="tree-icon">{getEntryIcon(entry)}</span>
             <span className="tree-label">{entry.title || entry.name}</span>
@@ -181,7 +200,7 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
           </span>
         </div>
 
-        {isSubmenu && isExpanded && (
+        {isSubmenu && effectiveExpanded && (
           <div className="tree-children">
             {children.length > 0
               ? children.map(child => renderEntry(child, level + 1))
@@ -194,17 +213,52 @@ function MenuBuilder({ entries, selectedEntryId, onSelectEntry, onOpenWizard, on
   }
 
   const rootEntries = entries.filter(e => !e.parent).sort((a, b) => a.order - b.order)
+  const visibleRootEntries = rootEntries.filter(subtreeMatchesQuery)
 
   return (
     <div className="menu-builder">
+      <div className="menu-toolbar">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="menu-search"
+          placeholder="Search entries..."
+          aria-label="Search menu entries"
+        />
+        <div className="menu-toolbar-actions">
+          <button
+            type="button"
+            className="menu-mini-btn"
+            onClick={() => setExpandedNodes(new Set(submenus.map((s) => s.name)))}
+            title="Expand all submenus"
+          >
+            Expand
+          </button>
+          <button
+            type="button"
+            className="menu-mini-btn"
+            onClick={() => setExpandedNodes(new Set())}
+            title="Collapse all submenus"
+          >
+            Collapse
+          </button>
+        </div>
+      </div>
+
       <div className="menu-tree">
         {rootEntries.length === 0 ? (
           <div className="empty-state">
             <p>No entries yet</p>
             <p className="text-sm text-muted">Click "Add Entry" to start</p>
           </div>
+        ) : visibleRootEntries.length === 0 ? (
+          <div className="empty-state">
+            <p>No matches</p>
+            <p className="text-sm text-muted">Try another search query</p>
+          </div>
         ) : (
-          rootEntries.map(entry => renderEntry(entry))
+          visibleRootEntries.map(entry => renderEntry(entry))
         )}
       </div>
 
