@@ -50,6 +50,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [preseedProfiles, setPreseedProfiles] = useState([])
   const [selectedPreseedProfile, setSelectedPreseedProfile] = useState('')
   const [createError, setCreateError] = useState(null)
+  const [manualAssetsHint, setManualAssetsHint] = useState('')
 
   // Handle initial category selection
   useEffect(() => {
@@ -66,14 +67,23 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedVersion(version)
     setKernel(version.kernel || '')
     setInitrd(version.initrd || '')
-    setCmdline('')
+    setCmdline(version.manual ? (version.cmdline || 'ip=dhcp') : '')
     setBootOptions([])
     setSelectedBootOption(null)
     setRecipeError(null)
+    setManualAssetsHint('')
 
     // Update title to include version (mode refined after recipe loads)
     const scenario = getScenario(selectedScenario)
-    setEntryTitle(`${scenario.displayName} ${version.version}`)
+    setEntryTitle(`${scenario.displayName} ${version.version_label || version.version}`)
+
+    if (version.manual) {
+      setManualAssetsHint(
+        `Manual asset selected: ${version.iso || version.path}. ` +
+        'Kernel/initrd/cmdline are prefilled as editable defaults.'
+      )
+      return
+    }
 
     // Fetch boot recipe from backend
     const catalogKey = SCENARIO_CATALOG_KEY[selectedScenario] || selectedScenario
@@ -112,6 +122,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     try {
       const response = await fetch('/api/assets/catalog')
       const catalog = await response.json()
+      let assets = { http: [], asset_labels: {} }
+      if (selectedScenario === 'systemrescue' || selectedScenario === 'kaspersky') {
+        const assetsResp = await fetch('/api/assets')
+        assets = await assetsResp.json()
+      }
 
       const scenario = getScenario(selectedScenario)
       if (!scenario || !scenario.assetDiscovery) {
@@ -124,15 +139,48 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
 
       // Filter to only versions that have at least kernel+initrd or squashfs/iso to boot from
       const validVersions = versions.filter(v => (v.kernel && v.initrd) || v.squashfs || v.iso)
-      setAvailableVersions(validVersions)
+      const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
+        ? assets.asset_labels
+        : {}
+      const httpFiles = Array.isArray(assets?.http) ? assets.http : []
+      const manualIsoVersions = (selectedScenario === 'systemrescue' || selectedScenario === 'kaspersky')
+        ? httpFiles
+          .filter((path) => path.toLowerCase().endsWith('.iso'))
+          .filter((path) => {
+            const category = labels[path]
+              || (path.startsWith('tools/') ? 'tools' : '')
+              || (path.startsWith('rescue/') ? 'rescue' : '')
+              || (path.startsWith('antivirus/') ? 'antivirus' : '')
+            return ['tools', 'rescue', 'antivirus'].includes(category)
+          })
+          .map((path) => {
+            const parts = path.split('/')
+            const fileName = parts.at(-1) || path
+            const baseName = fileName.replace(/\.iso$/i, '')
+            const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
+            return {
+              version: `manual:${path}`,
+              version_label: `${baseName} (manual ISO)`,
+              kernel: parentDir ? `${parentDir}/vmlinuz` : 'vmlinuz',
+              initrd: parentDir ? `${parentDir}/initrd` : 'initrd',
+              iso: path,
+              cmdline: 'ip=dhcp',
+              manual: true,
+            }
+          })
+        : []
+
+      const merged = [...validVersions, ...manualIsoVersions]
+      setAvailableVersions(merged)
 
       // Auto-select if only one version available
-      if (validVersions.length === 1) {
-        handleVersionSelect(validVersions[0])
+      if (merged.length === 1) {
+        handleVersionSelect(merged[0])
       }
     } catch (error) {
       console.error('Failed to fetch assets:', error)
       setAvailableVersions([])
+      setManualAssetsHint('')
     }
   }, [handleVersionSelect, selectedScenario])
 
@@ -259,6 +307,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setSelectedBootOption(null)
     setRecipeLoading(false)
     setRecipeError(null)
+    setManualAssetsHint('')
     setPreseedProfiles([])
     setSelectedPreseedProfile('')
     setCreateError(null)
@@ -386,7 +435,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                 <option value="">Select a version...</option>
                 {availableVersions.map(v => (
                   <option key={v.version} value={v.version}>
-                    {scenario.displayName} {v.version}
+                    {scenario.displayName} {v.version_label || v.version}
                   </option>
                 ))}
               </select>
@@ -394,6 +443,9 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
                 ✅ Found {availableVersions.length} downloaded version{availableVersions.length > 1 ? 's' : ''}
               </small>
             </div>
+          )}
+          {manualAssetsHint && (
+            <p className="form-hint">{manualAssetsHint}</p>
           )}
 
           {/* Boot mode selector — shown once recipe loads */}
