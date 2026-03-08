@@ -33,6 +33,7 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
   const [bootSessions, setBootSessions] = useState([])
   const [pollInterval, setPollInterval] = useState(2000)
   const logsEndRef = useRef(null)
+  const logsContentRef = useRef(null)
 
   const loadLogs = useCallback(async () => {
     try {
@@ -79,9 +80,12 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
     }
   }, [])
 
-  // Auto-scroll to bottom when new logs arrive
+  // Auto-scroll only if already near the bottom — don't interrupt user scrolling/filtering
   useEffect(() => {
-    if (autoScroll && logsEndRef.current) {
+    if (!autoScroll || !logsEndRef.current || !logsContentRef.current) return
+    const el = logsContentRef.current
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distFromBottom < 80) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [logs, autoScroll])
@@ -246,7 +250,7 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
           </div>
         </div>
 
-        <div className="logs-content">
+        <div className="logs-content" ref={logsContentRef}>
           {filteredLogs.length === 0 ? (
             <div className="logs-empty" role="status">
               <p>No logs to display</p>

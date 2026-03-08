@@ -562,7 +562,7 @@ function App() {
             {activeTab === 'assets' && <div role="tabpanel" id="tab-panel-assets"><AssetManager /></div>}
             {activeTab === 'dhcp' && <div role="tabpanel" id="tab-panel-dhcp"><DHCPHelper settingsVersion={settingsVersion} /></div>}
             {activeTab === 'boot' && <div role="tabpanel" id="tab-panel-boot"><BootFiles /></div>}
-            {activeTab === 'monitoring' && <div role="tabpanel" id="tab-panel-monitoring"><Monitoring /></div>}
+            {activeTab === 'monitoring' && <div role="tabpanel" id="tab-panel-monitoring" className="monitoring-tab-panel"><Monitoring /></div>}
           </div>
         </main>
 
