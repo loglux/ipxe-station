@@ -61,7 +61,7 @@ cmd_deploy() {
 cmd_redeploy() {
     info "Redeploy: rebuild image + frontend, restart container"
     build_frontend
-    $COMPOSE down --remove-orphans
+    $COMPOSE down --remove-orphans --rmi local
     $COMPOSE up -d --build
     wait_ready
 }
