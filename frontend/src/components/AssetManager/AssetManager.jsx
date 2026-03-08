@@ -1026,24 +1026,20 @@ function AssetManager() {
 
       <div className="asset-content">
         <div className="acquire-tabs">
-          {acquireTabs.length > 0 ? (
-            acquireTabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`acquire-tab-btn ${activeAcquirePresetId === tab.id ? 'is-active' : ''}`}
-                onClick={() => setActiveAcquirePresetId(tab.id)}
-              >
-                {tab.name}
-              </button>
-            ))
-          ) : (
-            <p className="text-sm text-muted">No presets found</p>
-          )}
+          {acquireTabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`acquire-tab-btn ${activeAcquirePresetId === tab.id ? 'is-active' : ''}`}
+              onClick={() => setActiveAcquirePresetId(tab.id)}
+            >
+              {tab.name}
+            </button>
+          ))}
           <button
-            className="btn btn-secondary btn-sm"
+            className={`btn btn-secondary btn-sm${showPresetManager ? ' is-active' : ''}`}
             onClick={() => setShowPresetManager(prev => !prev)}
           >
-            {showPresetManager ? 'Hide Preset Manager' : 'Manage Presets'}
+            ⚙ Presets
           </button>
         </div>
         {showPresetManager && (
@@ -1108,8 +1104,19 @@ function AssetManager() {
             </div>
           </section>
         )}
+        {/* No presets configured — show setup prompt instead of all sections */}
+        {activeAcquireSection === 'all' && !acquireTabs.length && (
+          <div className="empty-state" role="status">
+            <p>No acquisition presets configured</p>
+            <p className="text-sm text-muted">Open Presets to add Ubuntu, Debian, or Tools sections</p>
+            <button className="btn btn-secondary btn-sm mt-md" onClick={() => setShowPresetManager(true)}>
+              ⚙ Open Presets
+            </button>
+          </div>
+        )}
+
         {/* ── Ubuntu ── */}
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'ubuntu') && (
+        {(activeAcquireSection === 'ubuntu') && (
         <section className="asset-section">
           <h3>🐧 Ubuntu</h3>
 
@@ -1349,7 +1356,7 @@ function AssetManager() {
         )}
 
         {/* ── Debian ── */}
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'debian') && (
+        {(activeAcquireSection === 'debian') && (
         <section className="asset-section">
           <h3>🌀 Debian</h3>
 
@@ -1453,7 +1460,7 @@ function AssetManager() {
         )}
 
         {/* ── Tools & Rescue ── */}
-        {(activeAcquireSection === 'all' || activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus' || activeAcquireSection === 'tools_rescue') && (
+        {(activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus' || activeAcquireSection === 'tools_rescue') && (
         <section className="asset-section">
           <h3>🛠️ Tools &amp; Rescue</h3>
 

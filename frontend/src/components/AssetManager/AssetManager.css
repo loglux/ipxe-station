@@ -169,6 +169,11 @@
   background: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg-secondary) 90%);
 }
 
+.acquire-tabs .btn.is-active {
+  background: color-mix(in oklab, var(--color-primary) 12%, var(--color-bg-tertiary) 88%);
+  border-color: color-mix(in oklab, var(--color-primary) 40%, var(--color-border) 60%);
+}
+
 .preset-manager {
   margin-top: var(--spacing-sm);
 }
