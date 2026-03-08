@@ -426,11 +426,23 @@ function App() {
                   </div>
                 ) : (
                   <div className="welcome-message">
-                    <h2>Welcome to iPXE Menu Builder</h2>
-                    <p>Select an entry from the menu structure or add a new one to get started.</p>
+                    <div className="welcome-stats">
+                      <div className="welcome-stat">
+                        <span className="welcome-stat-value">{entries.length}</span>
+                        <span className="welcome-stat-label">entries</span>
+                      </div>
+                      <div className="welcome-stat">
+                        <span className="welcome-stat-value">{entries.filter(e => e.entry_type === 'submenu').length}</span>
+                        <span className="welcome-stat-label">submenus</span>
+                      </div>
+                      <div className="welcome-stat">
+                        <span className="welcome-stat-value">{entries.filter(e => !e.enabled).length}</span>
+                        <span className="welcome-stat-label">disabled</span>
+                      </div>
+                    </div>
 
                     <div className="quick-actions">
-                      <h3>Quick Actions</h3>
+                      <h3>Add Entry</h3>
                       <div className="action-grid">
                         {Object.entries(CATEGORIES).map(([key, category]) => (
                           <div
