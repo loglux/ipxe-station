@@ -1655,7 +1655,7 @@ function AssetManager() {
           )}
 
           {/* Modern Hiren's BootCD PE */}
-          <div className="download-subsection download-subsection-last">
+          <div className="download-subsection">
             <h4>🧰 Hiren&apos;s BootCD PE (Modern)</h4>
             <p className="text-sm text-muted download-section-note">
               Select a version to download
