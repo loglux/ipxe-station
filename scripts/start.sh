@@ -42,4 +42,5 @@ fi
 exec uvicorn main:app \
     --host "${UVICORN_HOST:-0.0.0.0}" \
     --port "${UVICORN_PORT:-9021}" \
+    --app-dir /app \
     $RELOAD_FLAG
