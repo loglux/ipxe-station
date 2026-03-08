@@ -145,7 +145,6 @@
 
 .bc-entry.bc-dragging {
   opacity: 0.35;
-  pointer-events: none;
 }
 
 .bc-entry.bc-drop-before {

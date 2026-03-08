@@ -17,8 +17,9 @@ export default function BuilderCards({
   const autoExpandedRef = useRef(false)
 
   // Drag & drop state
-  const [dragging, setDragging] = useState(null)           // name of dragged entry
+  const [dragging, setDragging] = useState(null)           // name of dragged entry (for visual)
   const [dragOver, setDragOver] = useState(null)           // { name, pos: 'before'|'after'|'into' }
+  const draggingRef = useRef(null)                         // ref for use inside event handlers (no stale closure)
   const dragCounterRef = useRef({})                        // per-entry enter/leave counter
 
   // Auto-expand all root submenus once entries are first loaded
@@ -77,12 +78,15 @@ export default function BuilderCards({
   // ── Drag & Drop handlers ──────────────────────────────────────────────────
 
   const handleDragStart = (e, entry) => {
-    setDragging(entry.name)
+    draggingRef.current = entry.name
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', entry.name)
+    // Delay state update — immediate setState in dragstart cancels the drag in React
+    setTimeout(() => setDragging(entry.name), 0)
   }
 
   const handleDragEnd = () => {
+    draggingRef.current = null
     setDragging(null)
     setDragOver(null)
     dragCounterRef.current = {}
@@ -91,10 +95,11 @@ export default function BuilderCards({
   const handleDragOver = (e, entry) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!dragging || dragging === entry.name) return
+    const currentDragging = draggingRef.current || e.dataTransfer.getData('text/plain')
+    if (!currentDragging || currentDragging === entry.name) return
     e.dataTransfer.dropEffect = 'move'
 
-    const draggedEntry = entries.find(en => en.name === dragging)
+    const draggedEntry = entries.find(en => en.name === currentDragging)
     if (!draggedEntry) return
 
     const rect = e.currentTarget.getBoundingClientRect()
@@ -127,7 +132,7 @@ export default function BuilderCards({
   const handleDrop = (e, targetEntry) => {
     e.preventDefault()
     e.stopPropagation()
-    const draggedName = dragging || e.dataTransfer.getData('text/plain')
+    const draggedName = draggingRef.current || e.dataTransfer.getData('text/plain')
     if (!draggedName || draggedName === targetEntry.name) {
       setDragging(null)
       setDragOver(null)
