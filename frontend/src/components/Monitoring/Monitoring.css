@@ -1,6 +1,6 @@
 .monitoring-container {
   display: flex;
-  gap: 16px;
+  gap: var(--spacing-md);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -44,7 +44,7 @@
 
 .logs-controls {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
   align-items: center;
   flex-wrap: wrap;
 }
@@ -174,7 +174,7 @@
   justify-content: space-between;
   background: var(--color-bg-secondary);
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .auto-scroll-toggle {
@@ -202,7 +202,7 @@
   width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--spacing-md);
   overflow-y: auto;
 }
 
@@ -211,7 +211,7 @@
   border: 1px solid color-mix(in oklab, var(--color-border) 78%, black 22%);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  padding: 16px;
+  padding: var(--spacing-md);
 }
 
 .status-section h3 {
@@ -265,7 +265,7 @@
 .metrics-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--spacing-md);
 }
 
 .metric-item {

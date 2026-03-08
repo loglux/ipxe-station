@@ -27,7 +27,7 @@
 }
 
 .boot-files-warning {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
 }
 
 .section h2 {
@@ -38,7 +38,7 @@
 }
 
 .section-description {
-  margin: 0 0 16px 0;
+  margin: 0 0 var(--spacing-md) 0;
   color: var(--color-text-secondary);
   font-size: 14px;
 }
@@ -54,7 +54,7 @@
 
 /* Template Selector */
 .template-selector {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
 }
 
 .template-selector label {
@@ -66,7 +66,7 @@
 
 .template-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
@@ -121,7 +121,7 @@
 
 /* Code Editor */
 .code-editor {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
 }
 
 .code-editor textarea {

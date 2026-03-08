@@ -24,7 +24,7 @@
 .dhcp-content {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--spacing-lg);
 }
 
 /* Proxy DHCP Panel */
@@ -32,7 +32,7 @@
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -80,14 +80,14 @@
 .proxy-dhcp-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: var(--spacing-md);
   margin-bottom: 20px;
 }
 
 .proxy-checkboxes {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-sm);
   padding-top: 4px;
 }
 
@@ -195,7 +195,7 @@
 .dhcp-mode-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
   padding: 10px 20px;
   background: var(--color-bg-secondary);
   color: var(--color-text-secondary);
@@ -295,7 +295,7 @@
 .setting-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: var(--spacing-md);
 }
 
 /* Config Output */
@@ -303,7 +303,7 @@
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -334,13 +334,13 @@ details.config-output[open] .config-summary::before {
 
 .config-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 
 .config-text {
   margin: 0;
-  padding: 16px;
+  padding: var(--spacing-md);
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   border-radius: var(--radius-md);
@@ -360,7 +360,7 @@ details.config-output[open] .config-summary::before {
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -387,8 +387,8 @@ details.config-output[open] .config-summary::before {
 }
 
 .validation-result {
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
   border-radius: var(--radius-md);
   border: 1px solid;
 }
@@ -675,7 +675,7 @@ details.probe-details[open] > summary::before {
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 80%, black 20%);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
 }
 
