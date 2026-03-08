@@ -2,11 +2,20 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './Monitoring.css'
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
+const LOG_LEVELS = [
+  { value: 'all',     label: 'All' },
+  { value: 'error',   label: 'Err' },
+  { value: 'warning', label: 'Warn' },
+  { value: 'info',    label: 'Info' },
+  { value: 'debug',   label: 'Debug' },
+]
+
 export default function Monitoring({ showSidebar = true, showServices = true }) {
   const [logs, setLogs] = useState([])
   const [clearLogsConfirmOpen, setClearLogsConfirmOpen] = useState(false)
   const [logType, setLogType] = useState('all')
   const [logLevel, setLogLevel] = useState('all')
+  const [clientFilter, setClientFilter] = useState('')
   const [isPaused, setIsPaused] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [services, setServices] = useState({
@@ -171,20 +180,42 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
   }
 
+  const filteredLogs = clientFilter.trim()
+    ? logs.filter(log => log.message?.includes(clientFilter.trim()) || log.type?.includes(clientFilter.trim()))
+    : logs
+
   return (
     <div className="monitoring-container">
       {/* Left Panel - Logs */}
       <div className="monitoring-logs">
         <div className="logs-header">
-          <h3>📋 System Logs</h3>
-          <div className="logs-controls">
+          <div className="logs-header-top">
+            <h3>📋 System Logs</h3>
+            <div className="logs-actions">
+              <button
+                className={`btn btn-sm ${isPaused ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setIsPaused(!isPaused)}
+                title={isPaused ? 'Resume updates' : 'Pause updates'}
+              >
+                {isPaused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+              <button className="btn btn-sm btn-secondary" onClick={downloadLogs} title="Download logs">
+                💾
+              </button>
+              <button className="btn btn-sm btn-danger" onClick={() => setClearLogsConfirmOpen(true)} title="Clear logs">
+                🗑️
+              </button>
+            </div>
+          </div>
+          <div className="logs-filters">
             <select
               value={logType}
               onChange={(e) => setLogType(e.target.value)}
               className="log-filter"
+              aria-label="Filter by type"
             >
-              <option value="all">All Types</option>
-              <option value="boot">Boot Flow</option>
+              <option value="all">All types</option>
+              <option value="boot">Boot</option>
               <option value="tftp">TFTP</option>
               <option value="http">HTTP</option>
               <option value="dhcp">DHCP</option>
@@ -192,53 +223,38 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
               <option value="download">Downloads</option>
             </select>
 
-            <select
-              value={logLevel}
-              onChange={(e) => setLogLevel(e.target.value)}
-              className="log-filter"
-            >
-              <option value="all">All Levels</option>
-              <option value="error">Errors</option>
-              <option value="warning">Warnings</option>
-              <option value="info">Info</option>
-              <option value="debug">Debug</option>
-            </select>
+            <div className="log-level-pills" role="group" aria-label="Filter by level">
+              {LOG_LEVELS.map(l => (
+                <button
+                  key={l.value}
+                  className={`log-level-pill log-level-pill-${l.value}${logLevel === l.value ? ' is-active' : ''}`}
+                  onClick={() => setLogLevel(l.value)}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
 
-            <button
-              className={`btn btn-sm ${isPaused ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setIsPaused(!isPaused)}
-              title={isPaused ? 'Resume updates' : 'Pause updates'}
-            >
-              {isPaused ? '▶️ Resume' : '⏸️ Pause'}
-            </button>
-
-            <button
-              className="btn btn-sm btn-secondary"
-              onClick={downloadLogs}
-              title="Download logs as text file"
-            >
-              💾 Download
-            </button>
-
-            <button
-              className="btn btn-sm btn-danger"
-              onClick={() => setClearLogsConfirmOpen(true)}
-              title="Clear all logs"
-            >
-              🗑️ Clear
-            </button>
+            <input
+              type="text"
+              className="log-filter log-client-filter"
+              placeholder="Filter by IP or text…"
+              value={clientFilter}
+              onChange={e => setClientFilter(e.target.value)}
+              aria-label="Filter by client IP or text"
+            />
           </div>
         </div>
 
         <div className="logs-content">
-          {logs.length === 0 ? (
+          {filteredLogs.length === 0 ? (
             <div className="logs-empty" role="status">
               <p>No logs to display</p>
               <small>Logs will appear here when system events occur</small>
             </div>
           ) : (
             <div className="logs-list">
-              {logs.map((log, index) => (
+              {filteredLogs.map((log, index) => (
                 <div key={index} className={`log-entry ${getLogLevelClass(log.level)}`}>
                   <span className="log-timestamp">{log.timestamp}</span>
                   <span className="log-type">[{log.type}]</span>
@@ -260,7 +276,9 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
             />
             <span>Auto-scroll to bottom</span>
           </label>
-          <span className="logs-count">{logs.length} entries</span>
+          <span className="logs-count">
+            {clientFilter.trim() ? `${filteredLogs.length} / ${logs.length}` : logs.length} entries
+          </span>
         </div>
       </div>
 
