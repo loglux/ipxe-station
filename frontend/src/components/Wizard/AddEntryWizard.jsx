@@ -715,7 +715,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     return (
       <div className="wizard-step-content">
         <div className="step-header">
-          <button className="btn-back" onClick={() => setStep(1)}>
+          <button className="btn btn-secondary" onClick={() => setStep(1)}>
             ← Back
           </button>
           <div>
@@ -759,7 +759,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     return (
       <div className="wizard-step-content">
         <div className="step-header">
-          <button className="btn-back" onClick={() => setStep(2)}>
+          <button className="btn btn-secondary" onClick={() => setStep(2)}>
             ← Back
           </button>
           <div>

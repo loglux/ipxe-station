@@ -350,7 +350,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
               <button
                 onClick={handleProxyStop}
                 disabled={proxyLoading}
-                className="btn-proxy-stop"
+                className="btn btn-proxy-stop"
               >
                 {proxyLoading ? 'Stopping…' : 'Stop'}
               </button>
@@ -358,7 +358,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
               <button
                 onClick={handleProxyStart}
                 disabled={proxyLoading}
-                className="btn-proxy-start"
+                className="btn btn-proxy-start"
               >
                 {proxyLoading ? 'Starting…' : 'Start'}
               </button>
@@ -366,7 +366,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
             <button
               onClick={handleProxySave}
               disabled={proxyLoading}
-              className="btn-proxy-apply"
+              className="btn btn-proxy-apply"
             >
               {proxyLoading ? 'Applying…' : 'Save & Apply'}
             </button>
@@ -454,10 +454,10 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
             <summary className="config-summary">
               <span>Generated Configuration</span>
               <div className="config-actions" onClick={e => e.stopPropagation()}>
-                <button onClick={copyToClipboard} className="btn-copy">
+                <button onClick={copyToClipboard} className="btn btn-secondary">
                   {copySuccess ? '✓ Copied!' : '📋 Copy'}
                 </button>
-                <button onClick={downloadConfig} className="btn-download">
+                <button onClick={downloadConfig} className="btn btn-secondary">
                   💾 Download
                 </button>
               </div>
@@ -480,7 +480,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
           <button
             onClick={validateNetwork}
             disabled={loading}
-            className="btn-validate"
+            className="btn btn-primary btn-validate"
           >
             {loading ? '⏳ Probing BIOS / UEFI / iPXE…' : '🔍 Check Network DHCP'}
           </button>

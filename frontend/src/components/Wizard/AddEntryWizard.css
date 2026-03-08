@@ -145,20 +145,6 @@
   margin-bottom: var(--spacing-lg);
 }
 
-.btn-back {
-  padding: 8px 12px;
-  background: var(--color-bg-tertiary);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.btn-back:hover {
-  background: var(--color-border);
-}
 
 /* Category Grid */
 .category-grid {

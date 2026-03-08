@@ -662,6 +662,10 @@ details[open] .script-preview-toggle {
   cursor: not-allowed;
 }
 
+.btn-block {
+  width: 100%;
+}
+
 /* ========== FEEDBACK MESSAGES (shared across components) ========== */
 
 .message {
