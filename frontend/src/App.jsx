@@ -485,7 +485,7 @@ function App() {
         </div>
         <div className="header-right">
           {saveMessage && (
-            <div className={`save-message ${saveMessage.type}`}>
+            <div className={`save-message ${saveMessage.type}`} aria-live="polite" role="status">
               {saveMessage.text}
             </div>
           )}
@@ -522,44 +522,49 @@ function App() {
         {/* Center - Main Content Area */}
         <main className="main-content">
           {/* Tabs */}
-          <div className="tabs">
+          <div className="tabs" role="tablist" aria-label="Main navigation">
             <button
+              role="tab"
               className={`tab ${activeTab === 'builder' ? 'active' : ''}`}
               onClick={() => { switchTab('builder'); setSelectedEntryId(null) }}
-              aria-pressed={activeTab === 'builder'}
-              aria-label="Builder tab"
+              aria-selected={activeTab === 'builder'}
+              aria-controls="tab-panel-builder"
             >
               🏗️ Builder
             </button>
             <button
+              role="tab"
               className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
               onClick={() => switchTab('assets')}
-              aria-pressed={activeTab === 'assets'}
-              aria-label="Assets tab"
+              aria-selected={activeTab === 'assets'}
+              aria-controls="tab-panel-assets"
             >
               📦 Assets
             </button>
             <button
+              role="tab"
               className={`tab ${activeTab === 'dhcp' ? 'active' : ''}`}
               onClick={() => switchTab('dhcp')}
-              aria-pressed={activeTab === 'dhcp'}
-              aria-label="DHCP tab"
+              aria-selected={activeTab === 'dhcp'}
+              aria-controls="tab-panel-dhcp"
             >
               🌐 DHCP
             </button>
             <button
+              role="tab"
               className={`tab ${activeTab === 'boot' ? 'active' : ''}`}
               onClick={() => switchTab('boot')}
-              aria-pressed={activeTab === 'boot'}
-              aria-label="Boot Files tab"
+              aria-selected={activeTab === 'boot'}
+              aria-controls="tab-panel-boot"
             >
               🚀 Boot Files
             </button>
             <button
+              role="tab"
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
               onClick={() => switchTab('monitoring')}
-              aria-pressed={activeTab === 'monitoring'}
-              aria-label="Monitoring tab"
+              aria-selected={activeTab === 'monitoring'}
+              aria-controls="tab-panel-monitoring"
             >
               📊 Monitoring
             </button>
@@ -580,7 +585,7 @@ function App() {
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === 'builder' && (
-              <div className="builder-view">
+              <div className="builder-view" role="tabpanel" id="tab-panel-builder">
                 {selectedEntry ? (
                   <div className="builder-editor">
                     <PropertyPanel
@@ -713,10 +718,10 @@ function App() {
               </div>
             )}
 
-            {activeTab === 'assets' && <AssetManager />}
-            {activeTab === 'dhcp' && <DHCPHelper settingsVersion={settingsVersion} />}
-            {activeTab === 'boot' && <BootFiles />}
-            {activeTab === 'monitoring' && <Monitoring showSidebar={false} />}
+            {activeTab === 'assets' && <div role="tabpanel" id="tab-panel-assets"><AssetManager /></div>}
+            {activeTab === 'dhcp' && <div role="tabpanel" id="tab-panel-dhcp"><DHCPHelper settingsVersion={settingsVersion} /></div>}
+            {activeTab === 'boot' && <div role="tabpanel" id="tab-panel-boot"><BootFiles /></div>}
+            {activeTab === 'monitoring' && <div role="tabpanel" id="tab-panel-monitoring"><Monitoring showSidebar={false} /></div>}
           </div>
         </main>
 

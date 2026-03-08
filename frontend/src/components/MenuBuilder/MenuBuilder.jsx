@@ -422,12 +422,12 @@ function MenuBuilder({
           Drag here to move entry to root
         </div>
         {rootEntries.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state" role="status">
             <p>No entries yet</p>
             <p className="text-sm text-muted">Click "Add Entry" to start</p>
           </div>
         ) : visibleRootEntries.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state" role="status" aria-live="polite">
             <p>No matches</p>
             <p className="text-sm text-muted">Try another search query</p>
           </div>

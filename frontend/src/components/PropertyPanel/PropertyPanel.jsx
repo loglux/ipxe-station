@@ -352,6 +352,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
             onClick={handleMoveUp}
             disabled={!canMoveUp}
             title="Move up"
+            aria-label="Move entry up"
           >
             ▲
           </button>
@@ -360,6 +361,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
             onClick={handleMoveDown}
             disabled={!canMoveDown}
             title="Move down"
+            aria-label="Move entry down"
           >
             ▼
           </button>
@@ -499,7 +501,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                   </>
                 )}
                 {cmdlineWarnings.length > 0 && (
-                  <ul className="cmdline-warnings">
+                  <ul className="cmdline-warnings" role="status" aria-live="polite" aria-label="Cmdline warnings">
                     {cmdlineWarnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
                   </ul>
                 )}

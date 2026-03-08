@@ -24,6 +24,12 @@
   flex-shrink: 0;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
 .spinner-sm { width: 14px; height: 14px; }
 .spinner-md { width: 20px; height: 20px; }
 .spinner-lg { width: 32px; height: 32px; }

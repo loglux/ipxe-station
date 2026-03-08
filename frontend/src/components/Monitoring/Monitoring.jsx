@@ -232,7 +232,7 @@ export default function Monitoring({ showSidebar = true, showServices = true }) 
 
         <div className="logs-content">
           {logs.length === 0 ? (
-            <div className="logs-empty">
+            <div className="logs-empty" role="status">
               <p>No logs to display</p>
               <small>Logs will appear here when system events occur</small>
             </div>
