@@ -20,7 +20,7 @@ export default function BuilderCards({
     if (autoExpandedRef.current || entries.length === 0) return
     autoExpandedRef.current = true
     const roots = entries
-      .filter(e => !e.parent_name && e.entry_type === 'submenu')
+      .filter(e => !e.parent && e.entry_type === 'submenu')
       .map(e => e.name)
     setExpanded(new Set(roots))
   }, [entries])
@@ -31,9 +31,9 @@ export default function BuilderCards({
     setExpanded(prev => {
       const next = new Set(prev)
       let cur = entries.find(e => e.name === selectedEntryId)
-      while (cur?.parent_name) {
-        next.add(cur.parent_name)
-        cur = entries.find(e => e.name === cur.parent_name)
+      while (cur?.parent) {
+        next.add(cur.parent)
+        cur = entries.find(e => e.name === cur.parent)
       }
       return next
     })
@@ -41,11 +41,11 @@ export default function BuilderCards({
 
   const getChildren = (parentName) =>
     entries
-      .filter(e => e.parent_name === parentName)
+      .filter(e => e.parent === parentName)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
   const rootEntries = useMemo(
-    () => entries.filter(e => !e.parent_name).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    () => entries.filter(e => !e.parent).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [entries]
   )
 
