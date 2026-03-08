@@ -129,6 +129,38 @@ function App() {
     ))
   }
 
+  const moveEntry = useCallback((entryName, newParent, insertIndex) => {
+    setEntries(prev => {
+      const entry = prev.find(e => e.name === entryName)
+      if (!entry) return prev
+      const oldParent = entry.parent ?? null
+      const newParentNorm = newParent ?? null
+
+      // Re-order new siblings (including moved entry)
+      const newSiblings = prev
+        .filter(e => (e.parent ?? null) === newParentNorm && e.name !== entryName)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      newSiblings.splice(Math.min(insertIndex, newSiblings.length), 0, entry)
+      const newOrderMap = new Map(newSiblings.map((e, i) => [e.name, i]))
+
+      // Re-order old siblings if parent changed
+      const oldOrderMap = new Map()
+      if (oldParent !== newParentNorm) {
+        prev
+          .filter(e => (e.parent ?? null) === oldParent && e.name !== entryName)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .forEach((e, i) => oldOrderMap.set(e.name, i))
+      }
+
+      return prev.map(e => {
+        if (e.name === entryName) return { ...e, parent: newParentNorm, order: newOrderMap.get(entryName) ?? insertIndex }
+        if (newOrderMap.has(e.name)) return { ...e, order: newOrderMap.get(e.name) }
+        if (oldOrderMap.has(e.name)) return { ...e, order: oldOrderMap.get(e.name) }
+        return e
+      })
+    })
+  }, [])
+
   const deleteEntry = (entryName) => {
     setEntries(prev => prev.filter(e => e.name !== entryName))
     if (selectedEntryId === entryName) {
@@ -416,6 +448,7 @@ function App() {
                       onDeleteEntry={deleteEntry}
                       onDuplicateEntry={duplicateEntry}
                       onSetEntriesEnabled={setEntriesEnabled}
+                      onMoveEntry={moveEntry}
                     />
                   </div>
                   {selectedEntry && (

@@ -10,10 +10,16 @@ export default function BuilderCards({
   onDeleteEntry,
   onDuplicateEntry,
   onSetEntriesEnabled,
+  onMoveEntry,
 }) {
   const [expanded, setExpanded] = useState(() => new Set())
   const [query, setQuery] = useState('')
   const autoExpandedRef = useRef(false)
+
+  // Drag & drop state
+  const [dragging, setDragging] = useState(null)           // name of dragged entry
+  const [dragOver, setDragOver] = useState(null)           // { name, pos: 'before'|'after'|'into' }
+  const dragCounterRef = useRef({})                        // per-entry enter/leave counter
 
   // Auto-expand all root submenus once entries are first loaded
   useEffect(() => {
@@ -68,12 +74,111 @@ export default function BuilderCards({
     })
   }
 
+  // ── Drag & Drop handlers ──────────────────────────────────────────────────
+
+  const handleDragStart = (e, entry) => {
+    setDragging(entry.name)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', entry.name)
+  }
+
+  const handleDragEnd = () => {
+    setDragging(null)
+    setDragOver(null)
+    dragCounterRef.current = {}
+  }
+
+  const handleDragOver = (e, entry) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragging || dragging === entry.name) return
+    e.dataTransfer.dropEffect = 'move'
+
+    const draggedEntry = entries.find(en => en.name === dragging)
+    if (!draggedEntry) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+
+    // Submenus: top 30% = before, bottom 30% = after, middle = into
+    // But don't allow dragging a submenu INTO another submenu
+    if (entry.entry_type === 'submenu' && draggedEntry.entry_type !== 'submenu') {
+      const relY = (e.clientY - rect.top) / rect.height
+      const pos = relY < 0.3 ? 'before' : relY > 0.7 ? 'after' : 'into'
+      setDragOver({ name: entry.name, pos })
+    } else {
+      const midY = rect.top + rect.height / 2
+      setDragOver({ name: entry.name, pos: e.clientY < midY ? 'before' : 'after' })
+    }
+  }
+
+  const handleDragEnter = (e, entryName) => {
+    e.preventDefault()
+    dragCounterRef.current[entryName] = (dragCounterRef.current[entryName] || 0) + 1
+  }
+
+  const handleDragLeave = (e, entryName) => {
+    dragCounterRef.current[entryName] = (dragCounterRef.current[entryName] || 1) - 1
+    if (dragCounterRef.current[entryName] <= 0) {
+      dragCounterRef.current[entryName] = 0
+      setDragOver(prev => (prev?.name === entryName ? null : prev))
+    }
+  }
+
+  const handleDrop = (e, targetEntry) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const draggedName = dragging || e.dataTransfer.getData('text/plain')
+    if (!draggedName || draggedName === targetEntry.name) {
+      setDragging(null)
+      setDragOver(null)
+      return
+    }
+
+    const pos = dragOver?.name === targetEntry.name ? dragOver.pos : 'after'
+
+    if (pos === 'into' && targetEntry.entry_type === 'submenu') {
+      // Move into submenu as last child
+      onMoveEntry(draggedName, targetEntry.name, getChildren(targetEntry.name).length)
+    } else {
+      // Insert before or after target at same parent level
+      const targetParent = targetEntry.parent ?? null
+      const siblings = entries
+        .filter(e => (e.parent ?? null) === targetParent && e.name !== draggedName)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      const targetIdx = siblings.findIndex(e => e.name === targetEntry.name)
+      const insertIdx = pos === 'before' ? targetIdx : targetIdx + 1
+      onMoveEntry(draggedName, targetParent, Math.max(0, insertIdx))
+    }
+
+    setDragging(null)
+    setDragOver(null)
+    dragCounterRef.current = {}
+  }
+
+  // Drop on empty children area → append to that section
+  const handleDropOnSection = (e, parentName) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const draggedName = dragging || e.dataTransfer.getData('text/plain')
+    if (!draggedName) return
+    const draggedEntry = entries.find(en => en.name === draggedName)
+    if (!draggedEntry || draggedEntry.entry_type === 'submenu') return // don't move submenus into submenus
+    onMoveEntry(draggedName, parentName, getChildren(parentName).length)
+    setDragging(null)
+    setDragOver(null)
+    dragCounterRef.current = {}
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   const renderCard = (entry, depth = 0) => {
     const isSubmenu = entry.entry_type === 'submenu'
     const isSelected = entry.name === selectedEntryId
     const isExpanded = expanded.has(entry.name) || !!query
     const isDisabled = !entry.enabled
     const children = isSubmenu ? getChildren(entry.name) : []
+    const isDragging = dragging === entry.name
+    const dropPos = dragOver?.name === entry.name ? dragOver.pos : null
 
     const visibleChildren = query
       ? children.filter(c =>
@@ -93,9 +198,24 @@ export default function BuilderCards({
           depth > 0 ? 'bc-nested' : '',
           isSelected ? 'bc-selected' : '',
           isDisabled ? 'bc-disabled' : '',
+          isDragging ? 'bc-dragging' : '',
+          dropPos === 'before' ? 'bc-drop-before' : '',
+          dropPos === 'after' ? 'bc-drop-after' : '',
+          dropPos === 'into' ? 'bc-drop-into' : '',
         ].filter(Boolean).join(' ')}
+        onDragOver={(e) => handleDragOver(e, entry)}
+        onDragEnter={(e) => handleDragEnter(e, entry.name)}
+        onDragLeave={(e) => handleDragLeave(e, entry.name)}
+        onDrop={(e) => handleDrop(e, entry)}
       >
-        <div className="bc-card-head" onClick={() => onSelectEntry(entry.name)}>
+        <div
+          className="bc-card-head"
+          draggable
+          onDragStart={(e) => handleDragStart(e, entry)}
+          onDragEnd={handleDragEnd}
+          onClick={() => onSelectEntry(entry.name)}
+        >
+          <span className="bc-drag-handle" title="Drag to reorder">⠿</span>
           <span className="bc-icon">{entry.icon || (isSubmenu ? '📁' : '⚙')}</span>
           <span className="bc-title">{entry.title || entry.name}</span>
           {!entry.enabled && <span className="bc-badge bc-badge-off">off</span>}
@@ -111,7 +231,11 @@ export default function BuilderCards({
         </div>
 
         {isSubmenu && isExpanded && (
-          <div className="bc-children">
+          <div
+            className="bc-children"
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onDrop={(e) => handleDropOnSection(e, entry.name)}
+          >
             <div className="bc-children-grid">
               {visibleChildren.map(child => renderCard(child, depth + 1))}
             </div>

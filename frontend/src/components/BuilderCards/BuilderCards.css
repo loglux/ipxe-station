@@ -118,9 +118,47 @@
   user-select: none;
 }
 
+.bc-drag-handle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  opacity: 0.4;
+  flex-shrink: 0;
+  cursor: grab;
+  line-height: 1;
+  transition: opacity 0.1s;
+}
+
+.bc-card-head:hover .bc-drag-handle {
+  opacity: 0.9;
+}
+
+.bc-card-head:active .bc-drag-handle {
+  cursor: grabbing;
+}
+
 .bc-icon {
   font-size: 17px;
   flex-shrink: 0;
+}
+
+/* ── Drag & Drop states ── */
+
+.bc-entry.bc-dragging {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.bc-entry.bc-drop-before {
+  border-top: 2px solid var(--color-primary);
+}
+
+.bc-entry.bc-drop-after {
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.bc-entry.bc-drop-into {
+  border-color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-bg-secondary));
 }
 
 .bc-title {
