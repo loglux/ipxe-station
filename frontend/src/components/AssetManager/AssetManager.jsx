@@ -1719,6 +1719,66 @@ function AssetManager() {
               <p className="text-sm text-muted">Loading versions...</p>
             )}
           </div>
+
+          <div className="download-subsection download-subsection-last">
+            <h4>🧩 GParted &amp; Clonezilla (Official)</h4>
+            <p className="text-sm text-muted download-section-note">
+              Official sources for current ISO releases and PXE reference guides.
+            </p>
+            <div className="download-grid">
+              <div className="download-card">
+                <div className="download-name">GParted Live</div>
+                <div className="download-description">
+                  Partition editor and maintenance toolkit.
+                </div>
+                <div className="download-card-url">
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href="https://gparted.org/download.php"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    🌐 Official Download
+                  </a>
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href="https://gparted.org/livepxe.php"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ marginLeft: '8px' }}
+                  >
+                    📘 PXE Docs
+                  </a>
+                </div>
+              </div>
+
+              <div className="download-card">
+                <div className="download-name">Clonezilla Live</div>
+                <div className="download-description">
+                  Disk imaging and cloning toolkit.
+                </div>
+                <div className="download-card-url">
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href="https://clonezilla.org/downloads.php"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    🌐 Official Download
+                  </a>
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href="https://clonezilla.org/livepxe.php"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ marginLeft: '8px' }}
+                  >
+                    📘 PXE Docs
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
         )}
 
