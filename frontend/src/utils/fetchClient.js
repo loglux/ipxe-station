@@ -1,16 +1,29 @@
 /**
  * Centralized fetch boundary for all frontend API calls.
  *
- * Current behavior is intentionally non-breaking:
- * - Existing fetch call sites keep working unchanged.
+ * Behaviour:
  * - Only same-origin /api/* requests are intercepted.
- * - Optional token mode can be enabled later via env/localStorage.
+ * - Adds X-Requested-With and optional Bearer token headers.
+ * - Retries once after RETRY_DELAY_MS on transient failures:
+ *     • Network error (TypeError) — request never reached the server,
+ *       safe to retry for any HTTP method.
+ *     • 502 / 503 / 504 — gateway/proxy error, app was not running,
+ *       request was not processed.
+ *   Does NOT retry 4xx or 500 — those indicate the server processed
+ *   the request and returned a real error.
  */
 
 let installed = false
 
 const SECURITY_MODE = (import.meta.env.VITE_SECURITY_MODE || 'off').toLowerCase()
 const STATIC_TOKEN = (import.meta.env.VITE_API_TOKEN || '').trim()
+
+const RETRY_DELAY_MS = 1000
+const RETRYABLE_STATUSES = new Set([502, 503, 504])
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 function getToken() {
   if (SECURITY_MODE !== 'token') return ''
@@ -67,7 +80,21 @@ export function installFetchClient() {
       headers.set('Authorization', `Bearer ${token}`)
     }
 
-    return nativeFetch(input, { ...init, headers })
+    const mergedInit = { ...init, headers }
+
+    try {
+      const response = await nativeFetch(input, mergedInit)
+      if (RETRYABLE_STATUSES.has(response.status)) {
+        await sleep(RETRY_DELAY_MS)
+        return nativeFetch(input, mergedInit)
+      }
+      return response
+    } catch {
+      // Network error: server unreachable or restarting.
+      // Request never reached the app — safe to retry once.
+      await sleep(RETRY_DELAY_MS)
+      return nativeFetch(input, mergedInit)
+    }
   }
 }
 
