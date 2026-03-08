@@ -666,6 +666,22 @@ details[open] .script-preview-toggle {
   width: 100%;
 }
 
+/* ========== FORM CONTROLS ========== */
+
+.form-control.error {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
+}
+
+.form-control.error:focus {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.form-hint-error   { color: var(--color-danger); }
+.form-hint-success { color: var(--color-success); }
+.form-hint-warning { color: var(--color-warning-text, #b45309); }
+
 /* ========== FEEDBACK MESSAGES (shared across components) ========== */
 
 .message {

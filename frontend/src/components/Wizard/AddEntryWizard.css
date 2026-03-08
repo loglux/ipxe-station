@@ -310,14 +310,9 @@
   white-space: pre-line;
 }
 
-/* Form hint variants */
-.form-hint-error {
-  color: var(--color-danger, #ef4444) !important;
-}
-
-.form-hint-success {
-  color: var(--color-success, #10b981) !important;
-}
+/* Form hint variants — specificity matches .wizard-form .form-hint */
+.wizard-form .form-hint-error   { color: var(--color-danger); }
+.wizard-form .form-hint-success { color: var(--color-success); }
 
 /* Boot mode radio list */
 .boot-option-list {

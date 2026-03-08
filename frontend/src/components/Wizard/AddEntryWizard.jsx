@@ -333,6 +333,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [preseedProfiles, setPreseedProfiles] = useState([])
   const [selectedPreseedProfile, setSelectedPreseedProfile] = useState('')
   const [createError, setCreateError] = useState(null)
+  const [errorField, setErrorField] = useState(null)
   const [manualAssetsHint, setManualAssetsHint] = useState('')
   const [manualAssetsHintKind, setManualAssetsHintKind] = useState('info')
 
@@ -577,6 +578,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
 
   const handleCreate = () => {
     if (!selectedScenario || !entryName || !entryTitle) {
+      setErrorField(!entryName ? 'name' : 'title')
       setCreateError('Please fill in all required fields.')
       return
     }
@@ -592,6 +594,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     }
 
     if (selectedBootOption?.mode === 'manual' && (!kernel || kernel.trim() === '')) {
+      setErrorField('kernel')
       setCreateError('For "Manual paths", field "kernel" is required. Fill kernel path or switch Boot Mode to ISO.')
       return
     }
@@ -599,15 +602,18 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     for (const field of required) {
       const value = requiredValues[field]
       if (typeof value === 'string' && value.trim() === '') {
+        setErrorField(field)
         setCreateError(`Field "${field}" is required.`)
         return
       }
       if (value == null) {
+        setErrorField(field)
         setCreateError(`Field "${field}" is required.`)
         return
       }
     }
     setCreateError(null)
+    setErrorField(null)
 
     const requiresIso = selectedBootOption
       ? selectedBootOption.mode === 'iso'
@@ -660,6 +666,7 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
     setPreseedProfiles([])
     setSelectedPreseedProfile('')
     setCreateError(null)
+    setErrorField(null)
     onClose()
   }
 
@@ -867,8 +874,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             <input
               type="text"
               value={entryName}
-              onChange={(e) => setEntryName(e.target.value)}
-              className="form-control"
+              onChange={(e) => { setEntryName(e.target.value); if (errorField === 'name') setErrorField(null) }}
+              className={`form-control${errorField === 'name' ? ' error' : ''}`}
               placeholder="unique_name"
             />
             <small className="form-hint">
@@ -881,8 +888,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             <input
               type="text"
               value={entryTitle}
-              onChange={(e) => setEntryTitle(e.target.value)}
-              className="form-control"
+              onChange={(e) => { setEntryTitle(e.target.value); if (errorField === 'title') setErrorField(null) }}
+              className={`form-control${errorField === 'title' ? ' error' : ''}`}
               placeholder="Display title"
             />
             <small className="form-hint">
@@ -897,8 +904,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
               <input
                 type="text"
                 value={kernel}
-                onChange={(e) => setKernel(e.target.value)}
-                className="form-control"
+                onChange={(e) => { setKernel(e.target.value); if (errorField === 'kernel') setErrorField(null) }}
+                className={`form-control${errorField === 'kernel' ? ' error' : ''}`}
                 placeholder="ubuntu-22.04/vmlinuz"
                 readOnly={!!selectedVersion && !selectedVersion.manual}
               />
