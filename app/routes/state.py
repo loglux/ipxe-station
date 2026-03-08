@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 # In-memory monitoring state
 # ---------------------------------------------------------------------------
 
-SYSTEM_LOGS: list = []
+SYSTEM_LOGS: deque = deque(maxlen=1000)
 MAX_LOGS = 1000
 PXE_CLIENTS: Dict[str, dict] = {}
+pxe_clients_lock = threading.RLock()
 PXE_LOOP_WINDOW_SECONDS = 30
 PXE_LOOP_THRESHOLD = 3
 PXE_STALL_THRESHOLD_SECONDS = 15
@@ -120,7 +121,6 @@ def save_settings(settings: SettingsModel):
 
 def add_log(log_type: str, level: str, message: str, **context):
     """Add a log entry to the system logs."""
-    global SYSTEM_LOGS
     from datetime import datetime
 
     log_entry = {
@@ -131,10 +131,7 @@ def add_log(log_type: str, level: str, message: str, **context):
     }
     log_entry.update({k: v for k, v in context.items() if v is not None})
 
-    SYSTEM_LOGS.append(log_entry)
-
-    if len(SYSTEM_LOGS) > MAX_LOGS:
-        SYSTEM_LOGS = SYSTEM_LOGS[-MAX_LOGS:]
+    SYSTEM_LOGS.append(log_entry)  # deque(maxlen=MAX_LOGS) auto-evicts oldest entries
 
     logger.debug("[%s] [%s] %s", log_type, level, message)
 
@@ -145,24 +142,25 @@ def add_log(log_type: str, level: str, message: str, **context):
 
 
 def _get_pxe_client_state(client_ip: str) -> dict:
-    state = PXE_CLIENTS.setdefault(
-        client_ip,
-        {
-            "recent_ipxe_efi_requests": deque(),
-            "last_boot_script_at": 0.0,
-            "loop_warning_at": 0.0,
-            "last_stage": None,
-            "first_seen_at": 0.0,
-            "last_seen_at": 0.0,
-            "last_event_at": 0.0,
-            "stalled_warning_at": 0.0,
-            "boot_script_fetches": 0,
-            "kernel_fetches": 0,
-            "initrd_fetches": 0,
-            "beacon_hits": 0,
-            "event_count": 0,
-        },
-    )
+    with pxe_clients_lock:
+        state = PXE_CLIENTS.setdefault(
+            client_ip,
+            {
+                "recent_ipxe_efi_requests": deque(),
+                "last_boot_script_at": 0.0,
+                "loop_warning_at": 0.0,
+                "last_stage": None,
+                "first_seen_at": 0.0,
+                "last_seen_at": 0.0,
+                "last_event_at": 0.0,
+                "stalled_warning_at": 0.0,
+                "boot_script_fetches": 0,
+                "kernel_fetches": 0,
+                "initrd_fetches": 0,
+                "beacon_hits": 0,
+                "event_count": 0,
+            },
+        )
     return state
 
 
@@ -282,37 +280,38 @@ def _refresh_boot_sessions(now: float | None = None) -> List[dict]:
     """Update stalled warnings and return current boot sessions."""
     now = now or time.time()
 
-    # Evict clients not seen within TTL
-    stale = [
-        ip
-        for ip, s in PXE_CLIENTS.items()
-        if s["last_seen_at"] and now - s["last_seen_at"] > PXE_CLIENT_TTL_SECONDS
-    ]
-    for ip in stale:
-        del PXE_CLIENTS[ip]
+    with pxe_clients_lock:
+        # Evict clients not seen within TTL
+        stale = [
+            ip
+            for ip, s in PXE_CLIENTS.items()
+            if s["last_seen_at"] and now - s["last_seen_at"] > PXE_CLIENT_TTL_SECONDS
+        ]
+        for ip in stale:
+            del PXE_CLIENTS[ip]
 
-    sessions = []
-    for client_ip, state in PXE_CLIENTS.items():
-        if (
-            state["last_stage"] == "ipxe_binary"
-            and not state["boot_script_fetches"]
-            and state["last_seen_at"]
-            and now - state["last_seen_at"] > PXE_STALL_THRESHOLD_SECONDS
-            and now - state["stalled_warning_at"] > PXE_STALL_THRESHOLD_SECONDS
-        ):
-            state["stalled_warning_at"] = now
-            _record_boot_event(
-                client_ip,
-                "stalled_after_ipxe",
-                (
-                    f"Client stalled after iPXE binary: no boot.ipxe fetch within "
-                    f"{PXE_STALL_THRESHOLD_SECONDS}s"
-                ),
-                level="warning",
-                protocol="boot",
-                filename="ipxe.efi",
-            )
-        sessions.append(_build_boot_session(client_ip, state, now))
+        sessions = []
+        for client_ip, state in PXE_CLIENTS.items():
+            if (
+                state["last_stage"] == "ipxe_binary"
+                and not state["boot_script_fetches"]
+                and state["last_seen_at"]
+                and now - state["last_seen_at"] > PXE_STALL_THRESHOLD_SECONDS
+                and now - state["stalled_warning_at"] > PXE_STALL_THRESHOLD_SECONDS
+            ):
+                state["stalled_warning_at"] = now
+                _record_boot_event(
+                    client_ip,
+                    "stalled_after_ipxe",
+                    (
+                        f"Client stalled after iPXE binary: no boot.ipxe fetch within "
+                        f"{PXE_STALL_THRESHOLD_SECONDS}s"
+                    ),
+                    level="warning",
+                    protocol="boot",
+                    filename="ipxe.efi",
+                )
+            sessions.append(_build_boot_session(client_ip, state, now))
 
     sessions.sort(key=lambda session: session["last_seen_at"] or 0.0, reverse=True)
     return sessions

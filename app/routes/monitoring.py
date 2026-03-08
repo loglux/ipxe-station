@@ -129,7 +129,7 @@ async def get_logs(type: str = None, level: str = None, limit: int = 100):
     """Get system logs with optional filtering."""
     try:
         _refresh_boot_sessions()
-        filtered_logs = SYSTEM_LOGS.copy()
+        filtered_logs = list(SYSTEM_LOGS)
 
         if type and type != "all":
             filtered_logs = [log for log in filtered_logs if log.get("type") == type]
@@ -150,7 +150,7 @@ async def get_logs(type: str = None, level: str = None, limit: int = 100):
 async def download_logs(type: str = None, level: str = None, limit: int = 1000):
     """Download filtered system logs as a text file."""
     _refresh_boot_sessions()
-    filtered_logs = SYSTEM_LOGS.copy()
+    filtered_logs = list(SYSTEM_LOGS)
 
     if type and type != "all":
         filtered_logs = [log for log in filtered_logs if log.get("type") == type]
@@ -182,7 +182,7 @@ async def clear_logs():
     """Clear all system logs."""
     import app.routes.state as _state
 
-    _state.SYSTEM_LOGS = []
+    _state.SYSTEM_LOGS.clear()
     return {"success": True, "message": "Logs cleared"}
 
 
