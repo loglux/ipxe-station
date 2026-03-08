@@ -33,10 +33,6 @@
 
 #### Medium
 
-- **DHCP validator captures only first response** — on networks with both router DHCP and proxy DHCP,
-  the validator may see the router first and miss the proxy response.
-  Fix: collect all responses within a timeout window instead of returning on first packet.
-
 - **autoexec.ipxe write via bash heredoc corrupts `#!ipxe`** — bash history expansion turns `!` into `\!`.
   Always write autoexec.ipxe via the Boot Files tab API or `docker cp` a pre-written file.
 
@@ -55,15 +51,7 @@
 
 ## Planned Features
 
-### 1. DHCP Validator Multi-Response Collection
-
-**Goal:** Detect proxy DHCP correctly even when a router also responds on the same network.
-
-**Fix:** Collect ALL DHCP responses within a timeout window (e.g. 2 s) instead of returning on
-the first packet. If two responses share the same XID — one from router (offered_ip ≠ 0), one
-from proxy (offered_ip = 0.0.0.0) — classify accordingly.
-
-### 2. PXELINUX Support
+### 1. PXELINUX Support
 
 **Goal:** Alternative boot loader for environments where iPXE has issues (e.g. old hardware, VMs).
 
