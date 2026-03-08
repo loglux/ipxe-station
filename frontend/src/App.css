@@ -71,7 +71,6 @@
   --footer-height: 40px;
   --sidebar-width: 300px;
   --tab-height: 48px;
-  --content-max-width: 1280px;
 }
 
 /* ========== DARK MODE ========== */
@@ -201,6 +200,11 @@ button {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ========== MAIN LAYOUT ========== */

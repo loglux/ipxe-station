@@ -1,20 +1,12 @@
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.2s;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 .modal-content {
@@ -35,7 +27,7 @@
 }
 
 .settings-modal .modal-header {
-  padding: 20px 24px;
+  padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -71,21 +63,21 @@
 }
 
 .modal-body {
-  padding: 24px;
+  padding: var(--spacing-lg);
   overflow-y: auto;
   flex: 1;
 }
 
 .modal-footer {
-  padding: 16px 24px;
+  padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--color-border);
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-sm);
   justify-content: flex-end;
 }
 
 .settings-section {
-  margin-bottom: 32px;
+  margin-bottom: var(--spacing-xl);
 }
 
 .settings-section:last-child {
@@ -96,13 +88,13 @@
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text);
-  margin: 0 0 16px 0;
-  padding-bottom: 8px;
+  margin: 0 0 var(--spacing-md) 0;
+  padding-bottom: var(--spacing-sm);
   border-bottom: 2px solid var(--color-border);
 }
 
 .setting-group {
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
 }
 
 .setting-group label {
@@ -144,14 +136,14 @@
 .setting-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
 }
 
 .input-with-button {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
 }
 
 .input-with-button input {
@@ -168,7 +160,7 @@
 .checkbox-label {
   display: flex !important;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
   cursor: pointer;
   user-select: none;
 }
