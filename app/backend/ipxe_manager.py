@@ -186,7 +186,10 @@ class iPXEValidator:
                     f"Entry {i + 1} ({entry.name}): Invalid entry_type '{entry.entry_type}'"
                 )
 
-            if entry.boot_mode not in cls.ALLOWED_BOOT_MODES:
+            if (
+                entry.entry_type not in ("submenu", "separator")
+                and entry.boot_mode not in cls.ALLOWED_BOOT_MODES
+            ):
                 errors.append(
                     f"Entry {i + 1} ({entry.name}): Invalid boot_mode '{entry.boot_mode}'"
                 )
@@ -1033,7 +1036,7 @@ class iPXETemplateManager:
 
         # Format cmdline with actual server IP and port
         for entry in entries:
-            entry.cmdline = entry.cmdline.format(server_ip=server_ip, port=port)
+            entry.cmdline = (entry.cmdline or "").format(server_ip=server_ip, port=port)
 
         return iPXEMenu(
             title="Ubuntu PXE Boot Menu",
@@ -1345,7 +1348,7 @@ class iPXETemplateManager:
         # Format cmdline with actual server IP and port
         for entry in entries:
             if entry.cmdline:
-                entry.cmdline = entry.cmdline.format(server_ip=server_ip, port=port)
+                entry.cmdline = (entry.cmdline or "").format(server_ip=server_ip, port=port)
 
         return iPXEMenu(
             title="Multi-OS PXE Boot Menu",

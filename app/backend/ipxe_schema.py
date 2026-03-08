@@ -10,13 +10,13 @@ class IpxeEntryModel(BaseModel):
     title: str = Field(..., min_length=1, max_length=60)
     kernel: Optional[str] = None
     initrd: Optional[str] = None
-    cmdline: str = ""
-    description: str = ""
+    cmdline: Optional[str] = ""
+    description: Optional[str] = ""
     enabled: bool = True
     order: int = 0
     entry_type: str = "boot"  # boot, menu, action, separator, chain, submenu
     url: Optional[str] = None
-    boot_mode: str = "netboot"
+    boot_mode: Optional[str] = "netboot"
     requires_iso: bool = False
     requires_internet: bool = False
     parent: Optional[str] = None  # for submenu grouping
