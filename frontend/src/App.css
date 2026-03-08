@@ -168,7 +168,7 @@ button {
   color: var(--color-text);
 }
 
-.header-left .version {
+.header-left .version-hidden {
   font-size: 12px;
   color: var(--color-text-secondary);
   background: var(--color-bg-tertiary);
@@ -850,9 +850,6 @@ details[open] .script-preview-toggle {
     line-height: 1.1;
   }
 
-  .header-left .version {
-    display: none;
-  }
 
   .header-right {
     width: 100%;

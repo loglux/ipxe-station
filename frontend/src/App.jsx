@@ -14,13 +14,6 @@ import BootFiles from './components/BootFiles/BootFiles'
 import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 
 const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
-const TAB_TITLES = {
-  builder: 'Menu Structure',
-  assets: 'Assets Context',
-  dhcp: 'DHCP Context',
-  boot: 'Boot Files Context',
-  monitoring: 'Monitoring Context',
-}
 
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
@@ -49,19 +42,6 @@ function App() {
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
   const [entries, setEntries] = useState([])
-  const [monitoringServices, setMonitoringServices] = useState({
-    tftp: { status: 'unknown' },
-    http: { status: 'unknown', port: 9021 },
-    rsyslog: { status: 'unknown' },
-    proxy_dhcp: { status: 'unknown' },
-  })
-  const [monitoringMetrics, setMonitoringMetrics] = useState({
-    disk_used: 0,
-    disk_total: 0,
-    active_connections: 0,
-    total_requests: 0,
-  })
-  const [monitoringBootSessions, setMonitoringBootSessions] = useState([])
   const generateAbortRef = useRef(null)
 
   const applyMenuFromResponse = (menu) => {
@@ -97,39 +77,6 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  useEffect(() => {
-    if (activeTab !== 'monitoring') return undefined
-
-    let cancelled = false
-    const loadMonitoringContext = async () => {
-      try {
-        const [servicesResp, metricsResp, sessionsResp] = await Promise.all([
-          fetch('/api/monitoring/services'),
-          fetch('/api/monitoring/metrics'),
-          fetch('/api/monitoring/boot-sessions'),
-        ])
-        const [servicesData, metricsData, sessionsData] = await Promise.all([
-          servicesResp.json(),
-          metricsResp.json(),
-          sessionsResp.json(),
-        ])
-        if (!cancelled) {
-          if (servicesData?.services) setMonitoringServices(servicesData.services)
-          if (metricsData?.metrics) setMonitoringMetrics(metricsData.metrics)
-          if (sessionsData?.sessions) setMonitoringBootSessions(sessionsData.sessions)
-        }
-      } catch {
-        // Keep previous status if request fails.
-      }
-    }
-
-    loadMonitoringContext()
-    const interval = setInterval(loadMonitoringContext, 5000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [activeTab])
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -341,147 +288,26 @@ function App() {
     setWizardInitialCategory(null)
   }
 
-  const serviceIcon = (status) => {
-    if (status === 'running') return '✅'
-    if (status === 'stopped') return '❌'
-    return '❓'
-  }
 
-  const formatBytes = (bytes) => {
-    if (!bytes) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`
-  }
-
-  const renderContextPanel = () => {
-    if (activeTab === 'builder') {
-      return (
-        <MenuBuilder
-          entries={entries}
-          selectedEntryId={selectedEntryId}
-          onSelectEntry={setSelectedEntryId}
-          onOpenWizard={openWizard}
-          onUpdateEntry={updateEntry}
-          onDeleteEntry={deleteEntry}
-          onDuplicateEntry={duplicateEntry}
-          onSetEntriesEnabled={setEntriesEnabled}
-        />
-      )
-    }
-
-    if (activeTab === 'assets') {
-      return (
-        <div className="context-panel">
-          <div className="context-card">
-            <h3>Workflow</h3>
-            <ul className="context-list">
-              <li>Scan current assets</li>
-              <li>Download or upload missing images</li>
-              <li>Verify NFS/ISO readiness</li>
-            </ul>
-          </div>
-          <div className="context-card">
-            <h3>Quick Nav</h3>
-            <button className="btn btn-secondary btn-sm btn-block" onClick={() => switchTab('builder')}>
-              Open Builder
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeTab === 'dhcp') {
-      return (
-        <div className="context-panel">
-          <div className="context-card">
-            <h3>Checklist</h3>
-            <ul className="context-list">
-              <li>Validate DHCP range overlaps</li>
-              <li>Review Proxy DHCP mode</li>
-              <li>Apply settings and test boot client</li>
-            </ul>
-          </div>
-        </div>
-      )
-    }
-
-    if (activeTab === 'boot') {
-      return (
-        <div className="context-panel">
-          <div className="context-card">
-            <h3>Templates</h3>
-            <ul className="context-list">
-              <li>Edit boot files from templates</li>
-              <li>Preview before save</li>
-              <li>Keep deterministic generated output</li>
-            </ul>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="context-panel">
-        <div className="context-card">
-          <h3>Services</h3>
-          <div className="context-services-list">
-            <div className="context-service-item">
-              <span>{serviceIcon(monitoringServices.tftp?.status)}</span>
-              <span>TFTP</span>
-              <small>{monitoringServices.tftp?.status || 'unknown'}</small>
-            </div>
-            <div className="context-service-item">
-              <span>{serviceIcon(monitoringServices.http?.status)}</span>
-              <span>HTTP</span>
-              <small>:{monitoringServices.http?.port || 9021}</small>
-            </div>
-            <div className="context-service-item">
-              <span>{serviceIcon(monitoringServices.rsyslog?.status)}</span>
-              <span>Rsyslog</span>
-              <small>{monitoringServices.rsyslog?.status || 'unknown'}</small>
-            </div>
-            <div className="context-service-item">
-              <span>{serviceIcon(monitoringServices.proxy_dhcp?.status)}</span>
-              <span>Proxy DHCP</span>
-              <small>{monitoringServices.proxy_dhcp?.status || 'unknown'}</small>
-            </div>
-          </div>
-        </div>
-        <div className="context-card">
-          <h3>Metrics</h3>
-          <div className="context-metrics">
-            <div><span>Disk:</span><strong>{formatBytes(monitoringMetrics.disk_used)} / {formatBytes(monitoringMetrics.disk_total)}</strong></div>
-            <div><span>Active:</span><strong>{monitoringMetrics.active_connections || 0}</strong></div>
-            <div><span>Requests:</span><strong>{monitoringMetrics.total_requests || 0}</strong></div>
-          </div>
-        </div>
-        <div className="context-card">
-          <h3>Boot Sessions</h3>
-          {monitoringBootSessions.length === 0 ? (
-            <small className="text-muted">No PXE/iPXE client sessions yet</small>
-          ) : (
-            <ul className="context-list">
-              {monitoringBootSessions.slice(0, 4).map((session) => (
-                <li key={session.client_ip}>
-                  {session.client_ip} - {session.status}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    )
-  }
+  const renderContextPanel = () => (
+    <MenuBuilder
+      entries={entries}
+      selectedEntryId={selectedEntryId}
+      onSelectEntry={setSelectedEntryId}
+      onOpenWizard={openWizard}
+      onUpdateEntry={updateEntry}
+      onDeleteEntry={deleteEntry}
+      onDuplicateEntry={duplicateEntry}
+      onSetEntriesEnabled={setEntriesEnabled}
+    />
+  )
 
   return (
     <div className="app">
       {/* Header */}
       <header className="app-header">
         <div className="header-left">
-          <h1>🌐 iPXE Menu Builder</h1>
-          <span className="version">v2.0 - Scenario-First Edition</span>
+          <h1>iPXE Station</h1>
         </div>
         <div className="header-right">
           {saveMessage && (
@@ -489,15 +315,16 @@ function App() {
               {saveMessage.text}
             </div>
           )}
-          <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>⚙️ Settings</button>
           <button
-            className="btn btn-danger"
+            className="btn btn-secondary btn-sm"
             onClick={() => setDeleteConfirmOpen(true)}
             disabled={saving}
             title="Delete entire menu (boot.ipxe and menu.json)"
+            style={{ color: 'var(--color-danger)' }}
           >
-            🗑️ Delete Menu
+            🗑️ Delete
           </button>
+          <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>⚙️ Settings</button>
           <button
             className="btn btn-primary"
             onClick={saveMenu}
@@ -509,15 +336,17 @@ function App() {
       </header>
 
       {/* Main Layout */}
-      <div className="main-layout">
-        <aside className="sidebar-left">
-          <div className="sidebar-header">
-            <h2>{TAB_TITLES[activeTab]}</h2>
-          </div>
-          <div className="sidebar-content">
-            {renderContextPanel()}
-          </div>
-        </aside>
+      <div className={`main-layout${activeTab !== 'builder' ? ' full-width' : ''}`}>
+        {activeTab === 'builder' && (
+          <aside className="sidebar-left">
+            <div className="sidebar-header">
+              <h2>Menu Structure</h2>
+            </div>
+            <div className="sidebar-content">
+              {renderContextPanel()}
+            </div>
+          </aside>
+        )}
 
         {/* Center - Main Content Area */}
         <main className="main-content">
