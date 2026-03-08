@@ -276,6 +276,29 @@ function App() {
 
   const selectedEntry = entries.find(e => e.name === selectedEntryId)
 
+  // Resizable split between BuilderCards and PropertyPanel
+  const [builderSplit, setBuilderSplit] = useState(58) // % for left panel
+  const builderMainRef = useRef(null)
+  const onDividerMouseDown = useCallback((e) => {
+    e.preventDefault()
+    const onMove = (ev) => {
+      if (!builderMainRef.current) return
+      const rect = builderMainRef.current.getBoundingClientRect()
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100
+      setBuilderSplit(Math.min(82, Math.max(22, pct)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
   const openWizard = (initialCategory = null) => {
     setWizardInitialCategory(initialCategory)
     setWizardOpen(true)
@@ -379,26 +402,38 @@ function App() {
           <div className="tab-content">
             {activeTab === 'builder' && (
               <div className="builder-view builder-tab-panel" role="tabpanel" id="tab-panel-builder">
-                <div className="builder-main">
-                  <BuilderCards
-                    entries={entries}
-                    selectedEntryId={selectedEntryId}
-                    onSelectEntry={setSelectedEntryId}
-                    onOpenWizard={openWizard}
-                    onUpdateEntry={updateEntry}
-                    onDeleteEntry={deleteEntry}
-                    onDuplicateEntry={duplicateEntry}
-                    onSetEntriesEnabled={setEntriesEnabled}
-                  />
+                <div className="builder-main" ref={builderMainRef}>
+                  <div
+                    className="builder-cards-pane"
+                    style={selectedEntry ? { flex: `0 0 ${builderSplit}%` } : undefined}
+                  >
+                    <BuilderCards
+                      entries={entries}
+                      selectedEntryId={selectedEntryId}
+                      onSelectEntry={setSelectedEntryId}
+                      onOpenWizard={openWizard}
+                      onUpdateEntry={updateEntry}
+                      onDeleteEntry={deleteEntry}
+                      onDuplicateEntry={duplicateEntry}
+                      onSetEntriesEnabled={setEntriesEnabled}
+                    />
+                  </div>
                   {selectedEntry && (
-                    <div className="builder-property-pane">
-                      <PropertyPanel
-                        entry={selectedEntry}
-                        onUpdateEntry={updateEntry}
-                        onDeleteEntry={deleteEntry}
-                        entries={entries}
+                    <>
+                      <div
+                        className="builder-divider"
+                        onMouseDown={onDividerMouseDown}
+                        title="Drag to resize"
                       />
-                    </div>
+                      <div className="builder-property-pane">
+                        <PropertyPanel
+                          entry={selectedEntry}
+                          onUpdateEntry={updateEntry}
+                          onDeleteEntry={deleteEntry}
+                          entries={entries}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
 
