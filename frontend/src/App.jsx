@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
-import { CATEGORIES } from './data/scenarios'
 
 // Placeholder components - we'll create these next
-import MenuBuilder from './components/MenuBuilder/MenuBuilder'
+import BuilderCards from './components/BuilderCards/BuilderCards'
 import PropertyPanel from './components/PropertyPanel/PropertyPanel'
 import AssetManager from './components/AssetManager/AssetManager'
 import DHCPHelper from './components/DHCPHelper/DHCPHelper'
@@ -24,12 +23,11 @@ function App() {
   const switchTab = (tab) => {
     setActiveTab(tab)
     window.location.hash = tab
-    if (tab !== 'builder') setMobileMenuOpen(false)
+    if (tab !== 'builder') setSelectedEntryId(null)
     if (tab !== 'builder') setSelectedEntryId(null)
   }
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsVersion, setSettingsVersion] = useState(0)
   const [wizardInitialCategory, setWizardInitialCategory] = useState(null)
@@ -70,7 +68,7 @@ function App() {
       if (VALID_TABS.includes(hashTab)) {
         setActiveTab(hashTab)
         if (hashTab !== 'builder') setSelectedEntryId(null)
-        if (hashTab !== 'builder') setMobileMenuOpen(false)
+        if (hashTab !== 'builder') setSelectedEntryId(null)
       }
     }
     window.addEventListener('hashchange', onHashChange)
@@ -289,18 +287,6 @@ function App() {
   }
 
 
-  const renderContextPanel = () => (
-    <MenuBuilder
-      entries={entries}
-      selectedEntryId={selectedEntryId}
-      onSelectEntry={setSelectedEntryId}
-      onOpenWizard={openWizard}
-      onUpdateEntry={updateEntry}
-      onDeleteEntry={deleteEntry}
-      onDuplicateEntry={duplicateEntry}
-      onSetEntriesEnabled={setEntriesEnabled}
-    />
-  )
 
   return (
     <div className="app">
@@ -336,17 +322,7 @@ function App() {
       </header>
 
       {/* Main Layout */}
-      <div className={`main-layout${activeTab !== 'builder' ? ' full-width' : ''}`}>
-        {activeTab === 'builder' && (
-          <aside className="sidebar-left">
-            <div className="sidebar-header">
-              <h2>Menu Structure</h2>
-            </div>
-            <div className="sidebar-content">
-              {renderContextPanel()}
-            </div>
-          </aside>
-        )}
+      <div className="main-layout full-width">
 
         {/* Center - Main Content Area */}
         <main className="main-content">
@@ -399,67 +375,32 @@ function App() {
             </button>
           </div>
 
-          {activeTab === 'builder' && (
-            <div className="mobile-structure-trigger">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setMobileMenuOpen(true)}
-                aria-label="Open menu structure panel"
-              >
-                ☰ Menu Structure
-              </button>
-            </div>
-          )}
-
           {/* Tab Content */}
           <div className="tab-content">
             {activeTab === 'builder' && (
-              <div className="builder-view" role="tabpanel" id="tab-panel-builder">
-                {selectedEntry ? (
-                  <div className="builder-editor">
-                    <PropertyPanel
-                      entry={selectedEntry}
-                      onUpdateEntry={updateEntry}
-                      onDeleteEntry={deleteEntry}
-                      entries={entries}
-                    />
-                  </div>
-                ) : (
-                  <div className="welcome-message">
-                    <div className="welcome-stats">
-                      <div className="welcome-stat">
-                        <span className="welcome-stat-value">{entries.length}</span>
-                        <span className="welcome-stat-label">entries</span>
-                      </div>
-                      <div className="welcome-stat">
-                        <span className="welcome-stat-value">{entries.filter(e => e.entry_type === 'submenu').length}</span>
-                        <span className="welcome-stat-label">submenus</span>
-                      </div>
-                      <div className="welcome-stat">
-                        <span className="welcome-stat-value">{entries.filter(e => !e.enabled).length}</span>
-                        <span className="welcome-stat-label">disabled</span>
-                      </div>
+              <div className="builder-view builder-tab-panel" role="tabpanel" id="tab-panel-builder">
+                <div className="builder-main">
+                  <BuilderCards
+                    entries={entries}
+                    selectedEntryId={selectedEntryId}
+                    onSelectEntry={setSelectedEntryId}
+                    onOpenWizard={openWizard}
+                    onUpdateEntry={updateEntry}
+                    onDeleteEntry={deleteEntry}
+                    onDuplicateEntry={duplicateEntry}
+                    onSetEntriesEnabled={setEntriesEnabled}
+                  />
+                  {selectedEntry && (
+                    <div className="builder-property-pane">
+                      <PropertyPanel
+                        entry={selectedEntry}
+                        onUpdateEntry={updateEntry}
+                        onDeleteEntry={deleteEntry}
+                        entries={entries}
+                      />
                     </div>
-
-                    <div className="quick-actions">
-                      <h3>Add Entry</h3>
-                      <div className="action-grid">
-                        {Object.entries(CATEGORIES).map(([key, category]) => (
-                          <div
-                            key={key}
-                            className="action-card"
-                            style={{ borderColor: category.color }}
-                            onClick={() => openWizard(key)}
-                          >
-                            <div className="action-icon">{category.icon}</div>
-                            <div className="action-name">{category.name}</div>
-                            <div className="action-description">{category.description}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Inline iPXE script preview */}
                 <details
@@ -567,40 +508,6 @@ function App() {
         </main>
 
       </div>
-
-      {activeTab === 'builder' && mobileMenuOpen && (
-        <div className="mobile-structure-overlay" onClick={() => setMobileMenuOpen(false)}>
-          <aside className="mobile-structure-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="mobile-structure-header">
-              <h2>Menu Structure</h2>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                ✕ Close
-              </button>
-            </div>
-            <div className="mobile-structure-content">
-              <MenuBuilder
-                entries={entries}
-                selectedEntryId={selectedEntryId}
-                onSelectEntry={(entryId) => {
-                  setSelectedEntryId(entryId)
-                  setMobileMenuOpen(false)
-                }}
-                onOpenWizard={(category) => {
-                  openWizard(category)
-                  setMobileMenuOpen(false)
-                }}
-                onUpdateEntry={updateEntry}
-                onDeleteEntry={deleteEntry}
-                onDuplicateEntry={duplicateEntry}
-                onSetEntriesEnabled={setEntriesEnabled}
-              />
-            </div>
-          </aside>
-        </div>
-      )}
 
       {/* Footer */}
       <footer className="app-footer">
