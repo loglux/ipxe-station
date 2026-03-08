@@ -337,15 +337,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [manualAssetsHint, setManualAssetsHint] = useState('')
   const [manualAssetsHintKind, setManualAssetsHintKind] = useState('info')
 
-  // Handle initial category selection
+  // Pre-select parent submenu when opened from a section's "+ Add entry" button
   useEffect(() => {
     if (isOpen && initialCategory) {
       const timerId = setTimeout(() => {
-        if (CATEGORIES[initialCategory]) {
-          setSelectedCategory(initialCategory)
-          setStep(2)
-        }
-        // If submenu name doesn't map to a known category, open at step 1
+        setParentSubmenu(initialCategory)
       }, 0)
       return () => clearTimeout(timerId)
     }

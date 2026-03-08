@@ -473,6 +473,7 @@ button {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: flex-basis 0.18s ease;
 }
 
 .builder-divider {

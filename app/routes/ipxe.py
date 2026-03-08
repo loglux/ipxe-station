@@ -366,6 +366,12 @@ def save_menu(menu: IpxeMenuModel):
         add_log("system", "info", f"Menu saved successfully: {len(menu.entries)} entries")
         menu_json_path = IPXE_ROOT / "menu.json"
         try:
+            # Rotate backup before overwriting
+            backup_path = IPXE_ROOT / "menu.json.bak"
+            if menu_json_path.exists():
+                import shutil
+
+                shutil.copy2(menu_json_path, backup_path)
             with open(menu_json_path, "w") as f:
                 json.dump(menu.model_dump(), f, indent=2)
         except Exception as e:
