@@ -341,8 +341,11 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   useEffect(() => {
     if (isOpen && initialCategory) {
       const timerId = setTimeout(() => {
-        setSelectedCategory(initialCategory)
-        setStep(2)
+        if (CATEGORIES[initialCategory]) {
+          setSelectedCategory(initialCategory)
+          setStep(2)
+        }
+        // If submenu name doesn't map to a known category, open at step 1
       }, 0)
       return () => clearTimeout(timerId)
     }
