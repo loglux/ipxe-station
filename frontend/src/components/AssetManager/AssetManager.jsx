@@ -99,6 +99,7 @@ function AssetManager() {
   const [uploadCategoryCustom, setUploadCategoryCustom] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [showUploadPanel, setShowUploadPanel] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(null)
   const [deletingAssetPath, setDeletingAssetPath] = useState('')
   const uploadStatusTimeoutRef = useRef(null)
@@ -953,11 +954,22 @@ function AssetManager() {
     <div className="asset-manager">
       <div className="asset-header">
         <h2>Asset Manager</h2>
-        <div className="asset-toolbar">
-          <div className="asset-actions">
-            <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
-              🔄 Scan
-            </button>
+        <div className="asset-actions">
+          <button className="btn btn-secondary" onClick={() => { fetchAssets(); fetchCatalog(); fetchNfsStatus() }}>
+            🔄 Scan
+          </button>
+          <button
+            className={`btn btn-secondary${showUploadPanel ? ' is-active' : ''}`}
+            onClick={() => setShowUploadPanel(prev => !prev)}
+          >
+            📁 Upload File
+          </button>
+        </div>
+      </div>
+
+      {(showUploadPanel || uploading) && (
+        <div className="upload-panel">
+          <div className="upload-panel-fields">
             <select
               className="form-control upload-category-select"
               value={uploadCategory}
@@ -984,14 +996,14 @@ function AssetManager() {
               placeholder="subfolder (optional)"
               value={uploadDest}
               onChange={(e) => setUploadDest(e.target.value)}
-              title="Optional subfolder inside /srv/http/ (leave empty for root)"
+              title="Optional subfolder inside /srv/http/"
             />
             <button
               className="btn btn-primary"
               onClick={() => uploadInputRef.current?.click()}
               disabled={uploading}
             >
-              📁 Upload File
+              Choose & Upload
             </button>
             <input ref={uploadInputRef} type="file" className="visually-hidden" onChange={handleUpload} />
           </div>
@@ -1010,7 +1022,7 @@ function AssetManager() {
             </div>
           )}
         </div>
-      </div>
+      )}
 
       <div className="asset-content">
         <div className="acquire-tabs">
