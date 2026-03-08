@@ -909,3 +909,14 @@ details[open] .script-preview-toggle {
     display: none;
   }
 }
+
+@media (max-width: 600px) {
+  .header-right {
+    grid-template-columns: 1fr;
+  }
+
+  .tab {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}

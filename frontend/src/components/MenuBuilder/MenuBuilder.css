@@ -335,8 +335,19 @@
   opacity: 1;
 }
 
+.search-highlight {
+  background: color-mix(in oklab, var(--color-primary) 25%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.tree-node.selected .search-highlight {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .tree-move-select {
-  color-scheme: light;
+  color-scheme: light dark;
   background: var(--color-bg);
   border: 1px solid color-mix(in oklab, var(--color-border) 82%, black 18%);
   border-radius: 4px;
@@ -347,10 +358,6 @@
   min-width: 140px;
   max-width: 240px;
   opacity: 1;
-}
-
-[data-theme="dark"] .tree-move-select {
-  color-scheme: dark;
 }
 
 .tree-move-select:hover,
