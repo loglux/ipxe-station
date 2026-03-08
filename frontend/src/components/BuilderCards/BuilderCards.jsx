@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import './BuilderCards.css'
 
 export default function BuilderCards({
@@ -13,14 +13,17 @@ export default function BuilderCards({
 }) {
   const [expanded, setExpanded] = useState(() => new Set())
   const [query, setQuery] = useState('')
+  const autoExpandedRef = useRef(false)
 
-  // Auto-expand all root submenus on first load
+  // Auto-expand all root submenus once entries are first loaded
   useEffect(() => {
+    if (autoExpandedRef.current || entries.length === 0) return
+    autoExpandedRef.current = true
     const roots = entries
       .filter(e => !e.parent_name && e.entry_type === 'submenu')
       .map(e => e.name)
     setExpanded(new Set(roots))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [entries])
 
   // Expand ancestors of selected entry
   useEffect(() => {
