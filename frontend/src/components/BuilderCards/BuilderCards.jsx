@@ -46,6 +46,16 @@ export default function BuilderCards({
     })
   }, [selectedEntryId, entries])
 
+  // Scroll selected card into view after layout settles (PropertyPanel appears → pane resizes)
+  useEffect(() => {
+    if (!selectedEntryId) return
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-entry-name="${selectedEntryId}"]`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [selectedEntryId])
+
   const getChildren = (parentName) =>
     entries
       .filter(e => e.parent === parentName)
@@ -197,6 +207,7 @@ export default function BuilderCards({
     return (
       <div
         key={entry.name}
+        data-entry-name={entry.name}
         className={[
           'bc-entry',
           isSubmenu ? 'bc-submenu' : 'bc-leaf',
