@@ -127,6 +127,10 @@ function App() {
     setEntries(prev => prev.map(e =>
       e.name === entryName ? { ...e, ...updates } : e
     ))
+    // If name changed while this entry is selected, follow the rename
+    if ('name' in updates && selectedEntryId === entryName) {
+      setSelectedEntryId(updates.name || entryName)
+    }
   }
 
   const moveEntry = useCallback((entryName, newParent, insertIndex) => {
