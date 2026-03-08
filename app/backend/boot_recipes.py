@@ -55,7 +55,7 @@ from urllib.parse import quote
 
 @dataclass
 class BootOption:
-    mode: str  # "nfs" | "iso" | "http" | "netboot"
+    mode: str  # "nfs" | "iso" | "http" | "netboot" | "winpe" | ...
     label: str  # shown in UI dropdown
     kernel: str
     initrd: str
@@ -347,6 +347,41 @@ def debian_live_recipe(
     return opts
 
 
+def hiren_recipe(entry: dict, server_ip: str, port: int, nfs_root: str = "") -> List[BootOption]:
+    """Boot options for Hiren's BootCD PE via WinPE/wimboot flow.
+
+    Hiren is treated as a manual-asset scenario:
+    - Preferred: WinPE chain using wimboot + bootmgr + BCD + boot.sdi + boot.wim
+    - Fallback: keep conservative manual defaults and ask user to verify.
+    """
+    kernel = entry.get("kernel") or ""
+    initrd = entry.get("initrd") or ""
+    cmdline = entry.get("cmdline") or "ip=dhcp"
+
+    if entry.get("hiren_winpe_ready"):
+        return [
+            BootOption(
+                mode="winpe",
+                label="Hiren WinPE (wimboot) — auto-detected",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=cmdline,
+                recommended=True,
+            )
+        ]
+
+    return [
+        BootOption(
+            mode="manual",
+            label="Hiren manual mode — verify paths and cmdline",
+            kernel=kernel,
+            initrd=initrd,
+            cmdline=cmdline,
+            recommended=True,
+        )
+    ]
+
+
 RECIPE_MAP = {
     "ubuntu_live": ubuntu_live_recipe,
     "ubuntu_netboot": ubuntu_live_recipe,  # same assets, same recipe logic
@@ -356,6 +391,7 @@ RECIPE_MAP = {
     "debian_netboot": debian_recipe,
     "debian_preseed": debian_preseed_recipe,
     "debian_live": debian_live_recipe,
+    "hiren": hiren_recipe,
 }
 
 

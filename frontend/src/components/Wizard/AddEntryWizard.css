@@ -337,6 +337,10 @@
   color: var(--color-danger, #ef4444) !important;
 }
 
+.form-hint-success {
+  color: var(--color-success, #10b981) !important;
+}
+
 /* Boot mode radio list */
 .boot-option-list {
   display: flex;

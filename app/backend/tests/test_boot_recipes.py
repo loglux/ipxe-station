@@ -5,6 +5,7 @@ from app.backend.boot_recipes import (
     debian_preseed_recipe,
     debian_recipe,
     get_recipe,
+    hiren_recipe,
     kaspersky_recipe,
     systemrescue_recipe,
     ubuntu_live_recipe,
@@ -362,6 +363,67 @@ class TestDebianLiveRecipe:
 
 
 # ---------------------------------------------------------------------------
+# hiren_recipe
+# ---------------------------------------------------------------------------
+
+
+class TestHirenRecipe:
+    def _entry(self, winpe_ready=False, cmdline=None):
+        e = {
+            "version": "1.0",
+            "kernel": "hiren-1.0/wimboot",
+            "initrd": "hiren-1.0/boot.wim",
+        }
+        if winpe_ready:
+            e["hiren_winpe_ready"] = True
+        if cmdline is not None:
+            e["cmdline"] = cmdline
+        return e
+
+    def test_winpe_ready_returns_winpe_mode(self):
+        opts = hiren_recipe(self._entry(winpe_ready=True), SERVER_IP, PORT)
+        assert len(opts) == 1
+        assert opts[0].mode == "winpe"
+
+    def test_winpe_ready_is_recommended(self):
+        opts = hiren_recipe(self._entry(winpe_ready=True), SERVER_IP, PORT)
+        assert opts[0].recommended is True
+
+    def test_winpe_kernel_and_initrd_propagated(self):
+        opts = hiren_recipe(self._entry(winpe_ready=True), SERVER_IP, PORT)
+        assert opts[0].kernel == "hiren-1.0/wimboot"
+        assert opts[0].initrd == "hiren-1.0/boot.wim"
+
+    def test_winpe_custom_cmdline_preserved(self):
+        opts = hiren_recipe(
+            self._entry(winpe_ready=True, cmdline="initrd=boot.sdi"), SERVER_IP, PORT
+        )
+        assert opts[0].cmdline == "initrd=boot.sdi"
+
+    def test_manual_fallback_when_not_winpe_ready(self):
+        opts = hiren_recipe(self._entry(winpe_ready=False), SERVER_IP, PORT)
+        assert len(opts) == 1
+        assert opts[0].mode == "manual"
+
+    def test_manual_fallback_is_recommended(self):
+        opts = hiren_recipe(self._entry(winpe_ready=False), SERVER_IP, PORT)
+        assert opts[0].recommended is True
+
+    def test_manual_cmdline_defaults_to_ip_dhcp(self):
+        opts = hiren_recipe(self._entry(winpe_ready=False), SERVER_IP, PORT)
+        assert opts[0].cmdline == "ip=dhcp"
+
+    def test_manual_cmdline_preserved_when_set(self):
+        opts = hiren_recipe(self._entry(winpe_ready=False, cmdline="custom param"), SERVER_IP, PORT)
+        assert opts[0].cmdline == "custom param"
+
+    def test_manual_kernel_and_initrd_propagated(self):
+        opts = hiren_recipe(self._entry(winpe_ready=False), SERVER_IP, PORT)
+        assert opts[0].kernel == "hiren-1.0/wimboot"
+        assert opts[0].initrd == "hiren-1.0/boot.wim"
+
+
+# ---------------------------------------------------------------------------
 # get_recipe() — public API
 # ---------------------------------------------------------------------------
 
@@ -495,6 +557,30 @@ class TestGetRecipe:
         result = get_recipe("debian_live", entry, SERVER_IP, PORT)
         assert result["error"] is None
         assert {opt["mode"] for opt in result["options"]} == {"iso", "squashfs"}
+
+    def test_hiren_manual_scenario(self):
+        entry = {
+            "version": "1.0",
+            "kernel": "hiren-1.0/wimboot",
+            "initrd": "hiren-1.0/boot.wim",
+        }
+        result = get_recipe("hiren", entry, SERVER_IP, PORT)
+        assert result["error"] is None
+        assert result["options"][0]["mode"] == "manual"
+        assert result["options"][0]["recommended"] is True
+
+    def test_hiren_winpe_scenario(self):
+        entry = {
+            "version": "1.0",
+            "kernel": "hiren-1.0/wimboot",
+            "initrd": "hiren-1.0/boot.wim",
+            "hiren_winpe_ready": True,
+            "cmdline": "initrd=boot.sdi",
+        }
+        result = get_recipe("hiren", entry, SERVER_IP, PORT)
+        assert result["error"] is None
+        assert result["options"][0]["mode"] == "winpe"
+        assert result["options"][0]["cmdline"] == "initrd=boot.sdi"
 
     def test_ubuntu_netboot_alias_same_as_ubuntu_live(self):
         entry = {
