@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SYSTEM_LOGS: deque = deque(maxlen=1000)
-MAX_LOGS = 1000
 PXE_CLIENTS: Dict[str, dict] = {}
 pxe_clients_lock = threading.RLock()
 PXE_LOOP_WINDOW_SECONDS = 30
@@ -131,7 +130,7 @@ def add_log(log_type: str, level: str, message: str, **context):
     }
     log_entry.update({k: v for k, v in context.items() if v is not None})
 
-    SYSTEM_LOGS.append(log_entry)  # deque(maxlen=MAX_LOGS) auto-evicts oldest entries
+    SYSTEM_LOGS.append(log_entry)  # maxlen=1000 auto-evicts oldest entries
 
     logger.debug("[%s] [%s] %s", log_type, level, message)
 

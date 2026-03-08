@@ -306,7 +306,7 @@ class ExtractISORequest(BaseModel):
 
 def _check_disk_space(path: Path, required_bytes: int, label: str) -> None:
     """Raise HTTPException 507 if free disk space is below required_bytes."""
-    free = shutil.disk_usage(str(path)).free
+    free = shutil.disk_usage(path).free
     if free < required_bytes:
         free_gb = free / (1024**3)
         need_gb = required_bytes / (1024**3)
@@ -326,18 +326,10 @@ def _extract_full_iso(iso_path: Path, dest_dir: Path) -> dict:
     try:
         # Require 1.5× ISO size free — extracted tree is roughly equal to the ISO
         # and 7z needs temporary space during extraction.
-        iso_size = iso_path.stat().st_size
-        free = shutil.disk_usage(str(dest_dir)).free
-        if free < int(iso_size * 1.5):
-            free_gb = free / (1024**3)
-            need_gb = iso_size * 1.5 / (1024**3)
-            return {
-                "success": False,
-                "error": (
-                    f"Insufficient disk space: {free_gb:.1f} GB free, "
-                    f"need ~{need_gb:.1f} GB (1.5× ISO size)"
-                ),
-            }
+        try:
+            _check_disk_space(dest_dir, int(iso_path.stat().st_size * 1.5), "ISO extraction")
+        except HTTPException as exc:
+            return {"success": False, "error": exc.detail}
 
         extract_cmd = ["7z", "x", str(iso_path), f"-o{dest_dir}", "-y"]
         subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
