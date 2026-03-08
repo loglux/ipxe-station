@@ -304,11 +304,41 @@ class ExtractISORequest(BaseModel):
     initrd_filename: str = "initrd"
 
 
+def _check_disk_space(path: Path, required_bytes: int, label: str) -> None:
+    """Raise HTTPException 507 if free disk space is below required_bytes."""
+    free = shutil.disk_usage(str(path)).free
+    if free < required_bytes:
+        free_gb = free / (1024**3)
+        need_gb = required_bytes / (1024**3)
+        raise HTTPException(
+            status_code=507,
+            detail=(
+                f"Insufficient disk space for {label}: "
+                f"{free_gb:.1f} GB free, need ~{need_gb:.1f} GB"
+            ),
+        )
+
+
 def _extract_full_iso(iso_path: Path, dest_dir: Path) -> dict:
     """Helper function to extract entire ISO contents to destination directory."""
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        # Require 1.5× ISO size free — extracted tree is roughly equal to the ISO
+        # and 7z needs temporary space during extraction.
+        iso_size = iso_path.stat().st_size
+        free = shutil.disk_usage(str(dest_dir)).free
+        if free < int(iso_size * 1.5):
+            free_gb = free / (1024**3)
+            need_gb = iso_size * 1.5 / (1024**3)
+            return {
+                "success": False,
+                "error": (
+                    f"Insufficient disk space: {free_gb:.1f} GB free, "
+                    f"need ~{need_gb:.1f} GB (1.5× ISO size)"
+                ),
+            }
+
         extract_cmd = ["7z", "x", str(iso_path), f"-o{dest_dir}", "-y"]
         subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
 
@@ -638,6 +668,7 @@ async def upload_asset(request: Request, file: UploadFile = File(...), dest: str
         HTTP_ROOT, effective_dest, allow_empty=True, path_label="dest"
     )
     target_dir.mkdir(parents=True, exist_ok=True)
+    _check_disk_space(target_dir, 200 * 1024 * 1024, "upload")  # require 200 MB free minimum
     safe_filename = _validate_filename(file.filename)
     target_path = _resolve_within_root(target_dir, safe_filename, path_label="filename")
     tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
@@ -698,6 +729,9 @@ def extract_iso(request: ExtractISORequest):
     iso_file = _resolve_within_root(HTTP_ROOT, request.iso_path, path_label="iso_path")
     if not iso_file.exists():
         raise HTTPException(status_code=404, detail=f"ISO file not found: {request.iso_path}")
+
+    # kernel + initrd are typically < 500 MB total; require that as a minimum safety margin
+    _check_disk_space(HTTP_ROOT, 500 * 1024 * 1024, "ISO extraction")
 
     if request.dest_dir:
         dest_dir = _resolve_within_root(HTTP_ROOT, request.dest_dir, path_label="dest_dir")
