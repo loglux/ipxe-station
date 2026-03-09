@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import './AssetManager.css'
+import UbuntuSection from './UbuntuSection'
+import DebianSection from './DebianSection'
+import ToolsSection from './ToolsSection'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
 const ASSETS_ACTIVE_PRESET_KEY = 'assets_active_preset_v1'
@@ -22,57 +25,6 @@ const KASPERSKY_CONFIG = {
   name: 'Kaspersky Rescue Disk',
   dest_folder: 'kaspersky',
   dynamic_versions: true
-}
-
-function DownloadProgressBlock({
-  title,
-  progress,
-  tone = 'primary',
-  unit = 'GB',
-  divisor = 1024 * 1024 * 1024,
-  decimals = 2,
-  showExtraction = false,
-  extractingTone = 'success',
-}) {
-  if (!progress) return null
-  const downloaded = ((progress.downloaded || 0) / divisor).toFixed(decimals)
-  const total = ((progress.total || 0) / divisor).toFixed(decimals)
-
-  return (
-    <div className="dl-progress-block">
-      <div className="dl-progress-title">
-        {title}
-        {showExtraction && progress.status === 'extracting' && (
-          <span className={`dl-progress-stage dl-progress-stage-${extractingTone}`}>(Extracting...)</span>
-        )}
-        {showExtraction && progress.status === 'extracted' && (
-          <span className="dl-progress-stage dl-progress-stage-success">
-            ✓ Extracted ({progress.file_count || 0} files)
-          </span>
-        )}
-      </div>
-      <div className="dl-progress-meta">
-        <span>{progress.percentage || 0}%</span>
-        <span>{downloaded} {unit} / {total} {unit}</span>
-      </div>
-      <progress
-        className={`dl-progress-meter dl-progress-meter-${tone}`}
-        value={progress.percentage || 0}
-        max="100"
-      />
-    </div>
-  )
-}
-
-function UrlBadge({ url, urlStatus }) {
-  const st = urlStatus[url]
-  if (!st) return null
-  if (st.checking) return <span className="url-badge url-badge-checking">🔍 Checking...</span>
-  if (st.ok) {
-    const gb = st.size ? ` · ${(st.size / 1024 / 1024 / 1024).toFixed(1)} GB` : ''
-    return <span className="url-badge url-badge-ok">✅ Available{gb}</span>
-  }
-  return <span className="url-badge url-badge-error">❌ Not found — URL may be outdated</span>
 }
 
 function AssetManager() {
@@ -912,21 +864,6 @@ function AssetManager() {
     return selected?.section || 'all'
   }, [acquireTabs, activeAcquirePresetId])
 
-  const installedSystemRescueVersions = useMemo(() => {
-    const rows = Array.isArray(catalog.rescue) ? catalog.rescue : []
-    return new Set(rows.map(row => String(row.version)))
-  }, [catalog.rescue])
-
-  const installedKasperskyVersions = useMemo(() => {
-    const rows = Array.isArray(catalog.kaspersky) ? catalog.kaspersky : []
-    return new Set(rows.map(row => String(row.version)))
-  }, [catalog.kaspersky])
-
-  const installedHirenVersions = useMemo(() => {
-    const rows = Array.isArray(catalog.hiren) ? catalog.hiren : []
-    return new Set(rows.map(row => String(row.version)))
-  }, [catalog.hiren])
-
   const manualToolsRescueFiles = useMemo(() => {
     const files = Array.isArray(assets.http) ? assets.http : []
     const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
@@ -1116,679 +1053,69 @@ function AssetManager() {
         )}
 
         {/* ── Ubuntu ── */}
-        {(activeAcquireSection === 'ubuntu') && (
-        <section className="asset-section">
-          <h3>🐧 Ubuntu</h3>
-
-          {/* Discovered */}
-          {catalog.ubuntu && catalog.ubuntu.length > 0 && (
-            <div className="distro-group">
-              <h4>📋 Discovered on disk</h4>
-              {catalog.ubuntu.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ Ubuntu {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* NFS Boot Status */}
-          {catalog.ubuntu && catalog.ubuntu.length > 0 && (
-            <div className="distro-group distro-group-nfs">
-              <h4>
-                📡 NFS Boot
-                <button
-                  className="btn btn-sm btn-secondary nfs-refresh-btn"
-                  onClick={fetchNfsStatus}
-                  title="Refresh NFS status"
-                >↻ Check</button>
-              </h4>
-              {!nfsStatus || nfsStatus.loading ? (
-                <p className="nfs-text-muted">Checking NFS…</p>
-              ) : !nfsStatus.running ? (
-                <div className="nfs-text">
-                  <span className="nfs-status-danger">❌ NFS not running on host</span>
-                  <span className="nfs-status-note">
-                    — needed for Ubuntu Server PXE boot
-                  </span>
-                  <div className="nfs-command-hint">
-                    sudo bash scripts/setup-nfs.sh
-                  </div>
-                </div>
-              ) : (
-                <div className="nfs-text">
-                  <div className="nfs-status-line">
-                    <span className="nfs-status-success">✅ NFS running</span>
-                    {nfsStatus.exports?.length > 0 && (
-                      <span className="nfs-status-note">
-                        exports: {nfsStatus.exports.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  {catalog.ubuntu.map((dist) => {
-                    const dir = `ubuntu-${dist.version}`
-                    const covered = nfsStatus.covered?.includes(dir)
-                    const serverIp = window.location.hostname
-                    // Use showmount export, or nfs_root from Settings, or placeholder
-                    const exportBase = nfsStatus.exports?.[0] || nfsStatus.nfs_root || null
-                    const nfsroot = exportBase
-                      ? `${serverIp}:${exportBase.replace(/\/$/, '')}/${dir}`
-                      : null
-                    const cmdline = nfsroot
-                      ? `ip=dhcp boot=casper netboot=nfs nfsroot=${nfsroot}`
-                      : null
-                    return (
-                      <div key={dir} className="nfs-entry-card">
-                        <div className="nfs-entry-state">
-                          {covered
-                            ? <span className="nfs-status-success">✅ Ubuntu {dist.version} — export confirmed</span>
-                            : cmdline
-                              ? <span className="nfs-status-warning">⚠️ Ubuntu {dist.version} — path from Settings, verify manually</span>
-                              : <span className="nfs-status-danger">❌ Ubuntu {dist.version} — set NFS Root Path in Settings first</span>
-                          }
-                        </div>
-                        {cmdline ? (
-                          <div className="nfs-cmdline-row">
-                            <code className="nfs-cmdline-code">
-                              {cmdline}
-                            </code>
-                            <button
-                              className="btn btn-sm btn-secondary nfs-copy-btn"
-                              onClick={() => {
-                                try { navigator.clipboard.writeText(cmdline) } catch {
-                                  const ta = document.createElement('textarea')
-                                  ta.value = cmdline
-                                  document.body.appendChild(ta)
-                                  ta.select()
-                                  document.execCommand('copy')
-                                  document.body.removeChild(ta)
-                                }
-                              }}
-                            >📋 Copy</button>
-                          </div>
-                        ) : (
-                          <div className="nfs-empty-hint">
-                            Go to <strong>Settings → NFS Boot</strong> and set the host export path
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Download */}
-          <div className="download-section">
-            <h4>⬇️ Download</h4>
-
-            {/* Ubuntu Server — dynamic version picker */}
-            <div className="download-subsection">
-              <h4 className="download-subsection-title">Ubuntu Server (LTS)</h4>
-              {ubuntuLoading ? (
-                <p className="text-sm text-muted">Loading available versions...</p>
-              ) : ubuntuVersions.length > 0 ? (
-                <div className="download-picker">
-                  <label>Version</label>
-                  <select
-                    value={selectedUbuntuVersion?.version || ''}
-                    onChange={(e) => {
-                      const v = ubuntuVersions.find(u => u.version === e.target.value)
-                      setSelectedUbuntuVersion(v)
-                      if (v?.iso_url) checkUrl(v.iso_url)
-                    }}
-                  >
-                    {ubuntuVersions.map(v => (
-                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                    ))}
-                  </select>
-                  {selectedUbuntuVersion?.iso_url && (
-                    <div className="url-badge-wrap">
-                      <UrlBadge url={selectedUbuntuVersion.iso_url} urlStatus={urlStatus} />
-                    </div>
-                  )}
-                  {downloading['ubuntu-' + selectedUbuntuVersion?.version] &&
-                    downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`] && (
-                    <DownloadProgressBlock
-                      title="Ubuntu ISO"
-                      progress={downloadProgress[`${selectedUbuntuVersion?.dest_folder}/${selectedUbuntuVersion?.iso_name}`]}
-                      tone="primary"
-                      unit="GB"
-                      divisor={1024 * 1024 * 1024}
-                      decimals={2}
-                    />
-                  )}
-                  {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version] && (
-                    <div className="download-status download-picker-progress">
-                      {downloadStatus['ubuntu-' + selectedUbuntuVersion?.version]}
-                    </div>
-                  )}
-                  <div className="download-picker-actions">
-                    <button
-                      className="btn btn-primary"
-                      onClick={downloadUbuntu}
-                      disabled={!selectedUbuntuVersion || downloading['ubuntu-' + selectedUbuntuVersion?.version]}
-                    >
-                      {downloading['ubuntu-' + selectedUbuntuVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-sm text-muted download-retry-note">Could not load versions from releases.ubuntu.com</p>
-                  <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuVersions}>🔄 Retry</button>
-                </div>
-              )}
-            </div>
-            {/* Ubuntu Desktop — dynamic version picker */}
-            <div className="download-subsection download-subsection-last">
-              <h4 className="download-subsection-title">Ubuntu Desktop (LTS)</h4>
-              <p className="text-sm text-muted download-retry-note">
-                Full GUI live desktop — downloads to <code>ubuntu-{'<ver>'}-desktop/</code> · requires ≥ 8 GB RAM to boot via HTTP ISO
-              </p>
-              {ubuntuDesktopLoading ? (
-                <p className="text-sm text-muted">Loading available versions...</p>
-              ) : ubuntuDesktopVersions.length > 0 ? (
-                <div className="download-picker">
-                  <label>Version</label>
-                  <select
-                    value={selectedUbuntuDesktopVersion?.version || ''}
-                    onChange={(e) => {
-                      const v = ubuntuDesktopVersions.find(u => u.version === e.target.value)
-                      setSelectedUbuntuDesktopVersion(v)
-                      if (v?.iso_url) checkUrl(v.iso_url)
-                    }}
-                  >
-                    {ubuntuDesktopVersions.map(v => (
-                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                    ))}
-                  </select>
-                  {selectedUbuntuDesktopVersion?.iso_url && (
-                    <div className="url-badge-wrap">
-                      <UrlBadge url={selectedUbuntuDesktopVersion.iso_url} urlStatus={urlStatus} />
-                    </div>
-                  )}
-                  {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] &&
-                    downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`] && (
-                    <DownloadProgressBlock
-                      title="Ubuntu Desktop ISO"
-                      progress={downloadProgress[`${selectedUbuntuDesktopVersion?.dest_folder}/${selectedUbuntuDesktopVersion?.iso_name}`]}
-                      tone="primary"
-                      unit="GB"
-                      divisor={1024 * 1024 * 1024}
-                      decimals={2}
-                      showExtraction
-                    />
-                  )}
-                  {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] && (
-                    <div className="download-status download-picker-progress">
-                      {downloadStatus['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
-                    </div>
-                  )}
-                  <div className="download-picker-actions">
-                    <button
-                      className="btn btn-primary"
-                      onClick={downloadUbuntuDesktop}
-                      disabled={!selectedUbuntuDesktopVersion || downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
-                    >
-                      {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-sm text-muted download-retry-note">Could not load versions from releases.ubuntu.com</p>
-                  <button className="btn btn-secondary btn-sm" onClick={fetchUbuntuDesktopVersions}>🔄 Retry</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+        {activeAcquireSection === 'ubuntu' && (
+          <UbuntuSection
+            catalog={catalog}
+            nfsStatus={nfsStatus}
+            fetchNfsStatus={fetchNfsStatus}
+            ubuntuVersions={ubuntuVersions}
+            selectedUbuntuVersion={selectedUbuntuVersion}
+            setSelectedUbuntuVersion={setSelectedUbuntuVersion}
+            ubuntuLoading={ubuntuLoading}
+            fetchUbuntuVersions={fetchUbuntuVersions}
+            ubuntuDesktopVersions={ubuntuDesktopVersions}
+            selectedUbuntuDesktopVersion={selectedUbuntuDesktopVersion}
+            setSelectedUbuntuDesktopVersion={setSelectedUbuntuDesktopVersion}
+            ubuntuDesktopLoading={ubuntuDesktopLoading}
+            fetchUbuntuDesktopVersions={fetchUbuntuDesktopVersions}
+            downloading={downloading}
+            downloadProgress={downloadProgress}
+            downloadStatus={downloadStatus}
+            checkUrl={checkUrl}
+            urlStatus={urlStatus}
+            onDownloadUbuntu={downloadUbuntu}
+            onDownloadUbuntuDesktop={downloadUbuntuDesktop}
+          />
         )}
 
         {/* ── Debian ── */}
-        {(activeAcquireSection === 'debian') && (
-        <section className="asset-section">
-          <h3>🌀 Debian</h3>
-
-          {catalog.debian && catalog.debian.length > 0 && (
-            <div className="distro-group">
-              <h4>📋 Discovered on disk</h4>
-              {catalog.debian.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ Debian {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="download-section">
-            <h4>⬇️ Download</h4>
-            <div className="download-subsection download-subsection-last">
-              <p className="text-sm text-muted download-section-note">
-                Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
-              </p>
-              <div className="download-grid">
-                {debianProducts.map(distro => (
-                  <div key={distro.id} className="download-card">
-                    <div className="download-name">{distro.name}</div>
-                    <div className="download-size">{distro.size_est}</div>
-                    <div className="download-description">{distro.description}</div>
-                    <div className="download-uses">
-                      Unlocks: {distro.boot_targets.join(', ')}
-                      {distro.experimental ? ' · Experimental' : ''}
-                    </div>
-
-                    {distro.iso_url && (
-                      <div className="download-card-url">
-                        <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
-                      </div>
-                    )}
-
-                    {downloading[distro.id] && (
-                      <div className="download-card-progress">
-                        {distro.files.kernel && downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`] && (
-                          <DownloadProgressBlock
-                            title="linux"
-                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`]}
-                            tone="primary"
-                            unit="MB"
-                            divisor={1024 * 1024}
-                            decimals={1}
-                          />
-                        )}
-
-                        {distro.files.initrd && downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`] && (
-                          <DownloadProgressBlock
-                            title="initrd.gz"
-                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`]}
-                            tone="primary"
-                            unit="MB"
-                            divisor={1024 * 1024}
-                            decimals={1}
-                          />
-                        )}
-
-                        {distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
-                          <DownloadProgressBlock
-                            title="ISO"
-                            progress={downloadProgress[`${distro.dest_folder}/${distro.files.iso}`]}
-                            tone="success"
-                            unit="GB"
-                            divisor={1024 * 1024 * 1024}
-                            decimals={2}
-                            showExtraction
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    {downloadStatus[distro.id] && (
-                      <div className="download-status">{downloadStatus[distro.id]}</div>
-                    )}
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => downloadDistro(distro)}
-                      disabled={downloading[distro.id]}
-                      title={distro.iso_only ? 'Download Debian ISO' : 'Download Debian installer files'}
-                    >
-                      {downloading[distro.id] ? '⏳ Downloading...' : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+        {activeAcquireSection === 'debian' && (
+          <DebianSection
+            catalog={catalog}
+            debianProducts={debianProducts}
+            downloading={downloading}
+            downloadProgress={downloadProgress}
+            downloadStatus={downloadStatus}
+            urlStatus={urlStatus}
+            onDownloadDistro={downloadDistro}
+          />
         )}
 
         {/* ── Tools & Rescue ── */}
         {(activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus' || activeAcquireSection === 'tools_rescue') && (
-        <section className="asset-section">
-          <h3>🛠️ Tools &amp; Rescue</h3>
-
-          {manualToolsRescueFiles.length > 0 && (
-            <div className="distro-group">
-              <h4>📂 Manual files (categorized)</h4>
-              {manualToolsRescueFiles.map(({ path, category }) => (
-                <div key={path} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">
-                      📄 {path.split('/').at(-1) || path}
-                      <span className="file-badge">category: {category}</span>
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => deleteAssetPath(path)}
-                    disabled={deletingAssetPath === path}
-                    title={`Delete ${path}`}
-                  >
-                    {deletingAssetPath === path ? '⏳ Deleting...' : '🗑️ Delete'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {catalog.rescue && catalog.rescue.length > 0 && (
-            <div className="distro-group">
-              <h4>📋 Discovered on disk</h4>
-              {catalog.rescue.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ SystemRescue {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* SystemRescue */}
-          <div className="download-subsection">
-            <h4>🛟 SystemRescue</h4>
-            <p className="text-sm text-muted download-section-note">
-              Select a version to download
-            </p>
-              {systemRescueVersions.length > 0 ? (
-                <div className="download-picker">
-                  <label>Version</label>
-                  <select
-                    value={selectedSysrescueVersion?.version || ''}
-                    onChange={(e) => {
-                      const version = systemRescueVersions.find(v => v.version === e.target.value)
-                      setSelectedSysrescueVersion(version)
-                      if (version?.iso_url) checkUrl(version.iso_url)
-                    }}
-                  >
-                    {systemRescueVersions.map(v => (
-                      <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                    ))}
-                  </select>
-                  {selectedSysrescueVersion?.iso_url && (
-                    <div className="url-badge-wrap">
-                      <UrlBadge url={selectedSysrescueVersion.iso_url} urlStatus={urlStatus} />
-                    </div>
-                  )}
-                  {downloading['systemrescue-' + selectedSysrescueVersion?.version] && downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`] && (
-                    <DownloadProgressBlock
-                      title="SystemRescue ISO"
-                      progress={downloadProgress[`rescue-${selectedSysrescueVersion?.version}/${selectedSysrescueVersion?.iso_name}`]}
-                      tone="success"
-                      unit="GB"
-                      divisor={1024 * 1024 * 1024}
-                      decimals={2}
-                      showExtraction
-                    />
-                  )}
-                  {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version] && (
-                    <div className="download-status download-picker-progress">
-                      {downloadStatus['systemrescue-' + selectedSysrescueVersion?.version]}
-                    </div>
-                  )}
-                  <div className="download-picker-actions">
-                    <button
-                      className="btn btn-primary"
-                      onClick={downloadSystemRescue}
-                      disabled={!selectedSysrescueVersion || downloading['systemrescue-' + selectedSysrescueVersion?.version]}
-                    >
-                      {downloading['systemrescue-' + selectedSysrescueVersion?.version]
-                        ? '⏳ Downloading...'
-                        : installedSystemRescueVersions.has(String(selectedSysrescueVersion?.version))
-                          ? '🔁 Re-download ISO'
-                          : '⬇️ Download ISO'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted">Loading versions...</p>
-            )}
-          </div>
-
-          {catalog.kaspersky && catalog.kaspersky.length > 0 && (
-            <div className="distro-group">
-              <h4>📋 Discovered on disk</h4>
-              {catalog.kaspersky.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ Kaspersky Rescue Disk {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Kaspersky Rescue Disk */}
-          <div className="download-subsection">
-            <h4>🛡️ Kaspersky Rescue Disk</h4>
-            <p className="text-sm text-muted download-section-note">
-              Select a version to download (ISO will be extracted automatically)
-            </p>
-            {kasperskyVersions.length > 0 ? (
-              <div className="download-picker">
-                <label>Version</label>
-                <select
-                  value={selectedKasperskyVersion?.version || ''}
-                  onChange={(e) => {
-                    const version = kasperskyVersions.find(v => v.version === e.target.value)
-                    setSelectedKasperskyVersion(version)
-                    if (version?.iso_url) checkUrl(version.iso_url)
-                  }}
-                >
-                  {kasperskyVersions.map(v => (
-                    <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                  ))}
-                </select>
-                {selectedKasperskyVersion?.notes && (
-                  <div className="kaspersky-note">
-                    ℹ️ {selectedKasperskyVersion.notes}
-                  </div>
-                )}
-                {selectedKasperskyVersion?.iso_url && (
-                  <div className="url-badge-wrap">
-                    <UrlBadge url={selectedKasperskyVersion.iso_url} urlStatus={urlStatus} />
-                  </div>
-                )}
-                {downloading['kaspersky-' + selectedKasperskyVersion?.version] && downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`] && (
-                  <DownloadProgressBlock
-                    title="Kaspersky ISO"
-                    progress={downloadProgress[`kaspersky-${selectedKasperskyVersion?.version}/${selectedKasperskyVersion?.iso_name}`]}
-                    tone="warning"
-                    unit="MB"
-                    divisor={1024 * 1024}
-                    decimals={0}
-                    showExtraction
-                    extractingTone="warning"
-                  />
-                )}
-                {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version] && (
-                  <div className="download-status download-picker-progress">
-                    {downloadStatus['kaspersky-' + selectedKasperskyVersion?.version]}
-                  </div>
-                )}
-                <div className="download-picker-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={downloadKaspersky}
-                    disabled={!selectedKasperskyVersion || downloading['kaspersky-' + selectedKasperskyVersion?.version]}
-                  >
-                    {downloading['kaspersky-' + selectedKasperskyVersion?.version]
-                      ? '⏳ Downloading...'
-                      : installedKasperskyVersions.has(String(selectedKasperskyVersion?.version))
-                        ? '🔁 Re-download ISO'
-                        : '⬇️ Download ISO'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted">Loading versions...</p>
-            )}
-          </div>
-
-          {catalog.hiren && catalog.hiren.length > 0 && (
-            <div className="distro-group">
-              <h4>📋 Discovered on disk</h4>
-              {catalog.hiren.map((dist, idx) => (
-                <div key={idx} className="distro-item">
-                  <div className="distro-info">
-                    <div className="distro-name">✅ Hiren&apos;s BootCD PE {dist.version}</div>
-                    <div className="distro-files">
-                      {dist.kernel && <span className="file-badge">✓ kernel</span>}
-                      {dist.initrd && <span className="file-badge">✓ initrd</span>}
-                      {dist.iso && <span className="file-badge">✓ ISO</span>}
-                      {dist.squashfs && <span className="file-badge">✓ squashfs</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Modern Hiren's BootCD PE */}
-          <div className="download-subsection">
-            <h4>🧰 Hiren&apos;s BootCD PE (Modern)</h4>
-            <p className="text-sm text-muted download-section-note">
-              Select a version to download
-            </p>
-            {hirenVersions.length > 0 ? (
-              <div className="download-picker">
-                <label>Version</label>
-                <select
-                  value={selectedHirenVersion?.version || ''}
-                  onChange={(e) => {
-                    const version = hirenVersions.find(v => v.version === e.target.value)
-                    setSelectedHirenVersion(version)
-                    if (version?.iso_url) checkUrl(version.iso_url)
-                  }}
-                >
-                  {hirenVersions.map(v => (
-                    <option key={v.version} value={v.version}>{v.name} ({v.size_est})</option>
-                  ))}
-                </select>
-                {selectedHirenVersion?.notes && (
-                  <div className="kaspersky-note">
-                    ℹ️ {selectedHirenVersion.notes}
-                  </div>
-                )}
-                {selectedHirenVersion?.iso_url && (
-                  <div className="url-badge-wrap">
-                    <UrlBadge url={selectedHirenVersion.iso_url} urlStatus={urlStatus} />
-                  </div>
-                )}
-                {downloading['hiren-' + selectedHirenVersion?.version] && downloadProgress[`${selectedHirenVersion?.dest_folder || `hiren-${selectedHirenVersion?.version}`}/${selectedHirenVersion?.iso_name}`] && (
-                  <DownloadProgressBlock
-                    title="Hiren ISO"
-                    progress={downloadProgress[`${selectedHirenVersion?.dest_folder || `hiren-${selectedHirenVersion?.version}`}/${selectedHirenVersion?.iso_name}`]}
-                    tone="primary"
-                    unit="GB"
-                    divisor={1024 * 1024 * 1024}
-                    decimals={2}
-                    showExtraction
-                  />
-                )}
-                {downloadStatus['hiren-' + selectedHirenVersion?.version] && (
-                  <div className="download-status download-picker-progress">
-                    {downloadStatus['hiren-' + selectedHirenVersion?.version]}
-                  </div>
-                )}
-                <div className="download-picker-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={downloadHiren}
-                    disabled={!selectedHirenVersion || downloading['hiren-' + selectedHirenVersion?.version]}
-                  >
-                    {downloading['hiren-' + selectedHirenVersion?.version]
-                      ? '⏳ Downloading...'
-                      : installedHirenVersions.has(String(selectedHirenVersion?.version))
-                        ? '🔁 Re-download ISO'
-                        : '⬇️ Download ISO'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted">Loading versions...</p>
-            )}
-          </div>
-
-          <div className="download-subsection">
-            <h4>🧩 GParted Live</h4>
-            <p className="text-sm text-muted download-section-note">
-              Official source links for latest ISO and PXE workflow.
-            </p>
-            <div className="download-picker-actions">
-              <a
-                className="btn btn-secondary btn-sm"
-                href="https://gparted.org/download.php"
-                target="_blank"
-                rel="noreferrer"
-              >
-                🌐 Official Download
-              </a>
-              <a
-                className="btn btn-secondary btn-sm"
-                href="https://gparted.org/livepxe.php"
-                target="_blank"
-                rel="noreferrer"
-              >
-                📘 PXE Docs
-              </a>
-            </div>
-          </div>
-
-          <div className="download-subsection download-subsection-last">
-            <h4>🧪 Clonezilla Live</h4>
-            <p className="text-sm text-muted download-section-note">
-              Official source links for latest ISO and PXE workflow.
-            </p>
-            <div className="download-picker-actions">
-              <a
-                className="btn btn-secondary btn-sm"
-                href="https://clonezilla.org/downloads.php"
-                target="_blank"
-                rel="noreferrer"
-              >
-                🌐 Official Download
-              </a>
-              <a
-                className="btn btn-secondary btn-sm"
-                href="https://clonezilla.org/livepxe.php"
-                target="_blank"
-                rel="noreferrer"
-              >
-                📘 PXE Docs
-              </a>
-            </div>
-          </div>
-        </section>
+          <ToolsSection
+            catalog={catalog}
+            manualToolsRescueFiles={manualToolsRescueFiles}
+            deletingAssetPath={deletingAssetPath}
+            onDeleteAssetPath={deleteAssetPath}
+            systemRescueVersions={systemRescueVersions}
+            selectedSysrescueVersion={selectedSysrescueVersion}
+            setSelectedSysrescueVersion={setSelectedSysrescueVersion}
+            kasperskyVersions={kasperskyVersions}
+            selectedKasperskyVersion={selectedKasperskyVersion}
+            setSelectedKasperskyVersion={setSelectedKasperskyVersion}
+            hirenVersions={hirenVersions}
+            selectedHirenVersion={selectedHirenVersion}
+            setSelectedHirenVersion={setSelectedHirenVersion}
+            downloading={downloading}
+            downloadProgress={downloadProgress}
+            downloadStatus={downloadStatus}
+            checkUrl={checkUrl}
+            urlStatus={urlStatus}
+            onDownloadSystemRescue={downloadSystemRescue}
+            onDownloadKaspersky={downloadKaspersky}
+            onDownloadHiren={downloadHiren}
+          />
         )}
 
       </div>
