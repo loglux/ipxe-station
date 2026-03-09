@@ -31,6 +31,34 @@ _DOWNLOAD_PROGRESS_TTL = 3600  # seconds — completed/failed entries are droppe
 
 DEBIAN_PRODUCTS = [
     {
+        "id": "debian-12.10-netboot",
+        "channel": "oldstable",
+        "kind": "installer_bootstrap",
+        "version": "12.10.0",
+        "name": "Debian 12.10 Netboot Installer Files",
+        "description": "Small Debian installer bootstrap: linux + initrd.gz for Netboot and Preseed.",  # noqa: E501
+        "size_est": "~45 MB",
+        "dest_folder": "debian-12.10",
+        "kernel_url": "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux",
+        "initrd_url": "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz",
+        "files": {"kernel": "linux", "initrd": "initrd.gz"},
+        "boot_targets": ["Debian Netboot", "Debian Preseed"],
+    },
+    {
+        "id": "debian-12.10-netinst-iso",
+        "channel": "oldstable",
+        "kind": "installer_iso",
+        "version": "12.10.0",
+        "name": "Debian 12.10 Netinst ISO",
+        "description": "Official small installation ISO for Debian 12 (Bookworm).",
+        "size_est": "~700 MB",
+        "dest_folder": "debian-12.10-netinst",
+        "iso_url": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.10.0-amd64-netinst.iso",
+        "files": {"iso": "debian-12.10.0-amd64-netinst.iso"},
+        "iso_only": True,
+        "boot_targets": ["Debian Netboot", "Debian Preseed"],
+    },
+    {
         "id": "debian-13.3-netboot",
         "channel": "stable",
         "kind": "installer_bootstrap",

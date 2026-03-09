@@ -29,7 +29,11 @@ export default function UbuntuSection({
     [catalog.ubuntu]
   )
   const installedDesktopVersions = useMemo(() =>
-    new Set((catalog.ubuntu || []).filter(d => d.desktop).map(d => String(d.version))),
+    new Set(
+      (catalog.ubuntu || [])
+        .filter(d => String(d.version).endsWith('-desktop'))
+        .map(d => String(d.version).replace('-desktop', ''))
+    ),
     [catalog.ubuntu]
   )
 
