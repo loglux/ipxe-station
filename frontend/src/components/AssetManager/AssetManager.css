@@ -670,3 +670,75 @@
   padding: 1px 4px;
   border-radius: 3px;
 }
+
+/* Debian grouped accordion */
+.debian-group-details {
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.debian-group-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--color-bg-secondary);
+  list-style: none;
+}
+
+.debian-group-summary::-webkit-details-marker { display: none; }
+
+.debian-group-details[open] .debian-group-summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.debian-group-summary::before {
+  content: '▶';
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.debian-group-details[open] .debian-group-summary::before {
+  transform: rotate(90deg);
+}
+
+.debian-group-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.debian-group-note {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.debian-group-body {
+  padding: 12px 14px 4px;
+}
+
+/* Channel badges */
+.channel-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.channel-stable {
+  background: color-mix(in oklab, var(--color-success, #27ae60) 15%, transparent);
+  color: var(--color-success, #27ae60);
+}
+
+.channel-oldstable {
+  background: color-mix(in oklab, var(--color-warning, #e67e22) 15%, transparent);
+  color: var(--color-warning, #e67e22);
+}
