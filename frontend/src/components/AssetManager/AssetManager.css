@@ -633,3 +633,40 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── WinPE / Windows section ── */
+
+.file-badge-missing {
+  background: color-mix(in oklab, var(--color-danger, #e74c3c) 15%, transparent);
+  color: var(--color-danger, #e74c3c);
+}
+
+.winpe-instructions {
+  margin-top: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.winpe-instructions summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.winpe-steps {
+  margin: 8px 0 4px 16px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+
+.winpe-steps ul {
+  margin: 4px 0 4px 16px;
+}
+
+.winpe-steps code {
+  font-size: 11px;
+  background: var(--color-bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 3px;
+}

@@ -380,6 +380,23 @@ def assets_catalog():
     }
 
 
+@assets_router.get("/wimboot-status")
+def wimboot_status():
+    """Return wimboot binary presence and WinPE file status."""
+    wimboot_path = HTTP_ROOT / "wimboot"
+    winpe_dir = HTTP_ROOT / "winpe"
+    return {
+        "wimboot_present": wimboot_path.exists(),
+        "wimboot_size": wimboot_path.stat().st_size if wimboot_path.exists() else None,
+        "winpe_files": {
+            "bootmgr": (winpe_dir / "bootmgr").exists(),
+            "BCD": (winpe_dir / "BCD").exists(),
+            "boot_sdi": (winpe_dir / "boot.sdi").exists(),
+            "boot_wim": (winpe_dir / "sources" / "boot.wim").exists(),
+        },
+    }
+
+
 @assets_router.get("/presets")
 def list_presets():
     """Return merged preset catalog (system + user)."""

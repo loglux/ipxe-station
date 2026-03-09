@@ -3,6 +3,7 @@ import './AssetManager.css'
 import UbuntuSection from './UbuntuSection'
 import DebianSection from './DebianSection'
 import ToolsSection from './ToolsSection'
+import WindowsSection from './WindowsSection'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
 const ASSETS_ACTIVE_PRESET_KEY = 'assets_active_preset_v1'
@@ -795,6 +796,29 @@ function AssetManager() {
     }
   }
 
+  const downloadWimboot = async ({ url, dest, key }) => {
+    setDownloading(prev => ({ ...prev, [key]: true }))
+    try {
+      setDownloadStatus(prev => ({ ...prev, [key]: 'Downloading wimboot…' }))
+      const resp = await fetch('/api/assets/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, dest }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json()
+        throw new Error(err.detail || 'Download failed')
+      }
+      setDownloadStatus(prev => ({ ...prev, [key]: '✅ Downloaded!' }))
+      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [key]: '' })), 3000)
+    } catch (error) {
+      setDownloadStatus(prev => ({ ...prev, [key]: `❌ Error: ${error.message}` }))
+      setTimeout(() => setDownloadStatus(prev => ({ ...prev, [key]: '' })), 5000)
+    } finally {
+      setDownloading(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
   const acquirePresets = useMemo(() => {
     return presets
       .filter(preset => preset.mode === 'acquire' && preset.enabled !== false && preset.section)
@@ -831,6 +855,9 @@ function AssetManager() {
         order: preset.order ?? 100,
       })
     })
+    // Windows tab is always present
+    tabs.push({ id: 'acquire_windows', name: '🪟 Windows', section: 'windows', order: 99 })
+
     return tabs.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
   }, [acquirePresets])
 
@@ -1115,6 +1142,16 @@ function AssetManager() {
             onDownloadSystemRescue={downloadSystemRescue}
             onDownloadKaspersky={downloadKaspersky}
             onDownloadHiren={downloadHiren}
+          />
+        )}
+
+        {/* ── Windows / wimboot ── */}
+        {activeAcquireSection === 'windows' && (
+          <WindowsSection
+            downloading={downloading}
+            downloadProgress={downloadProgress}
+            downloadStatus={downloadStatus}
+            onDownload={downloadWimboot}
           />
         )}
 
