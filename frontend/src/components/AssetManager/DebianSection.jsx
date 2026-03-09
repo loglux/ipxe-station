@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import DownloadProgressBlock from './DownloadProgressBlock'
 import UrlBadge from './UrlBadge'
 
@@ -10,6 +11,11 @@ export default function DebianSection({
   urlStatus,
   onDownloadDistro,
 }) {
+  const installedDebianVersions = useMemo(() =>
+    new Set((catalog.debian || []).map(d => String(d.version))),
+    [catalog.debian]
+  )
+
   return (
     <section className="asset-section">
       <h3>🌀 Debian</h3>
@@ -100,7 +106,9 @@ export default function DebianSection({
               >
                 {downloading[distro.id]
                   ? '⏳ Downloading...'
-                  : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
+                  : installedDebianVersions.has(distro.dest_folder.replace('debian-', ''))
+                    ? distro.iso_only ? '🔁 Re-download ISO' : '🔁 Re-download'
+                    : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
               </button>
             </div>
           </div>
