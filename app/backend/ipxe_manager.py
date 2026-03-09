@@ -306,7 +306,13 @@ class iPXEValidator:
             if entry.entry_type == "boot":
                 cmdline = entry.cmdline or ""
                 has_fetch_url = "fetch=" in cmdline or "url=" in cmdline
-                if entry.boot_mode == "live" and not entry.requires_iso and not has_fetch_url:
+                is_nfs = "nfsroot=" in cmdline
+                if (
+                    entry.boot_mode == "live"
+                    and not entry.requires_iso
+                    and not has_fetch_url
+                    and not is_nfs
+                ):
                     warnings.append(
                         f"{entry.name}: live boot usually requires ISO (set requires_iso=True)"
                     )

@@ -65,6 +65,30 @@ def test_lint_live_without_iso_flag():
     assert any("requires_iso" in w for w in warnings)
 
 
+def test_lint_live_nfs_does_not_warn():
+    """NFS live boot does not need a local ISO — no requires_iso warning."""
+    menu = iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        default_entry=None,
+        entries=[
+            iPXEEntry(
+                name="ubuntu_live_nfs",
+                title="Ubuntu Live NFS",
+                kernel="ubuntu-24.04/vmlinuz",
+                initrd="ubuntu-24.04/initrd",
+                cmdline="ip=dhcp boot=casper netboot=nfs nfsroot=192.168.1.1:/srv/nfs/ubuntu-24.04",
+                entry_type="boot",
+                boot_mode="live",
+                requires_iso=False,
+            )
+        ],
+    )
+
+    warnings = iPXEValidator.lint_menu(menu)
+    assert not any("requires_iso" in w for w in warnings)
+
+
 def test_lint_timeout_and_duplicates():
     menu = iPXEMenu(
         title="Menu",
