@@ -35,80 +35,76 @@ export default function DebianSection({
 
       <div className="download-section">
         <h4>⬇️ Download</h4>
-        <div className="download-subsection download-subsection-last">
-          <p className="text-sm text-muted download-section-note">
-            Installer bootstrap, netinst ISO, and live ISO from official Debian sources.
-          </p>
-          <div className="download-grid">
-            {debianProducts.map(distro => (
-              <div key={distro.id} className="download-card">
-                <div className="download-name">{distro.name}</div>
-                <div className="download-size">{distro.size_est}</div>
-                <div className="download-description">{distro.description}</div>
-                <div className="download-uses">
-                  Unlocks: {distro.boot_targets.join(', ')}
-                  {distro.experimental ? ' · Experimental' : ''}
-                </div>
+        {debianProducts.map(distro => (
+          <div key={distro.id} className="download-subsection">
+            <h4>{distro.name}</h4>
+            <p className="text-sm text-muted download-section-note">
+              {distro.description}
+              {distro.size_est && <> · <strong>{distro.size_est}</strong></>}
+              {distro.experimental && <> · <em>Experimental</em></>}
+            </p>
 
-                {distro.iso_url && (
-                  <div className="download-card-url">
-                    <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
-                  </div>
-                )}
-
-                {downloading[distro.id] && (
-                  <div className="download-card-progress">
-                    {distro.files.kernel && downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`] && (
-                      <DownloadProgressBlock
-                        title="linux"
-                        progress={downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`]}
-                        tone="primary"
-                        unit="MB"
-                        divisor={1024 * 1024}
-                        decimals={1}
-                      />
-                    )}
-
-                    {distro.files.initrd && downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`] && (
-                      <DownloadProgressBlock
-                        title="initrd.gz"
-                        progress={downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`]}
-                        tone="primary"
-                        unit="MB"
-                        divisor={1024 * 1024}
-                        decimals={1}
-                      />
-                    )}
-
-                    {distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
-                      <DownloadProgressBlock
-                        title="ISO"
-                        progress={downloadProgress[`${distro.dest_folder}/${distro.files.iso}`]}
-                        tone="success"
-                        unit="GB"
-                        divisor={1024 * 1024 * 1024}
-                        decimals={2}
-                        showExtraction
-                      />
-                    )}
-                  </div>
-                )}
-
-                {downloadStatus[distro.id] && (
-                  <div className="download-status">{downloadStatus[distro.id]}</div>
-                )}
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => onDownloadDistro(distro)}
-                  disabled={downloading[distro.id]}
-                  title={distro.iso_only ? 'Download Debian ISO' : 'Download Debian installer files'}
-                >
-                  {downloading[distro.id] ? '⏳ Downloading...' : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
-                </button>
+            {distro.iso_url && (
+              <div className="url-badge-wrap">
+                <UrlBadge url={distro.iso_url} urlStatus={urlStatus} />
               </div>
-            ))}
+            )}
+
+            {downloading[distro.id] && (
+              <>
+                {distro.files.kernel && downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`] && (
+                  <DownloadProgressBlock
+                    title="linux"
+                    progress={downloadProgress[`${distro.dest_folder}/${distro.files.kernel}`]}
+                    tone="primary"
+                    unit="MB"
+                    divisor={1024 * 1024}
+                    decimals={1}
+                  />
+                )}
+                {distro.files.initrd && downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`] && (
+                  <DownloadProgressBlock
+                    title="initrd.gz"
+                    progress={downloadProgress[`${distro.dest_folder}/${distro.files.initrd}`]}
+                    tone="primary"
+                    unit="MB"
+                    divisor={1024 * 1024}
+                    decimals={1}
+                  />
+                )}
+                {distro.files.iso && downloadProgress[`${distro.dest_folder}/${distro.files.iso}`] && (
+                  <DownloadProgressBlock
+                    title="ISO"
+                    progress={downloadProgress[`${distro.dest_folder}/${distro.files.iso}`]}
+                    tone="success"
+                    unit="GB"
+                    divisor={1024 * 1024 * 1024}
+                    decimals={2}
+                    showExtraction
+                  />
+                )}
+              </>
+            )}
+
+            {downloadStatus[distro.id] && (
+              <div className="download-status download-picker-progress">
+                {downloadStatus[distro.id]}
+              </div>
+            )}
+
+            <div className="download-picker-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => onDownloadDistro(distro)}
+                disabled={downloading[distro.id]}
+              >
+                {downloading[distro.id]
+                  ? '⏳ Downloading...'
+                  : distro.iso_only ? '⬇️ Download ISO' : '⬇️ Download Installer Files'}
+              </button>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
     </section>
   )

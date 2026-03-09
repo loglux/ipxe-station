@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import DownloadProgressBlock from './DownloadProgressBlock'
 import UrlBadge from './UrlBadge'
 
@@ -23,6 +24,15 @@ export default function UbuntuSection({
   onDownloadUbuntu,
   onDownloadUbuntuDesktop,
 }) {
+  const installedUbuntuVersions = useMemo(() =>
+    new Set((catalog.ubuntu || []).map(d => String(d.version))),
+    [catalog.ubuntu]
+  )
+  const installedDesktopVersions = useMemo(() =>
+    new Set((catalog.ubuntu || []).filter(d => d.desktop).map(d => String(d.version))),
+    [catalog.ubuntu]
+  )
+
   return (
     <section className="asset-section">
       <h3>🐧 Ubuntu</h3>
@@ -185,7 +195,11 @@ export default function UbuntuSection({
                   onClick={onDownloadUbuntu}
                   disabled={!selectedUbuntuVersion || downloading['ubuntu-' + selectedUbuntuVersion?.version]}
                 >
-                  {downloading['ubuntu-' + selectedUbuntuVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                  {downloading['ubuntu-' + selectedUbuntuVersion?.version]
+                    ? '⏳ Downloading...'
+                    : installedUbuntuVersions.has(String(selectedUbuntuVersion?.version))
+                      ? '🔁 Re-download ISO'
+                      : '⬇️ Download ISO'}
                 </button>
               </div>
             </div>
@@ -247,7 +261,11 @@ export default function UbuntuSection({
                   onClick={onDownloadUbuntuDesktop}
                   disabled={!selectedUbuntuDesktopVersion || downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]}
                 >
-                  {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version] ? '⏳ Downloading...' : '⬇️ Download ISO'}
+                  {downloading['ubuntu-desktop-' + selectedUbuntuDesktopVersion?.version]
+                    ? '⏳ Downloading...'
+                    : installedDesktopVersions.has(String(selectedUbuntuDesktopVersion?.version))
+                      ? '🔁 Re-download ISO'
+                      : '⬇️ Download ISO'}
                 </button>
               </div>
             </div>
