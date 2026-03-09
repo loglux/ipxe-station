@@ -611,6 +611,10 @@ button {
   line-height: 1.6;
 }
 
+.code-preview-full {
+  max-height: none;
+}
+
 /* ========== INLINE SCRIPT PREVIEW DRAWER ========== */
 
 .script-preview-drawer {

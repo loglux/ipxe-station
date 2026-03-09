@@ -39,6 +39,7 @@ function App() {
   const [generatedScript, setGeneratedScript] = useState('')
   const [scriptWarnings, setScriptWarnings] = useState([])
   const [generatingScript, setGeneratingScript] = useState(false)
+  const [previewExpanded, setPreviewExpanded] = useState(false)
   const [entries, setEntries] = useState([])
   const generateAbortRef = useRef(null)
 
@@ -496,6 +497,13 @@ function App() {
                       </button>
                       <button
                         className="btn btn-sm btn-secondary"
+                        onClick={() => setPreviewExpanded(v => !v)}
+                        title={previewExpanded ? 'Collapse script view' : 'Expand to show full script'}
+                      >
+                        {previewExpanded ? '⤡ Collapse' : '⤢ Expand'}
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
                         onClick={async () => {
                           const result = await fetch('/api/ipxe/generate', {
                             method: 'POST',
@@ -564,7 +572,7 @@ function App() {
                         </ul>
                       </div>
                     )}
-                    <pre className="code-preview">
+                    <pre className={`code-preview${previewExpanded ? ' code-preview-full' : ''}`}>
                       {generatingScript ? '# Generating script...' : (generatedScript || '# No script generated yet')}
                     </pre>
                   </div>
