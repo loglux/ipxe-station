@@ -389,9 +389,8 @@ def wimboot_status():
         "wimboot_present": wimboot_path.exists(),
         "wimboot_size": wimboot_path.stat().st_size if wimboot_path.exists() else None,
         "winpe_files": {
-            "bootmgr": (winpe_dir / "bootmgr").exists(),
-            "BCD": (winpe_dir / "BCD").exists(),
-            "boot_sdi": (winpe_dir / "boot.sdi").exists(),
+            "BCD": (winpe_dir / "Boot" / "BCD").exists(),
+            "boot_sdi": (winpe_dir / "Boot" / "boot.sdi").exists(),
             "boot_wim": (winpe_dir / "sources" / "boot.wim").exists(),
         },
     }

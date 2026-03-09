@@ -31,7 +31,7 @@ export default function WindowsSection({ downloading, downloadProgress, download
   }, [downloading, fetchStatus])
 
   const winpeFiles = wimbootStatus?.winpe_files || {}
-  const winpeReady = winpeFiles.bootmgr && winpeFiles.BCD && winpeFiles.boot_sdi && winpeFiles.boot_wim
+  const winpeReady = winpeFiles.BCD && winpeFiles.boot_sdi && winpeFiles.boot_wim
 
   const progressKey = WIMBOOT_DEST
   const isDownloading = !!downloading['wimboot']
@@ -96,8 +96,8 @@ export default function WindowsSection({ downloading, downloadProgress, download
       <div className="download-subsection">
         <h4>WinPE files</h4>
         <p className="text-sm text-muted download-section-note">
-          Extract these from a Windows installation ISO and place in <code>/srv/http/winpe/</code>.
-          Use the <strong>Upload File</strong> button above to upload each file.
+          Obtain from <strong>Windows ADK + WinPE add-on</strong> (free from Microsoft, requires Windows to install),
+          then upload to <code>/srv/http/winpe/</code> using the <strong>Upload File</strong> button above.
         </p>
 
         <div className="distro-item">
@@ -106,14 +106,11 @@ export default function WindowsSection({ downloading, downloadProgress, download
               {winpeReady ? '✅ All WinPE files present' : '⚠️ WinPE files incomplete'}
             </div>
             <div className="distro-files">
-              <span className={`file-badge${winpeFiles.bootmgr ? '' : ' file-badge-missing'}`}>
-                {winpeFiles.bootmgr ? '✓' : '✗'} bootmgr
-              </span>
               <span className={`file-badge${winpeFiles.BCD ? '' : ' file-badge-missing'}`}>
-                {winpeFiles.BCD ? '✓' : '✗'} BCD
+                {winpeFiles.BCD ? '✓' : '✗'} Boot/BCD
               </span>
               <span className={`file-badge${winpeFiles.boot_sdi ? '' : ' file-badge-missing'}`}>
-                {winpeFiles.boot_sdi ? '✓' : '✗'} boot.sdi
+                {winpeFiles.boot_sdi ? '✓' : '✗'} Boot/boot.sdi
               </span>
               <span className={`file-badge${winpeFiles.boot_wim ? '' : ' file-badge-missing'}`}>
                 {winpeFiles.boot_wim ? '✓' : '✗'} sources/boot.wim
@@ -125,20 +122,24 @@ export default function WindowsSection({ downloading, downloadProgress, download
 
         {!winpeReady && (
           <details className="winpe-instructions">
-            <summary className="text-sm">How to extract WinPE files from a Windows ISO</summary>
+            <summary className="text-sm">How to prepare WinPE files</summary>
             <ol className="text-sm winpe-steps">
-              <li>Mount or extract the Windows installation ISO</li>
+              <li>On a Windows machine, install <strong>Windows ADK</strong> + <strong>WinPE add-on</strong> from Microsoft</li>
               <li>
-                Copy these files to <code>/srv/http/winpe/</code>:
+                Run in Deployment Tools Command Prompt:
                 <ul>
-                  <li><code>bootmgr</code> — from ISO root</li>
-                  <li><code>BCD</code> — from <code>Boot/BCD</code></li>
-                  <li><code>boot.sdi</code> — from <code>Boot/boot.sdi</code></li>
-                  <li><code>sources/boot.wim</code> — keep in <code>sources/</code> subfolder</li>
+                  <li><code>copype amd64 C:\winpe_amd64</code></li>
                 </ul>
               </li>
-              <li>Use <strong>Upload File</strong> above, set subfolder to <code>winpe</code> or <code>winpe/sources</code></li>
-              <li>Then add a <strong>Windows PE (WIMBoot)</strong> entry via the Builder wizard</li>
+              <li>
+                Upload these files (use subfolder as shown):
+                <ul>
+                  <li><code>winpe_amd64\media\Boot\BCD</code> → subfolder <code>winpe/Boot</code></li>
+                  <li><code>winpe_amd64\media\Boot\boot.sdi</code> → subfolder <code>winpe/Boot</code></li>
+                  <li><code>winpe_amd64\media\sources\boot.wim</code> → subfolder <code>winpe/sources</code></li>
+                </ul>
+              </li>
+              <li>Add a <strong>Windows PE (wimboot)</strong> entry via the Builder wizard</li>
             </ol>
           </details>
         )}

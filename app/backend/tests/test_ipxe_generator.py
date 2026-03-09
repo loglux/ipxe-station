@@ -130,6 +130,36 @@ def test_hiren_winpe_minimal_flow_uses_boot_wim():
     assert "initrd http://10.0.0.1:8080/http/hiren-1.0.8/sources/boot.wim boot.wim" in script
 
 
+def test_windows_pe_wimboot_multi_initrd():
+    """windows_pe scenario: initrd field split into per-file initrd lines with filename aliases."""
+    menu = iPXEMenu(
+        title="Test Menu",
+        timeout=5000,
+        default_entry="winpe",
+        server_ip="10.0.0.1",
+        http_port=8080,
+        entries=[
+            iPXEEntry(
+                name="winpe",
+                title="Windows PE",
+                kernel="wimboot",
+                initrd="winpe/Boot/BCD winpe/Boot/boot.sdi winpe/sources/boot.wim",
+                boot_mode="custom",
+                entry_type="boot",
+            )
+        ],
+    )
+
+    script = iPXEGenerator.generate_ipxe_script(menu)
+
+    assert "kernel http://10.0.0.1:8080/http/wimboot" in script
+    assert "initrd http://10.0.0.1:8080/http/winpe/Boot/BCD BCD" in script
+    assert "initrd http://10.0.0.1:8080/http/winpe/Boot/boot.sdi boot.sdi" in script
+    assert "initrd http://10.0.0.1:8080/http/winpe/sources/boot.wim boot.wim" in script
+    # Single-line initrd must NOT be used
+    assert "initrd http://10.0.0.1:8080/http/winpe/Boot/BCD winpe/Boot/boot.sdi" not in script
+
+
 def test_legacy_iso_memdisk_flow_uses_iso_raw_cmdline():
     menu = iPXEMenu(
         title="Test Menu",

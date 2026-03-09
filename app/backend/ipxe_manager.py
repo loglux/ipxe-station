@@ -790,12 +790,23 @@ class iPXEGenerator:
                     )
                     script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
-                # Add initrd if provided
+                # Add initrd — wimboot expects one initrd line per file with a filename alias
                 if entry.initrd:
-                    initrd_url = iPXEGenerator._resolve_kernel_url(
-                        entry.initrd, menu.server_ip, menu.http_port
+                    is_wimboot = entry.kernel and (
+                        entry.kernel == "wimboot" or entry.kernel.endswith("/wimboot")
                     )
-                    script_lines.append(f"initrd {initrd_url}")
+                    if is_wimboot:
+                        for path in entry.initrd.split():
+                            file_url = iPXEGenerator._resolve_kernel_url(
+                                path, menu.server_ip, menu.http_port
+                            )
+                            filename = Path(path).name
+                            script_lines.append(f"initrd {file_url} {filename}")
+                    else:
+                        initrd_url = iPXEGenerator._resolve_kernel_url(
+                            entry.initrd, menu.server_ip, menu.http_port
+                        )
+                        script_lines.append(f"initrd {initrd_url}")
 
                 script_lines.extend(["boot", "goto start", ""])
 

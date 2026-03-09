@@ -588,8 +588,8 @@ export const SCENARIOS = {
 
   windows_pe: {
     id: 'windows_pe',
-    displayName: 'Windows PE (WIMBoot)',
-    description: 'Windows Preinstallation Environment',
+    displayName: 'Windows PE (wimboot)',
+    description: 'Windows Preinstallation Environment via wimboot',
     icon: '🪟',
     category: 'windows',
 
@@ -608,21 +608,27 @@ export const SCENARIOS = {
 
     template: () => ({
       kernel: 'wimboot',
-      initrd: 'bootmgr BCD boot.sdi boot.wim',
+      initrd: 'winpe/Boot/BCD winpe/Boot/boot.sdi winpe/sources/boot.wim',
       cmdline: '',
     }),
 
     help: `
-      Windows PE requires specific files extracted from a Windows ISO:
+      Boots Windows PE using wimboot over HTTP. Generates:
+        kernel http://server/wimboot
+        initrd http://server/winpe/Boot/BCD       BCD
+        initrd http://server/winpe/Boot/boot.sdi  boot.sdi
+        initrd http://server/winpe/sources/boot.wim  boot.wim
 
-      Required files (place in /srv/http/winpe/):
-      - wimboot (iPXE WIM bootloader)
-      - bootmgr (Windows Boot Manager)
-      - Boot/BCD (Boot Configuration Data)
-      - Boot/boot.sdi (Service Descriptor Installer)
-      - sources/boot.wim (Windows PE image)
+      Required files on server:
+      - /srv/http/wimboot          — download via Assets → Windows tab
+      - /srv/http/winpe/Boot/BCD
+      - /srv/http/winpe/Boot/boot.sdi
+      - /srv/http/winpe/sources/boot.wim
 
-      Note: You need a valid Windows license to use WinPE.
+      Extract from Windows ADK (free from Microsoft) or a Windows ISO.
+      For Windows 11: add WinPE-WMI and WinPE-SecureStartup packages to the image.
+
+      Adjust the initrd paths if your files are in a different subfolder.
     `,
   },
 
