@@ -881,14 +881,38 @@ export const getScenario = (id) => {
   return SCENARIOS[id] || null
 }
 
+// Substitute ${server_ip}, ${port}, ${version} placeholders in template string values.
+const interpolateTemplate = (obj, ctx) => {
+  if (!obj || typeof obj !== 'object') return obj
+  const result = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      result[key] = value
+        .replace(/\$\{server_ip\}/g, ctx.server_ip || 'SERVER')
+        .replace(/\$\{port\}/g, String(ctx.port || 9021))
+        .replace(/\$\{version\}/g, ctx.version || '')
+    } else {
+      result[key] = value
+    }
+  }
+  return result
+}
+
 // Helper: Create entry from scenario
 export const createEntryFromScenario = (scenarioId, overrides = {}) => {
   const scenario = SCENARIOS[scenarioId]
   if (!scenario) return null
 
-  const template = typeof scenario.template === 'function'
+  const rawTemplate = typeof scenario.template === 'function'
     ? scenario.template(overrides)
     : scenario.template || {}
+
+  const ctx = {
+    server_ip: overrides.server_ip || '',
+    port: overrides.http_port || 9021,
+    version: overrides.version || '',
+  }
+  const template = interpolateTemplate(rawTemplate, ctx)
 
   return {
     name: overrides.name || `${scenarioId}_${Date.now()}`,

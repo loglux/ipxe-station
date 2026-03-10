@@ -336,6 +336,18 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
   const [errorField, setErrorField] = useState(null)
   const [manualAssetsHint, setManualAssetsHint] = useState('')
   const [manualAssetsHintKind, setManualAssetsHintKind] = useState('info')
+  const [serverSettings, setServerSettings] = useState({ server_ip: '', http_port: 9021 })
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => {
+        if (data.server_ip || data.http_port) {
+          setServerSettings({ server_ip: data.server_ip || '', http_port: data.http_port || 9021 })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Pre-select parent submenu when opened from a section's "+ Add entry" button
   useEffect(() => {
@@ -637,6 +649,8 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       cmdline: cmdline || undefined,
       requires_iso: requiresIso,
       preseed_profile: selectedScenario === 'debian_preseed' ? (selectedPreseedProfile || undefined) : undefined,
+      server_ip: serverSettings.server_ip,
+      http_port: serverSettings.http_port,
       ...hirenWinpeOverrides,
     })
 

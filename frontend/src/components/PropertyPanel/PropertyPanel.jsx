@@ -35,20 +35,33 @@ const CMDLINE_BASE_SETS = [
   },
 ]
 
-const CMDLINE_SUGGESTIONS = [
-  { token: 'ip=dhcp', hint: 'DHCP network config' },
-  { token: 'boot=casper', hint: 'Ubuntu casper live boot' },
-  { token: 'netboot=nfs', hint: 'Stream rootfs via NFS' },
-  { token: 'nfsroot=SERVER:/path', hint: 'NFS export path' },
-  { token: 'url=http://SERVER/ubuntu.iso', hint: 'ISO URL for live boot' },
-  { token: 'auto=true', hint: 'Enable unattended install flow' },
-  { token: 'priority=critical', hint: 'Installer non-interactive priority' },
-  { token: 'cloud-init=disabled', hint: 'Disable cloud-init stage' },
-  { token: 'ignore_uuid', hint: 'Ignore media UUID checks' },
-  { token: 'fsck.mode=skip', hint: 'Skip filesystem check' },
-  { token: 'quiet', hint: 'Reduce boot verbosity' },
-  { token: 'splash', hint: 'Enable splash screen' },
-]
+const buildCmdlineSuggestions = (serverIp, httpPort) => {
+  const ip = serverIp || 'SERVER'
+  const port = httpPort || 9021
+  return [
+    { token: 'ip=dhcp',                               hint: 'DHCP network config' },
+    { token: 'boot=casper',                            hint: 'Ubuntu/Debian casper live boot' },
+    { token: 'netboot=nfs',                            hint: 'Stream rootfs via NFS' },
+    { token: `nfsroot=${ip}:/srv/tftp`,                hint: 'NFS root path — edit the export path' },
+    { token: `nfsboot=${ip}:/srv/tftp`,                hint: 'NFS boot path (SystemRescue legacy)' },
+    { token: `url=http://${ip}:${port}/boot.iso`,      hint: 'ISO URL for live boot — edit the filename' },
+    { token: 'auto=true',                              hint: 'Enable unattended install flow' },
+    { token: 'priority=critical',                      hint: 'Installer non-interactive priority' },
+    { token: 'cloud-init=disabled',                    hint: 'Disable cloud-init stage' },
+    { token: 'ignore_uuid',                            hint: 'Ignore media UUID checks' },
+    { token: 'fsck.mode=skip',                         hint: 'Skip filesystem check' },
+    { token: 'quiet',                                  hint: 'Reduce boot verbosity' },
+    { token: 'splash',                                 hint: 'Enable splash screen' },
+    { token: 'vga=791',                                hint: 'VESA framebuffer 1024×768' },
+    { token: 'vga=788',                                hint: 'VESA framebuffer 800×600' },
+    { token: 'nomodeset',                              hint: 'Disable KMS (rescue/antivirus tools)' },
+    { token: 'root=/dev/nfs',                          hint: 'Root via NFS (legacy syslinux style)' },
+    { token: 'dodhcp',                                 hint: 'Enable DHCP during boot (SystemRescue)' },
+    { token: 'lang=en',                                hint: 'Boot language English (KRD/ESET)' },
+    { token: 'lang=ru',                                hint: 'Boot language Russian (KRD/ESET)' },
+    { token: 'ramdisk_size=65536',                     hint: 'RAM disk size in KB (rescue/memdisk)' },
+  ]
+}
 
 const tokenizeCmdline = (value) => {
   if (!value?.trim()) return []
@@ -61,6 +74,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [preseedProfiles, setPreseedProfiles] = useState([])
+  const [serverSettings, setServerSettings] = useState({ server_ip: '', http_port: 9021 })
   const [customCmdlineSets, setCustomCmdlineSets] = useState(() => {
     try {
       const raw = localStorage.getItem('ipxe_cmdline_custom_sets')
@@ -145,6 +159,19 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
       cancelled = true
     }
   }, [entry, recipeKey, recipeScenario, recipeVersionPath])
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => {
+        if (data.server_ip || data.http_port) {
+          setServerSettings({ server_ip: data.server_ip || '', http_port: data.http_port || 9021 })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const cmdlineSuggestions = buildCmdlineSuggestions(serverSettings.server_ip, serverSettings.http_port)
 
   const isDebianPreseedEntry = (
     entry?.entry_type === 'boot' &&
@@ -294,7 +321,8 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
 
     const has = (prefix) => tokens.some((token) => token === prefix || token.startsWith(`${prefix}=`))
     if (has('netboot') && !has('nfsroot') && tokens.some((token) => token.startsWith('netboot=nfs'))) {
-      warnings.push('netboot=nfs usually requires nfsroot=SERVER:/path.')
+      const ip = serverSettings.server_ip || 'SERVER'
+      warnings.push(`netboot=nfs usually requires nfsroot=${ip}:/path.`)
     }
     if (has('boot') && !tokens.some((token) => token.startsWith('boot=casper')) && has('cloud-init')) {
       warnings.push('cloud-init options are commonly used with boot=casper flows.')
@@ -470,7 +498,7 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
                   </button>
                 </div>
                 <div className="cmdline-suggestions">
-                  {CMDLINE_SUGGESTIONS.map((item) => (
+                  {cmdlineSuggestions.map((item) => (
                     <button
                       key={item.token}
                       type="button"
