@@ -229,7 +229,7 @@ export default function BuilderCards({
           draggable
           onDragStart={(e) => handleDragStart(e, entry)}
           onDragEnd={handleDragEnd}
-          onClick={() => onSelectEntry(entry.name)}
+          onClick={isSubmenu ? (e) => toggleExpand(entry.name, e) : () => onSelectEntry(entry.name)}
         >
           <span className="bc-drag-handle" title="Drag to reorder">⠿</span>
           <span className="bc-icon">{entry.icon || (isSubmenu ? '📁' : '⚙')}</span>
@@ -278,6 +278,20 @@ export default function BuilderCards({
           onChange={e => setQuery(e.target.value)}
         />
         <div className="bc-bulk-actions">
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => setExpanded(new Set(entries.filter(e => e.entry_type === 'submenu').map(e => e.name)))}
+            title="Expand all submenus"
+          >
+            Expand all
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => setExpanded(new Set())}
+            title="Collapse all submenus"
+          >
+            Collapse all
+          </button>
           <button
             className="btn btn-sm btn-secondary"
             onClick={() => onSetEntriesEnabled(entries.map(e => e.name), true)}
