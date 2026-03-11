@@ -914,16 +914,19 @@ export const createEntryFromScenario = (scenarioId, overrides = {}) => {
   }
   const template = interpolateTemplate(rawTemplate, ctx)
 
+  // Strip interpolation-only fields that must not end up in the saved entry
+  const { server_ip, http_port, version, ...entryOverrides } = overrides
+
   return {
-    name: overrides.name || `${scenarioId}_${Date.now()}`,
-    title: overrides.title || scenario.displayName,
-    description: overrides.description || '',
+    name: entryOverrides.name || `${scenarioId}_${Date.now()}`,
+    title: entryOverrides.title || scenario.displayName,
+    description: entryOverrides.description || '',
     enabled: true,
-    order: overrides.order || 0,
-    parent: overrides.parent || null,
+    order: entryOverrides.order || 0,
+    parent: entryOverrides.parent || null,
     ...scenario.generated,
     ...template,
-    ...overrides,
+    ...entryOverrides,
   }
 }
 
