@@ -255,7 +255,7 @@ function MenuBuilder({
         <div
           className={`tree-node ${isSelected ? 'selected' : ''} ${!entry.enabled ? 'disabled' : ''}`}
           style={{ paddingLeft: `${level * 18 + 6}px` }}
-          onClick={() => onSelectEntry(entry.name)}
+          onClick={isSubmenu ? (e) => toggleNode(entry.name, e) : () => onSelectEntry(entry.name)}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.effectAllowed = 'move'
@@ -304,7 +304,7 @@ function MenuBuilder({
             } ${
               dropTargetKey === `after:${entry.name}` ? 'drop-target-after' : ''
             }`}
-            onClick={() => onSelectEntry(entry.name)}
+            onClick={isSubmenu ? (e) => toggleNode(entry.name, e) : () => onSelectEntry(entry.name)}
             aria-current={isSelected ? 'true' : undefined}
             title={entry.title || entry.name}
           >
@@ -404,7 +404,7 @@ function MenuBuilder({
             onClick={() => setExpandedNodes(new Set(submenus.map((s) => s.name)))}
             title="Expand all submenus"
           >
-            Expand
+            Expand all
           </button>
           <button
             type="button"
@@ -412,7 +412,7 @@ function MenuBuilder({
             onClick={() => setExpandedNodes(new Set())}
             title="Collapse all submenus"
           >
-            Collapse
+            Collapse all
           </button>
         </div>
       </div>
