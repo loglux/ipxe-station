@@ -33,7 +33,7 @@ export const SCENARIOS = {
 
     // Default template values
     template: () => ({
-      cmdline: `ip=dhcp url=http://\${server_ip}:\${port}/ubuntu-\${version}/`,
+      cmdline: `ip=dhcp url=http://\${server_ip}:\${port}/ubuntu-\${version}/ nomodeset`,
     }),
 
     // Asset detection configuration
@@ -98,7 +98,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `ip=dhcp boot=casper url=http://\${server_ip}:\${port}/http/ubuntu-\${version}/ubuntu-\${version}-live-server-amd64.iso`,
+      cmdline: `ip=dhcp boot=casper url=http://\${server_ip}:\${port}/http/ubuntu-\${version}/ubuntu-\${version}-live-server-amd64.iso nomodeset`,
     }),
 
     assetDiscovery: {
