@@ -457,7 +457,16 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
       let versions = catalogKey ? (catalog[catalogKey] || []) : []
 
       // Filter to only versions that have at least kernel+initrd or squashfs/iso to boot from
-      const validVersions = versions.filter(v => (v.kernel && v.initrd) || v.squashfs || v.iso)
+      // Also filter by scenario type: live scenarios only show squashfs versions,
+      // netboot/preseed scenarios exclude live (squashfs) versions to prevent mismatch.
+      const isLiveScenario = selectedScenario.endsWith('_live')
+      const isInstallerScenario = selectedScenario.endsWith('_netboot') || selectedScenario.endsWith('_preseed')
+      const validVersions = versions.filter(v => {
+        if (!((v.kernel && v.initrd) || v.squashfs || v.iso)) return false
+        if (isLiveScenario) return !!v.squashfs
+        if (isInstallerScenario) return !v.squashfs
+        return true
+      })
       const labels = assets?.asset_labels && typeof assets.asset_labels === 'object'
         ? assets.asset_labels
         : {}
