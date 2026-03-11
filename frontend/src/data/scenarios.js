@@ -259,9 +259,9 @@ export const SCENARIOS = {
 
   debian_live: {
     id: 'debian_live',
-    displayName: 'Debian Live (Experimental)',
-    description: 'Experimental Debian live-boot via ISO or squashfs fetch',
-    icon: '🧪',
+    displayName: 'Debian Live',
+    description: 'Debian live-boot via ISO or squashfs fetch',
+    icon: '🐧',
     category: 'linux',
 
     generated: {
@@ -284,12 +284,8 @@ export const SCENARIOS = {
     },
 
     help: `
-      Debian Live is currently exposed as an experimental iPXE path.
-
-      The current recipe uses Debian live-boot's fetch-based HTTP path with
-      IP-address URLs and can target either a full live ISO or live/filesystem.squashfs.
-
-      This is still not treated as a fully validated production boot mode in iPXE Station.
+      Debian Live uses the live-boot fetch-based HTTP path.
+      Supports both a full live ISO or live/filesystem.squashfs as the source.
     `,
   },
 
