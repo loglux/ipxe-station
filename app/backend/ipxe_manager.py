@@ -875,7 +875,7 @@ class iPXEGenerator:
         """Resolve kernel path to full URL"""
         if not path:
             return ""
-        if path.startswith(("http://", "https://", "tftp://")):
+        if path.startswith(("http://", "https://", "tftp://", "nfs://")):
             return path
         elif path.startswith("/"):
             # Absolute path - convert to HTTP URL
