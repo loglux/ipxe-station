@@ -353,7 +353,7 @@ export const SCENARIOS = {
     generated: {
       entry_type: 'boot',
       boot_mode: 'rescue',
-      requires_iso: true,
+      requires_iso: false,
       requires_internet: false,
     },
 
@@ -364,12 +364,13 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `dostartx netboot=http://\${server_ip}:\${port}/kaspersky/`,
+      cmdline: `initrd=initrd.img boot=live components locales=en_US.UTF-8 netboot=nfs nfsroot=\${server_ip}:/srv/http/kaspersky-\${version}`,
     }),
 
     assetDiscovery: {
-      pattern: 'kaspersky-*/k-x86_64',
-      requiredFiles: ['k-x86_64', 'initrd.xz', '*.iso'],
+      pattern: 'kaspersky-*/live/vmlinuz',
+      requiredFiles: ['live/vmlinuz', 'live/initrd.img', 'live/filesystem.squashfs'],
+      versionExtractor: /kaspersky-(\d+)/,
     },
 
     downloadUrls: {
@@ -377,21 +378,11 @@ export const SCENARIOS = {
         name: 'Kaspersky Rescue Disk 24 (Recommended)',
         iso: 'https://rescuedisk.s.kaspersky-labs.com/updatable/2024/krd.iso',
         extractFiles: {
-          kernel: 'krd/boot/grub/k-x86_64',
-          initrd: 'krd/boot/grub/initrd.xz',
+          kernel: 'live/vmlinuz',
+          initrd: 'live/initrd.img',
         },
         size: '~800 MB',
-        notes: 'Better UEFI support, requires 2.5GB+ RAM',
-      },
-      '18': {
-        name: 'Kaspersky Rescue Disk 18',
-        iso: 'https://rescuedisk.s.kaspersky-labs.com/krd.iso',
-        extractFiles: {
-          kernel: 'krd/boot/grub/k-x86_64',
-          initrd: 'krd/boot/grub/initrd.xz',
-        },
-        size: '~670 MB',
-        notes: 'UEFI Secure Boot NOT supported - must be disabled',
+        notes: 'UEFI Secure Boot NOT supported - must be disabled in BIOS',
       },
     },
 
@@ -403,16 +394,13 @@ export const SCENARIOS = {
       - Version 18: UEFI Secure Boot must be disabled in BIOS
 
       Requirements:
-      - ISO file extracted to server
-      - Kernel (k-x86_64) and initrd (initrd.xz)
-      - All ISO contents available via HTTP
-      - Minimum 2.5GB RAM for network boot
-      - Wired Ethernet connection (WiFi not supported)
+      - ISO extracted to server (live/vmlinuz, live/initrd.img, live/filesystem.squashfs)
+      - NFS server exporting the kaspersky-N directory (read-only)
+      - Wired Ethernet (WiFi not supported by KRD)
+      - UEFI Secure Boot must be disabled in BIOS
 
-      Boot process:
-      1. Boots kernel with initrd
-      2. Downloads full system from HTTP server
-      3. Runs antivirus scan in isolated environment
+      Boot method: NFS (official Kaspersky iPXE instructions).
+      Adjust nfsroot= in the cmdline to match your NFS export path.
     `,
   },
 
