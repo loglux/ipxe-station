@@ -56,7 +56,9 @@ def _default_menu_structure() -> dict:
 def _apply_runtime_network_defaults(menu: IpxeMenuModel) -> IpxeMenuModel:
     """Always apply server_ip/http_port from live settings.json — these are server-side values."""
     s = load_settings()
-    return menu.model_copy(update={"server_ip": s.server_ip, "http_port": s.http_port})
+    return menu.model_copy(
+        update={"server_ip": s.server_ip, "http_port": s.http_port, "nfs_root": s.nfs_root}
+    )
 
 
 def _parse_boot_ipxe(script_content: str) -> dict:

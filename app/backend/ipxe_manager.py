@@ -72,6 +72,7 @@ class iPXEMenu:
     footer_text: str = ""
     server_ip: str = ""  # filled by _apply_runtime_network_defaults from settings.json
     http_port: int = 0  # filled by _apply_runtime_network_defaults from settings.json
+    nfs_root: str = ""  # filled by _apply_runtime_network_defaults from settings.json
 
     def __post_init__(self):
         """Sort entries by order after initialization"""
@@ -756,6 +757,7 @@ class iPXEGenerator:
                         (entry.cmdline or "")
                         .replace("${server_ip}", menu.server_ip)
                         .replace("${port}", str(menu.http_port))
+                        .replace("${nfs_root}", menu.nfs_root)
                     )
                     script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
@@ -785,14 +787,17 @@ class iPXEGenerator:
                     continue
 
                 # Determine kernel URL
+                is_nfs = "netboot=nfs" in (entry.cmdline or "").lower()
                 if entry.kernel:
                     kernel_url = iPXEGenerator._resolve_kernel_url(
-                        entry.kernel, menu.server_ip, menu.http_port
+                        entry.kernel, menu.server_ip, menu.http_port, menu.nfs_root, use_nfs=is_nfs
                     )
-                    # Substitute variables in cmdline (${server_ip}, ${port})
+                    # Substitute variables in cmdline (${server_ip}, ${port}, ${nfs_root})
                     cmdline = entry.cmdline if entry.cmdline else ""
-                    cmdline = cmdline.replace("${server_ip}", menu.server_ip).replace(
-                        "${port}", str(menu.http_port)
+                    cmdline = (
+                        cmdline.replace("${server_ip}", menu.server_ip)
+                        .replace("${port}", str(menu.http_port))
+                        .replace("${nfs_root}", menu.nfs_root)
                     )
                     script_lines.append(f"kernel {kernel_url} {cmdline}".strip())
 
@@ -810,7 +815,11 @@ class iPXEGenerator:
                             script_lines.append(f"initrd {file_url} {filename}")
                     else:
                         initrd_url = iPXEGenerator._resolve_kernel_url(
-                            entry.initrd, menu.server_ip, menu.http_port
+                            entry.initrd,
+                            menu.server_ip,
+                            menu.http_port,
+                            menu.nfs_root,
+                            use_nfs=is_nfs,
                         )
                         script_lines.append(f"initrd {initrd_url}")
 
@@ -871,7 +880,9 @@ class iPXEGenerator:
         return "\n".join(script_lines)
 
     @staticmethod
-    def _resolve_kernel_url(path: str, server_ip: str, port: int) -> str:
+    def _resolve_kernel_url(
+        path: str, server_ip: str, port: int, nfs_root: str = "", use_nfs: bool = False
+    ) -> str:
         """Resolve kernel path to full URL"""
         if not path:
             return ""
@@ -881,6 +892,8 @@ class iPXEGenerator:
             # Absolute path - convert to HTTP URL
             return f"http://{server_ip}:{port}{path}"
         else:
+            if use_nfs and nfs_root:
+                return f"nfs://{server_ip}:{nfs_root.rstrip('/')}/{path.lstrip('/')}"
             # Relative path - assets are served under /http/ mount point
             return f"http://{server_ip}:{port}/http/{path.lstrip('/')}"
 

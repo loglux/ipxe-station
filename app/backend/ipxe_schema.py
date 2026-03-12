@@ -42,6 +42,7 @@ class IpxeMenuModel(BaseModel):
     footer_text: str = ""
     server_ip: str = ""  # filled by _apply_runtime_network_defaults from settings.json
     http_port: int = 0  # filled by _apply_runtime_network_defaults from settings.json
+    nfs_root: str = ""  # filled by _apply_runtime_network_defaults from settings.json
 
     model_config = {
         "extra": "forbid",
@@ -94,6 +95,7 @@ def menu_to_model(menu) -> IpxeMenuModel:
         footer_text=menu.footer_text,
         server_ip=menu.server_ip,
         http_port=menu.http_port,
+        nfs_root=menu.nfs_root,
     )
 
 
@@ -134,4 +136,5 @@ def model_to_menu(model: IpxeMenuModel):
         footer_text=model.footer_text,
         server_ip=model.server_ip,
         http_port=model.http_port,
+        nfs_root=model.nfs_root,
     )

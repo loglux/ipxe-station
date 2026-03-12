@@ -364,7 +364,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `initrd=initrd.img boot=live components locales=en_US.UTF-8 netboot=nfs nfsroot=\${server_ip}:/srv/http/kaspersky-\${version}`,
+      cmdline: `initrd=initrd.img boot=live components locales=en_US.UTF-8 netboot=nfs nfsroot=\${server_ip}:\${nfs_root}/kaspersky-\${version}`,
     }),
 
     assetDiscovery: {
