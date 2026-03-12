@@ -787,10 +787,9 @@ class iPXEGenerator:
                     continue
 
                 # Determine kernel URL
-                is_nfs = "netboot=nfs" in (entry.cmdline or "").lower()
                 if entry.kernel:
                     kernel_url = iPXEGenerator._resolve_kernel_url(
-                        entry.kernel, menu.server_ip, menu.http_port, menu.nfs_root, use_nfs=is_nfs
+                        entry.kernel, menu.server_ip, menu.http_port
                     )
                     # Substitute variables in cmdline (${server_ip}, ${port}, ${nfs_root})
                     cmdline = entry.cmdline if entry.cmdline else ""
@@ -815,11 +814,7 @@ class iPXEGenerator:
                             script_lines.append(f"initrd {file_url} {filename}")
                     else:
                         initrd_url = iPXEGenerator._resolve_kernel_url(
-                            entry.initrd,
-                            menu.server_ip,
-                            menu.http_port,
-                            menu.nfs_root,
-                            use_nfs=is_nfs,
+                            entry.initrd, menu.server_ip, menu.http_port
                         )
                         script_lines.append(f"initrd {initrd_url}")
 
