@@ -28,6 +28,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
     http_port: 9021,
     support_bios: true,
     support_uefi: true,
+    support_http_boot: false,
   });
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyMessage, setProxyMessage] = useState(null);
@@ -39,6 +40,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
   const [pxeServerIP, setPxeServerIP] = useState('192.168.10.32');
   const [httpPort, setHttpPort] = useState(9021);
   const [tftpPort, setTftpPort] = useState(69);
+  const [httpBoot, setHttpBoot] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [loading, setLoading] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
@@ -185,7 +187,8 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
           server_type: selectedType,
           pxe_server_ip: pxeServerIP,
           http_port: parseInt(httpPort),
-          tftp_port: parseInt(tftpPort)
+          tftp_port: parseInt(tftpPort),
+          http_boot: selectedType === 'dnsmasq' ? httpBoot : false,
         })
       });
       const data = await response.json();
@@ -195,7 +198,7 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
     } finally {
       setLoading(false);
     }
-  }, [httpPort, pxeServerIP, selectedType, tftpPort]);
+  }, [httpPort, httpBoot, pxeServerIP, selectedType, tftpPort]);
 
   useEffect(() => {
     if (selectedType) {
@@ -341,6 +344,16 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
                   />
                   UEFI (ipxe.efi)
                 </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={proxySettings.support_http_boot}
+                    onChange={e =>
+                      setProxySettings(prev => ({ ...prev, support_http_boot: e.target.checked }))
+                    }
+                  />
+                  HTTP Boot (UEFI, experimental)
+                </label>
               </div>
             </div>
           </div>
@@ -446,6 +459,19 @@ const DHCPHelper = ({ settingsVersion = 0 }) => {
               />
             </div>
           </div>
+
+          {selectedType === 'dnsmasq' && (
+            <div className="setting-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={httpBoot}
+                  onChange={e => setHttpBoot(e.target.checked)}
+                />
+                Include UEFI HTTP Boot block (experimental)
+              </label>
+            </div>
+          )}
           </div>
 
           {/* Generated Config */}

@@ -102,3 +102,22 @@ class TestDHCPConfigGenerator:
         config_text = result["config"]
         assert "iPXE" in config_text
         assert "filename" in config_text
+
+    def test_dnsmasq_http_boot_block_omitted_by_default(self):
+        result = self.generator.generate(self.config)
+        assert "HTTPClient" not in result["config"]
+        assert "dhcp-vendorclass" not in result["config"]
+
+    def test_dnsmasq_http_boot_block_included_when_enabled(self):
+        config = DHCPConfig(pxe_server_ip="10.0.0.5", http_port=9021, http_boot=True)
+        result = self.generator.generate(config)
+        config_text = result["config"]
+        assert "dhcp-vendorclass=set:httpclient,HTTPClient" in config_text
+        assert 'dhcp-option-force=tag:httpclient,60,"HTTPClient"' in config_text
+        assert "dhcp-boot=tag:httpclient,http://10.0.0.5:9021/ipxe.efi" in config_text
+
+    def test_http_boot_flag_only_affects_dnsmasq(self):
+        # Other server types silently ignore http_boot rather than erroring.
+        config = DHCPConfig(pxe_server_ip="10.0.0.5", server_type="isc-dhcp", http_boot=True)
+        result = self.generator.generate(config)
+        assert "HTTPClient" not in result["config"]

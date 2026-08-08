@@ -22,6 +22,10 @@
 - **Proxy DHCP server** — built-in dnsmasq in proxy mode (BIOS + EFI), starts automatically on container restart
 - **Config generator** — ready-to-paste configs for dnsmasq, ISC DHCP, MikroTik RouterOS, Windows Server
 - **Network validator** — sends real DHCP probes (BIOS, UEFI, iPXE) and diagnoses the result with fix suggestions
+- **UEFI HTTP Boot (Experimental)** — optional toggle (Proxy DHCP panel, and the dnsmasq router-config
+  generator) that answers RFC 5970 `HTTPClient` requests with a URL to `ipxe.efi` instead of a TFTP
+  filename. Off by default; see [ROADMAP.md](ROADMAP.md) for the validation checklist — unverified
+  against real HTTPClient-capable UEFI firmware.
 
 ### 🔧 Boot Files
 - **autoexec.ipxe editor** — edit or apply templates directly from the UI

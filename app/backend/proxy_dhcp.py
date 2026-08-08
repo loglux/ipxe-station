@@ -25,6 +25,9 @@ class ProxyDHCPSettings(BaseModel):
     http_port: int = 9021
     support_bios: bool = True
     support_uefi: bool = True
+    # Experimental — UEFI HTTP Boot (RFC 5970), off by default. Unverified against
+    # real HTTPClient-capable UEFI firmware; see ROADMAP.md validation checklist.
+    support_http_boot: bool = False
 
 
 class ProxyDHCPManager:
@@ -79,6 +82,23 @@ class ProxyDHCPManager:
         if settings.support_uefi:
             lines.append(f'pxe-service=x86-64_EFI,"Network Boot (UEFI)",ipxe.efi,{ip}')
             lines.append(f'pxe-service=BC_EFI,"Network Boot (UEFI32)",ipxe.efi,{ip}')
+
+        if settings.support_http_boot:
+            # HTTPClient is a distinct DHCP client class from PXEClient — no overlap
+            # with the ipxe/!ipxe tagging above. The vendor-class echo (option 60) is
+            # required by RFC 5970 for the client to accept the offered URL. The
+            # trailing ",,{ip}" sets the boot-server address (siaddr) the same way the
+            # pxe-service lines above do, so once ipxe.efi is running it still finds
+            # autoexec.ipxe via TFTP exactly like the regular UEFI path.
+            lines.append("")
+            lines.append(
+                "# HTTP Boot (UEFI native, RFC 5970) — experimental, verify on real hardware"
+            )
+            lines.append("dhcp-vendorclass=set:httpclient,HTTPClient")
+            lines.append('dhcp-option-force=tag:httpclient,60,"HTTPClient"')
+            lines.append(
+                f"dhcp-boot=tag:httpclient,http://{ip}:{settings.http_port}/tftp/ipxe.efi,,{ip}"
+            )
 
         return "\n".join(lines) + "\n"
 

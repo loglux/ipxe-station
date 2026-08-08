@@ -8,4 +8,4 @@ beautifulsoup4
 lxml
 scapy
 pytest
-httpx
+httpx2

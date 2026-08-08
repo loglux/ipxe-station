@@ -84,17 +84,49 @@ served over HTTP for automated installs.
   - Debian live-boot expects `boot=live` and supports `fetch=` / `httpfs=` / `netboot=`
   - `fetch=` prefers IP-based URLs and can use a live ISO in place of squashfs
 
-### 6. Optional LAN Security Hardening (No Overengineering)
+### 6. Optional LAN Security Hardening (No Overengineering) — Delivered
 
 **Goal:** Keep development friction low while reducing the highest-impact risks for LAN deployments.
 
-- **Authentication remains optional** and disabled by default (`SECURITY_MODE=off`).
-- Add lightweight optional token mode (`SECURITY_MODE=token`) for write/control API endpoints.
-- Add configurable upload/download size limits to reduce accidental disk/IO exhaustion.
-- Add optional SSRF guardrails for URL-based endpoints (`/api/assets/download`, `/api/assets/check-url`)
-  with deny rules for loopback/private/metadata targets.
+- **Done** — `SECURITY_MODE=token` + `API_TOKEN` enforced at the single API boundary dependency
+  (`app/routes/boundary.py`); authentication remains optional and disabled by default (`SECURITY_MODE=off`).
+- **Done** — SSRF guardrails on `/api/assets/download` and `/api/assets/check-url`
+  (`app/backend/url_guard.py`) deny loopback/private/link-local/reserved/multicast targets and
+  re-validate redirect hops before following them.
+- Configurable upload/download size limits — not yet done.
 - Document trusted-LAN deployment assumptions and recommended network isolation
-  (VLAN/firewall) as guidance, not as a mandatory runtime dependency.
+  (VLAN/firewall) as guidance — not yet done.
+
+### 7. UEFI HTTP Boot (Experimental)
+
+**Goal:** Give newer UEFI firmware a way to fetch `ipxe.efi` directly over HTTP(S), skipping the
+TFTP hop entirely — additive only, the existing BIOS/UEFI-PXE-ROM path is unchanged.
+
+- **Done** — opt-in `support_http_boot` toggle on the live Proxy DHCP dnsmasq instance
+  (`app/backend/proxy_dhcp.py`): tags DHCP option 60 `HTTPClient` vendor-class requests separately
+  from the existing `pxe-service` (BIOS/UEFI-PXE-ROM) branches, echoes the vendor-class back per
+  RFC 5970, and responds with `dhcp-boot=http://SERVER:PORT/tftp/ipxe.efi`.
+- **Done** — matching opt-in block in the dnsmasq router-config generator
+  (`app/backend/dhcp_helper.py`) for users running their own external dnsmasq.
+- **Not done** — no HTTP Boot support added to the isc-dhcp/mikrotik/windows generators (those
+  platforms' mechanisms are less uniformly documented; follow the existing Windows-generator
+  precedent of pointing to vendor docs rather than guessing).
+- **Not done** — no synthetic `HTTPClient` probe added to `DHCPValidator`/network validation; the
+  validator's raw-socket code has zero existing test coverage, and this would need real hardware to
+  verify against rather than being added speculatively.
+- Ecosystem context: IANA reserves architecture type `16` (`0x0010`) for x86-64 UEFI HTTPBoot in the
+  PXE client-architecture registry (RFC 4578 successor allocations) — noted here for reference; the
+  current implementation doesn't probe or branch on this code, it only reacts to the vendor-class string.
+
+**Manual validation checklist** (unverified against real hardware in this environment — same
+posture as the Debian Live prototype below):
+1. Enable the "HTTP Boot (UEFI, experimental)" checkbox in the Proxy DHCP panel and start/restart it.
+2. Boot a UEFI client whose firmware advertises native HTTP Boot support (check firmware boot-menu
+   for an "HTTP Boot" or "Network Boot from URL" entry) and confirm it fetches `ipxe.efi` over HTTP
+   rather than falling back to TFTP.
+3. Confirm iPXE then finds and runs `autoexec.ipxe` via TFTP exactly as the regular UEFI path does.
+4. Record whether `dhcp-option-force=60,"HTTPClient"` was actually necessary for the specific
+   firmware tested, or whether it accepted the URL without the echo — capture findings here.
 
 ---
 

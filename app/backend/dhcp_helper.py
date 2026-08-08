@@ -15,6 +15,9 @@ class DHCPConfig:
     http_port: int = 9021
     tftp_port: int = 69
     server_type: str = "dnsmasq"
+    # Experimental — appends a UEFI HTTP Boot block (dnsmasq only, RFC 5970).
+    # Unverified against real HTTPClient-capable UEFI firmware; see ROADMAP.md.
+    http_boot: bool = False
 
 
 class DHCPConfigGenerator:
@@ -43,6 +46,18 @@ class DHCPConfigGenerator:
 
     def _generate_dnsmasq(self, config: DHCPConfig) -> str:
         """Generate dnsmasq configuration"""
+        http_boot_block = ""
+        if config.http_boot:
+            http_boot_block = f"""
+# Optional: UEFI HTTP Boot (RFC 5970) — experimental, verify on real hardware.
+# Native UEFI HTTP Boot firmware identifies itself via vendor-class "HTTPClient"
+# instead of "PXEClient", and needs that vendor-class echoed back (option 60)
+# to accept the offered URL. Once ipxe.efi is running, it still finds
+# autoexec.ipxe via TFTP exactly like the regular UEFI path above.
+dhcp-vendorclass=set:httpclient,HTTPClient
+dhcp-option-force=tag:httpclient,60,"HTTPClient"
+dhcp-boot=tag:httpclient,http://{config.pxe_server_ip}:{config.http_port}/ipxe.efi,,{config.pxe_server_ip}
+"""
         return f"""# iPXE PXE Boot Configuration for dnsmasq
 # Add this to /etc/dnsmasq.conf
 
@@ -73,7 +88,7 @@ dhcp-boot=tag:bios,tag:!ipxe,undionly.kpxe,{config.pxe_server_ip}
 # Alternative simple configuration (if tagging doesn't work):
 # dhcp-option=66,{config.pxe_server_ip}
 # dhcp-option=67,undionly.kpxe
-
+{http_boot_block}
 # After editing, reload dnsmasq:
 # sudo systemctl reload dnsmasq
 """
