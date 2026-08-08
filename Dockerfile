@@ -20,7 +20,7 @@ RUN apt-get update && \
         # File system tools
         file tree \
         # System tools
-        sudo procps \
+        procps \
         # NFS client tools (showmount for NFS status check)
         nfs-common \
         # Proxy DHCP
@@ -55,17 +55,28 @@ RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /srv/dhcp && \
 RUN mkdir -p /mnt/iso /tmp/extract && \
     chmod 755 /mnt/iso /tmp/extract
 
-# Download iPXE binaries — stored outside /app so volume-mount of ./app doesn't shadow them
+# Pinned wimboot release — GitHub release assets are immutable per tag, so this hash
+# is a real, stable integrity check (not a placeholder). Bump both together when upgrading:
+# curl -sL -o /tmp/w https://github.com/ipxe/wimboot/releases/download/<tag>/wimboot && sha256sum /tmp/w
+ARG WIMBOOT_VERSION=v2.9.0
+ARG WIMBOOT_SHA256=5f067ccdc4d084d5bf77b6c853bd0f8402dfc2b4cd1b103d358993ae97fae8e3
+
+# Download iPXE binaries — stored outside /app so volume-mount of ./app doesn't shadow them.
+# boot.ipxe.org serves a rolling "latest build" with no published per-build checksums, so
+# HTTPS (server identity via TLS) is the best available integrity guarantee for those three;
+# see ROADMAP.md "Building Custom iPXE Binaries" for a fully pinned, source-built alternative.
 RUN mkdir -p /opt/ipxe-initial-files/tftp /opt/ipxe-initial-files/http && \
     cd /opt/ipxe-initial-files/tftp && \
-    wget -q http://boot.ipxe.org/undionly.kpxe && \
-    wget -q -O ipxe.efi http://boot.ipxe.org/x86_64-efi/ipxe.efi && \
-    wget -q -O snponly.efi http://boot.ipxe.org/x86_64-efi/snponly.efi && \
-    wget -q http://boot.ipxe.org/ipxe.pxe && \
+    wget -q https://boot.ipxe.org/undionly.kpxe && \
+    wget -q -O ipxe.efi https://boot.ipxe.org/x86_64-efi/ipxe.efi && \
+    wget -q -O snponly.efi https://boot.ipxe.org/x86_64-efi/snponly.efi && \
+    wget -q https://boot.ipxe.org/ipxe.pxe && \
     MEMDISK_PATH="$(find /usr/lib -type f -name memdisk | head -n1)" && \
     test -n "$MEMDISK_PATH" && \
     cp "$MEMDISK_PATH" /opt/ipxe-initial-files/http/memdisk && \
-    wget -q -O /opt/ipxe-initial-files/http/wimboot https://github.com/ipxe/wimboot/releases/latest/download/wimboot && \
+    wget -q -O /opt/ipxe-initial-files/http/wimboot \
+        "https://github.com/ipxe/wimboot/releases/download/${WIMBOOT_VERSION}/wimboot" && \
+    echo "${WIMBOOT_SHA256}  /opt/ipxe-initial-files/http/wimboot" | sha256sum -c - && \
     chmod 644 /opt/ipxe-initial-files/http/wimboot && \
     ls -la /opt/ipxe-initial-files/tftp/ && \
     ls -la /opt/ipxe-initial-files/http/
@@ -75,11 +86,8 @@ COPY scripts/setup-volumes.sh /usr/local/bin/setup-volumes.sh
 COPY scripts/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/setup-volumes.sh /usr/local/bin/start.sh
 
-# Configure sudo for volume operations
-RUN echo 'root ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-
 # Expose ports
-EXPOSE 69/udp 9021 9005
+EXPOSE 69/udp 9021
 
 # Change working directory back to /app for running the application
 WORKDIR /app

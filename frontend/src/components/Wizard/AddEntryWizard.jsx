@@ -502,7 +502,6 @@ function AddEntryWizard({ isOpen, onClose, onAddEntry, entries = [], initialCate
             const parts = path.split('/')
             const fileName = parts.at(-1) || path
             const baseName = fileName.replace(/\.iso$/i, '')
-            const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
             const categoryLabel = category || 'uncategorized'
             return {
               version: `manual:${path}`,

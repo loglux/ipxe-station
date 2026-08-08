@@ -15,28 +15,30 @@ services:
       - NET_ADMIN
       - NET_RAW
 
+    # This is the production-safe default: no source bind-mount, no hot-reload.
+    # For local development, layer docker-compose.dev.yml on top (see README), or
+    # run `DEV=1 ./deploy.sh start`.
     volumes:
       # Persistent storage for all PXE data
       - ./data/srv/tftp:/srv/tftp:rw    # TFTP boot files
       - ./data/srv/http:/srv/http:rw    # HTTP boot files (Ubuntu versions)
       - ./data/srv/ipxe:/srv/ipxe:rw    # iPXE scripts
       - ./data/srv/dhcp:/srv/dhcp:rw    # DHCP configurations
-      # Dev mount — covers both backend and frontend (vite builds into app/frontend/dist/)
-      # After changing Python code: uvicorn --reload picks it up automatically.
-      # After changing frontend: run `npm run build` in frontend/, then refresh browser.
-      - ./app:/app:ro
 
     environment:
       # Application settings
       - PYTHONUNBUFFERED=1
       - UVICORN_HOST=0.0.0.0
       - UVICORN_PORT=9021
-      - UVICORN_RELOAD=1    # hot-reload on code changes (remove in prod)
 
       # PXE settings — leave PXE_SERVER_IP unset to auto-detect on startup
       # - PXE_SERVER_IP=192.168.1.1
       - HTTP_PORT=9021
       - TFTP_PORT=69
+
+      # Optional API auth — off by default (trusted-LAN posture). Set both to enable:
+      # - SECURITY_MODE=token
+      # - API_TOKEN=change-me-to-a-long-random-value
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9021/status"]

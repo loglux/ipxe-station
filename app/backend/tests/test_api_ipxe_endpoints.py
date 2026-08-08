@@ -488,3 +488,68 @@ def test_boot_sessions_endpoint_returns_summary():
         "waiting_for_boot_script",
         "boot_script_fetched",
     }
+
+
+# ── SSRF guard on download/check-url ────────────────────────────────────────
+
+
+def test_download_asset_rejects_loopback_url():
+    resp = client.post(
+        "/api/assets/download",
+        json={"url": "http://127.0.0.1:9021/status", "dest": "leak.html"},
+    )
+    assert resp.status_code == 400
+
+
+def test_download_asset_rejects_metadata_url():
+    resp = client.post(
+        "/api/assets/download",
+        json={"url": "http://169.254.169.254/latest/meta-data/", "dest": "leak.html"},
+    )
+    assert resp.status_code == 400
+
+
+def test_check_url_rejects_private_target():
+    resp = client.get("/api/assets/check-url", params={"url": "http://10.0.0.5/"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is False
+    assert "error" in data
+
+
+# ── real (non-mocked) ISO extraction path ───────────────────────────────────
+
+
+def test_extract_full_iso_runs_real_7z_subprocess(tmp_path):
+    """Exercises the actual `7z x` subprocess call, not a mock — the extraction
+    logic used to have zero coverage of its real subprocess path (only the
+    surrounding download flow was tested via mocked requests.get)."""
+    import zipfile
+
+    from app.routes.assets import _extract_full_iso
+
+    archive_path = tmp_path / "sample.zip"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("boot/vmlinuz", b"fake-kernel-bytes")
+        zf.writestr("boot/initrd", b"fake-initrd-bytes")
+
+    dest_dir = tmp_path / "extracted"
+    result = _extract_full_iso(archive_path, dest_dir)
+
+    assert result["success"] is True
+    assert result["file_count"] == 2
+    assert (dest_dir / "boot" / "vmlinuz").read_bytes() == b"fake-kernel-bytes"
+    assert (dest_dir / "boot" / "initrd").read_bytes() == b"fake-initrd-bytes"
+
+
+def test_extract_full_iso_reports_failure_for_corrupt_archive(tmp_path):
+    from app.routes.assets import _extract_full_iso
+
+    bad_archive = tmp_path / "corrupt.zip"
+    bad_archive.write_bytes(b"not a real archive")
+
+    dest_dir = tmp_path / "extracted"
+    result = _extract_full_iso(bad_archive, dest_dir)
+
+    assert result["success"] is False
+    assert "error" in result

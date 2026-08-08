@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import './Settings.css'
 
+const TOKEN_STORAGE_KEY = 'ipxe_station_token'
+const IS_TOKEN_MODE = (import.meta.env.VITE_SECURITY_MODE || 'off').toLowerCase() === 'token'
+
 export default function Settings({ isOpen, onClose, onSave }) {
   const [settings, setSettings] = useState({
     server_ip: '',
@@ -16,6 +19,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
     nfs_root: ''
   })
 
+  const [apiToken, setApiToken] = useState('')
   const [detecting, setDetecting] = useState(false)
   const [detectingNfs, setDetectingNfs] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -44,6 +48,7 @@ export default function Settings({ isOpen, onClose, onSave }) {
       }
     }
     load()
+    setApiToken(window.localStorage.getItem(TOKEN_STORAGE_KEY) || '')
   }, [isOpen])
 
   const detectIP = async () => {
@@ -90,6 +95,13 @@ export default function Settings({ isOpen, onClose, onSave }) {
 
   const saveSettings = async () => {
     setSaving(true)
+    if (IS_TOKEN_MODE) {
+      if (apiToken.trim()) {
+        window.localStorage.setItem(TOKEN_STORAGE_KEY, apiToken.trim())
+      } else {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY)
+      }
+    }
     try {
       const response = await fetch('/api/settings', {
         method: 'POST',
@@ -182,6 +194,26 @@ export default function Settings({ isOpen, onClose, onSave }) {
               </label>
             </div>
           </section>
+
+          {/* Security Settings — only shown when the frontend was built with VITE_SECURITY_MODE=token */}
+          {IS_TOKEN_MODE && (
+            <section className="settings-section">
+              <h3>🔐 Security</h3>
+              <div className="setting-group">
+                <label>
+                  API Token:
+                  <input
+                    type="password"
+                    value={apiToken}
+                    onChange={e => setApiToken(e.target.value)}
+                    placeholder="Paste the API_TOKEN configured on the server"
+                    autoComplete="off"
+                  />
+                </label>
+                <small>Sent as a Bearer token on every API request. Stored only in this browser's local storage.</small>
+              </div>
+            </section>
+          )}
 
           {/* NFS Settings */}
           <section className="settings-section">

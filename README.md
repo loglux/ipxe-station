@@ -45,9 +45,14 @@
 ### Security Scope (Current Stage)
 
 - iPXE Station is currently designed for **trusted LAN** usage.
-- Full authentication/authorization is **not required** for local development at this stage.
-- Optional hardening (token mode, SSRF guard, upload/download limits) is planned as
-  modular features and can be enabled later without changing the default dev workflow.
+- Full authentication/authorization is **not required** for local development at this stage —
+  the default deployment (`SECURITY_MODE=off`) is unchanged.
+- **Optional token auth** is available: set `SECURITY_MODE=token` and `API_TOKEN=<long-random-value>`
+  in `docker-compose.yml`, then paste the same token into **Settings → API Token** in the UI
+  (only shown when the frontend is built with `VITE_SECURITY_MODE=token`) or set `VITE_API_TOKEN`
+  at build time. All `/api/*` routes then require `Authorization: Bearer <token>`.
+- **SSRF protection** is built in: asset download/URL-check endpoints reject loopback, link-local,
+  private, and other non-public targets, and re-validate redirects before following them.
 
 ---
 
@@ -157,7 +162,22 @@ environment:
   - PXE_SERVER_IP=192.168.1.100   # Your server's IP address
   - HTTP_PORT=9021
   - TFTP_PORT=69
+  # - SECURITY_MODE=token          # off (default) or token
+  # - API_TOKEN=change-me          # required when SECURITY_MODE=token
 ```
+
+### Production vs. Development
+
+`docker-compose.yml` is the production-safe default (no hot-reload, no source bind-mount). For local
+development, layer the dev override:
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# or, using the deploy helper:
+DEV=1 ./deploy.sh start
+```
+
+This adds `UVICORN_RELOAD=1` and a read-only `./app:/app` bind-mount so backend edits apply instantly.
 
 ### NFS Boot (Ubuntu Server)
 

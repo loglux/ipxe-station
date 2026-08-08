@@ -899,6 +899,7 @@ export const createEntryFromScenario = (scenarioId, overrides = {}) => {
   const template = interpolateTemplate(rawTemplate, ctx)
 
   // Strip interpolation-only fields that must not end up in the saved entry
+  // eslint-disable-next-line no-unused-vars -- destructured only to exclude these keys
   const { server_ip, http_port, version, ...entryOverrides } = overrides
 
   return {

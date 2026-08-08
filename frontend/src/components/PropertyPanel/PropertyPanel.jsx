@@ -70,7 +70,7 @@ const tokenizeCmdline = (value) => {
 
 const getTokenKey = (token) => (token.includes('=') ? token.split('=')[0] : token)
 
-function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
+function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, onDuplicateEntry, entries }) {
   const [expertMode, setExpertMode] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [preseedProfiles, setPreseedProfiles] = useState([])
@@ -706,6 +706,13 @@ function PropertyPanel({ entry, onUpdateEntry, onDeleteEntry, entries }) {
           onClick={() => setExpertMode(!expertMode)}
         >
           {expertMode ? '👤 Simple Mode' : '🔧 Expert Mode'}
+        </button>
+        <button
+          className="btn btn-sm btn-secondary"
+          onClick={() => onDuplicateEntry?.(entry.name)}
+          title="Duplicate selected entry"
+        >
+          ⎘ Duplicate
         </button>
         <button
           className="btn btn-danger btn-sm"

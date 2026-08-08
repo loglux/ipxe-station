@@ -1,0 +1,17 @@
+version: '3.8'
+
+# Development override — layer on top of docker-compose.yml:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# or simply: DEV=1 ./deploy.sh start
+#
+# Adds hot-reload and a read-only bind-mount of ./app so backend edits apply
+# instantly and frontend edits just need `npm run build` + browser refresh.
+# Do not use this in production — it re-exposes the host filesystem path to
+# the running container's source tree.
+
+services:
+  ipxe-station:
+    volumes:
+      - ./app:/app:ro
+    environment:
+      - UVICORN_RELOAD=1

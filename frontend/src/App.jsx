@@ -24,7 +24,6 @@ function App() {
     setActiveTab(tab)
     window.location.hash = tab
     if (tab !== 'builder') setSelectedEntryId(null)
-    if (tab !== 'builder') setSelectedEntryId(null)
   }
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -68,7 +67,6 @@ function App() {
       const hashTab = window.location.hash.slice(1)
       if (VALID_TABS.includes(hashTab)) {
         setActiveTab(hashTab)
-        if (hashTab !== 'builder') setSelectedEntryId(null)
         if (hashTab !== 'builder') setSelectedEntryId(null)
       }
     }
@@ -449,9 +447,6 @@ function App() {
                       selectedEntryId={selectedEntryId}
                       onSelectEntry={setSelectedEntryId}
                       onOpenWizard={openWizard}
-                      onUpdateEntry={updateEntry}
-                      onDeleteEntry={deleteEntry}
-                      onDuplicateEntry={duplicateEntry}
                       onSetEntriesEnabled={setEntriesEnabled}
                       onMoveEntry={moveEntry}
                     />
@@ -468,6 +463,7 @@ function App() {
                           entry={selectedEntry}
                           onUpdateEntry={updateEntry}
                           onDeleteEntry={deleteEntry}
+                          onDuplicateEntry={duplicateEntry}
                           entries={entries}
                         />
                       </div>

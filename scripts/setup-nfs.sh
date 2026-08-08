@@ -37,7 +37,7 @@ fi
 echo "==> Installing nfs-kernel-server..."
 apt-get install -y nfs-kernel-server
 
-EXPORT_LINE="$HTTP_DIR $SUBNET(ro,no_subtree_check,no_root_squash)"
+EXPORT_LINE="$HTTP_DIR $SUBNET(ro,no_subtree_check)"
 
 # Add export only if not already present
 if grep -qF "$HTTP_DIR" /etc/exports 2>/dev/null; then

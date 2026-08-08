@@ -1,6 +1,6 @@
 """
 Common utilities for PXE Boot Station
-Eliminates repetition across modules: ubuntu_downloader, iso_manager, system_status, etc.
+Eliminates repetition across modules: assets/download and extraction routes, etc.
 """
 
 import functools
@@ -22,7 +22,7 @@ def format_file_size(size_bytes: int) -> str:
     """
     Format file size in human-readable format.
 
-    Used in: ubuntu_downloader.py, system_status.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~45 lines of identical code
     """
     if size_bytes == 0:
@@ -41,7 +41,7 @@ def get_file_info(path: str) -> Dict[str, Any]:
     """
     Get comprehensive file information.
 
-    Used in: ubuntu_downloader.py, system_status.py
+    Used in: routes/assets.py
     Eliminates: ~40 lines of identical code
 
     Returns:
@@ -74,7 +74,7 @@ def ensure_directory(path: str | Path) -> Path:
     """
     Ensure directory exists, create if needed.
 
-    Used in: ALL modules (ubuntu_downloader, iso_manager, dhcp_config, etc.)
+    Used in: most backend modules
     Eliminates: ~15 lines of repetitive mkdir calls
 
     Args:
@@ -94,7 +94,7 @@ def safe_write_file(
     """
     Safely write content to file with directory creation.
 
-    Used in: ubuntu_downloader.py, iso_manager.py, dhcp_config.py
+    Used in: routes/assets.py, dhcp_helper.py
     Eliminates: ~20 lines of repetitive file writing
 
     Args:
@@ -123,7 +123,7 @@ def safe_write_json(
     """
     Safely write JSON data to file.
 
-    Used in: iso_manager.py, system_status.py
+    Used in: routes/assets.py
     Eliminates: ~15 lines of repetitive JSON writing
 
     Args:
@@ -162,7 +162,7 @@ def download_with_progress(
     """
     Download file with progress tracking.
 
-    Used in: ubuntu_downloader.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~60 lines of identical download code
 
     Args:
@@ -222,7 +222,7 @@ def validate_ip_address(ip: str) -> Tuple[bool, str]:
     """
     Validate IPv4 address format.
 
-    Used in: dhcp_config.py, system_status.py
+    Used in: dhcp_helper.py, routes/assets.py
     Eliminates: ~10 lines of validation code
 
     Args:
@@ -248,7 +248,7 @@ def validate_string_field(
     """
     Validate string field with customizable rules.
 
-    Used in: ipxe_manager.py, iso_manager.py, dhcp_config.py
+    Used in: ipxe_manager.py, routes/assets.py, dhcp_helper.py
     Eliminates: ~30 lines of similar validation patterns
 
     Args:
@@ -379,7 +379,7 @@ def create_metadata_dict(
     """
     Create standardized metadata dictionary.
 
-    Used in: ubuntu_downloader.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~20 lines of metadata creation code
 
     Args:
@@ -413,7 +413,7 @@ def save_metadata(
     """
     Save metadata to JSON file in specified directory.
 
-    Used in: ubuntu_downloader.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~15 lines of metadata saving code
 
     Args:
@@ -432,7 +432,7 @@ def load_metadata(directory: str | Path, filename: str = "metadata.json") -> Dic
     """
     Load metadata from JSON file.
 
-    Used in: ubuntu_downloader.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~10 lines of metadata loading code
 
     Args:
@@ -485,7 +485,7 @@ def calculate_total_size(directory: str | Path) -> int:
     """
     Calculate total size of all files in directory recursively.
 
-    Used in: ubuntu_downloader.py, iso_manager.py, system_status.py
+    Used in: routes/assets.py
     Eliminates: ~15 lines of size calculation code
 
     Args:
@@ -516,7 +516,7 @@ def safe_delete_directory(
     """
     Safely delete directory and calculate freed space.
 
-    Used in: ubuntu_downloader.py, iso_manager.py
+    Used in: routes/assets.py
     Eliminates: ~20 lines of deletion code
 
     Args:
@@ -558,7 +558,7 @@ def export_status_as_json(data: Dict[str, Any], pretty: bool = True) -> str:
     """
     Export status data as JSON string with proper serialization.
 
-    Used in: system_status.py, ipxe_manager.py
+    Used in: routes/assets.py, ipxe_manager.py
     Eliminates: ~10 lines of JSON export code
 
     Args:

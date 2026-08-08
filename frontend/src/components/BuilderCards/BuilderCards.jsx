@@ -6,15 +6,12 @@ export default function BuilderCards({
   selectedEntryId,
   onSelectEntry,
   onOpenWizard,
-  onUpdateEntry,
-  onDeleteEntry,
-  onDuplicateEntry,
   onSetEntriesEnabled,
   onMoveEntry,
 }) {
   const [expanded, setExpanded] = useState(() => new Set())
   const [query, setQuery] = useState('')
-  const autoExpandedRef = useRef(false)
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false)
 
   // Drag & drop state
   const [dragging, setDragging] = useState(null)           // name of dragged entry (for visual)
@@ -22,19 +19,24 @@ export default function BuilderCards({
   const draggingRef = useRef(null)                         // ref for use inside event handlers (no stale closure)
   const dragCounterRef = useRef({})                        // per-entry enter/leave counter
 
-  // Auto-expand all root submenus once entries are first loaded
-  useEffect(() => {
-    if (autoExpandedRef.current || entries.length === 0) return
-    autoExpandedRef.current = true
+  // Auto-expand all root submenus once entries are first loaded. Adjusts state
+  // during render (React's documented alternative to an effect for this case —
+  // see "You Might Not Need an Effect") instead of setState-in-effect, and the
+  // `hasAutoExpanded` guard keeps this a true one-time action.
+  if (!hasAutoExpanded && entries.length > 0) {
+    setHasAutoExpanded(true)
     const roots = entries
       .filter(e => !e.parent && e.entry_type === 'submenu')
       .map(e => e.name)
     setExpanded(new Set(roots))
-  }, [entries])
+  }
 
-  // Expand ancestors of selected entry
+  // Expand ancestors of selected entry — a genuine response to a user click
+  // (selection change), accumulating into existing `expanded` state rather
+  // than replacing it, so this stays an effect rather than a render-time update.
   useEffect(() => {
     if (!selectedEntryId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- event-driven accumulation, not a prop sync
     setExpanded(prev => {
       const next = new Set(prev)
       let cur = entries.find(e => e.name === selectedEntryId)

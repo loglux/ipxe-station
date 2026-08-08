@@ -5,6 +5,9 @@
 set -e
 
 COMPOSE="docker-compose"
+if [ "${DEV:-0}" = "1" ]; then
+    COMPOSE="docker-compose -f docker-compose.yml -f docker-compose.dev.yml"
+fi
 CONTAINER="ipxe-station"
 PORT="9021"
 FRONTEND_DIR="frontend"

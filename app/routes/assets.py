@@ -12,6 +12,8 @@ import requests
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from app.backend.url_guard import UnsafeURLError, assert_public_http_url, safe_request
+
 from .state import (
     HTTP_ROOT,
     IPXE_ROOT,
@@ -603,8 +605,10 @@ def assets_boot_recipe(version_path: str, scenario: str, preseed_profile: str | 
 @assets_router.post("/download")
 def download_asset(request: DownloadRequest):
     """Download a remote asset into /srv/http/<dest> (relative) with progress tracking."""
-    if not request.url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="Only http/https URLs allowed")
+    try:
+        assert_public_http_url(request.url)
+    except UnsafeURLError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     default_filename = Path(urlparse(request.url).path).name or "download.bin"
     target = _resolve_within_root(
@@ -619,7 +623,7 @@ def download_asset(request: DownloadRequest):
     tmp_target = target.with_suffix(target.suffix + ".tmp")
 
     try:
-        with requests.get(request.url, stream=True, timeout=(30, 600)) as r:
+        with safe_request("GET", request.url, stream=True, timeout=(30, 600)) as r:
             r.raise_for_status()
             total_size = int(r.headers.get("content-length", 0))
 
@@ -1231,7 +1235,9 @@ def check_url(url: str):
         }
 
     try:
-        r = requests.head(url, allow_redirects=True, timeout=10, headers=headers)
+        assert_public_http_url(url)
+
+        r = safe_request("HEAD", url, timeout=10, headers=headers)
         payload = _response_payload(r)
 
         if payload["ok"]:
@@ -1239,9 +1245,9 @@ def check_url(url: str):
 
         # Fallback for hosts that disallow/limit HEAD but allow GET.
         if r.status_code in {403, 405, 406, 429, 500, 502, 503, 504}:
-            rg = requests.get(
+            rg = safe_request(
+                "GET",
                 url,
-                allow_redirects=True,
                 timeout=10,
                 headers=headers,
                 stream=True,
@@ -1252,5 +1258,7 @@ def check_url(url: str):
                 rg.close()
 
         return payload
+    except UnsafeURLError as exc:
+        return {"ok": False, "status": None, "size": None, "error": str(exc)}
     except Exception as exc:
         return {"ok": False, "status": None, "size": None, "error": str(exc)}
