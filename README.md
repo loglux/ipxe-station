@@ -2,6 +2,16 @@
 
 **iPXE Station** is a self-hosted PXE/iPXE boot server with a modern web interface. It handles the full workflow: downloading distro assets, building hierarchical boot menus, and configuring DHCP — all without touching config files manually.
 
+## 📸 Screenshots
+
+| Menu Builder | Asset Manager |
+|:---:|:---:|
+| ![Menu Builder](docs/screenshots/builder.png) | ![Asset Manager](docs/screenshots/assets.png) |
+
+| DHCP (Proxy DHCP) | Boot Files |
+|:---:|:---:|
+| ![DHCP configuration helper](docs/screenshots/dhcp.png) | ![Boot Files editor](docs/screenshots/boot-files.png) |
+
 ## ✨ Features
 
 ### 🎨 Visual Menu Builder
@@ -65,7 +75,7 @@
 ```bash
 git clone https://github.com/loglux/ipxe-station.git
 cd ipxe-station
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 Open **http://localhost:9021/ui**
@@ -121,12 +131,15 @@ Open **http://localhost:9021/ui**
 |----------|-------------|
 | SystemRescue | Recovery environment, HTTP boot |
 | Kaspersky Rescue Disk | KRD 18 (netboot) and KRD 24 (ISO fetch) |
+| Hiren's BootCD PE | Windows PE toolkit, booted with wimboot |
+| GParted Live | Partition editor and disk maintenance (official PXE or ISO) |
+| Clonezilla Live | Disk imaging and cloning (manual ISO) |
 | Memtest86+ | Memory testing |
 
 ### 🪟 Windows
 | Scenario | Description |
 |----------|-------------|
-| Windows PE | WIMBoot preinstallation environment |
+| Windows PE | Your own WinPE via wimboot — see [Windows PE](#windows-pe-wimboot) below |
 
 ### 📂 Organisation
 - **Submenu** — group related entries
@@ -176,7 +189,7 @@ environment:
 development, layer the dev override:
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 # or, using the deploy helper:
 DEV=1 ./deploy.sh start
 ```
@@ -207,6 +220,33 @@ Named profiles are also available at:
 ```text
 http://SERVER:9021/preseed/PROFILE.cfg
 ```
+
+### Windows PE (wimboot)
+
+Boot your own Windows PE image over HTTP with [wimboot](https://ipxe.org/wimboot). The container
+ships a pinned, SHA256-verified `wimboot` in `/srv/http/wimboot`. Put the WinPE files, taken from
+your ADK-built WinPE media, in one folder under `data/srv/http/`, for example `winpe/`:
+
+| File | Source |
+|------|--------|
+| `boot.wim` | your WinPE image (`sources\boot.wim`) |
+| `BCD` | `EFI\Microsoft\Boot\BCD` for UEFI clients (`Boot\BCD` for BIOS) |
+| `boot.sdi` | `Boot\boot.sdi` |
+
+Then in **Builder → Add Entry → Windows PE** use kernel `wimboot` and initrd
+`winpe/BCD winpe/boot.sdi winpe/boot.wim`. The generated script passes each file to `wimboot`
+under its plain name (`BCD`, `boot.sdi`, `boot.wim`).
+
+Things to know:
+- The whole WIM is loaded into the client's RAM; allow at least 2–4 GB.
+- **Secure Boot:** the stock iPXE binaries are not signed, so clients with Secure Boot enabled will not
+  start them (`wimboot` itself is Microsoft-signed). Turn Secure Boot off for provisioning or see
+  [ROADMAP.md](ROADMAP.md) §8 for the signing plan.
+- **RAID/VMD laptops:** if the internal disk is not visible in WinPE, the SATA mode is probably
+  "RAID On" (Intel RST/VMD). Add the Intel RST VMD storage driver to the WIM (`DISM /Add-Driver`)
+  or load it at runtime with `drvload`.
+- Everything under `data/srv/http/` is downloadable by anyone on the network. Keep passwords and
+  keys out of the WinPE image and its scripts.
 
 ### Debian Live Research Status
 
@@ -273,7 +313,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (156 tests)
+make backend-test  # pytest (158 tests)
 make quality       # all of the above
 ```
 

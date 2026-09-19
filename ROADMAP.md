@@ -1,6 +1,6 @@
 # iPXE Station — Roadmap
 
-## Current State (2026-03-03)
+## Current State (2026-09-19)
 
 ### Execution Principles
 
@@ -15,6 +15,12 @@
 
 - **Proxy DHCP** — dnsmasq in proxy mode, correctly serves BIOS (`undionly.kpxe`) and EFI (`ipxe.efi`); auto-starts on container restart
 - **PXE Boot on real hardware** — BIOS laptop confirmed working end-to-end
+- **UEFI-PXE on real hardware** — a Dell laptop (Secure Boot off, UEFI network stack on) booted
+  UEFI PXE → iPXE menu → `wimboot` → a custom WinPE 26100 image; confirmed 2026-09-19 from the
+  server's request log (`boot.ipxe`, `wimboot`, `BCD`, `boot.sdi`, `boot.wim`). Secure Boot on, HTTP
+  Boot and other laptop models are still unverified.
+- **Windows PE via wimboot** — documented in the README (file layout, RAM, Secure Boot and
+  RAID/VMD storage-driver notes)
 - **HTTP file serving** — `/srv/http/` at `/http/`, `/srv/ipxe/` at `/ipxe/` (no-cache), `/srv/tftp/` at `/tftp/`
 - **Menu builder** — React SPA, scenario-based wizard, property panel, tree with inline controls
 - **Boot Recipe Engine** — auto-generates correct `cmdline` per distro/version/boot-mode (Ubuntu Server NFS/ISO, Ubuntu Desktop NFS/ISO, Kaspersky KRD 18/24, SystemRescue, Debian)
@@ -38,6 +44,10 @@
 
 - **VirtualBox BIOS PXE doesn't work with iPXE UNDI** — VirtualBox's UNDI implementation fails for
   unicast TFTP/HTTP from within iPXE's own network stack. Works fine on real hardware.
+
+- **WinPE sees no disks on RAID/VMD laptops** — with SATA operation set to "RAID On" (Intel
+  RST/VMD) the NVMe disk is hidden until an `iaStorVD` storage driver is present. Add it to the WIM
+  (`DISM /Add-Driver`) or `drvload` it at runtime; consider setting AHCI on machines being reprovisioned.
 
 #### Minor
 
