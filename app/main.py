@@ -37,6 +37,18 @@ app = FastAPI(title="iPXE Station", description="Network Boot Server")
 # ---------------------------------------------------------------------------
 
 
+def _is_quiet_request(request: Request, status_code: int) -> bool:
+    """True for requests that are not worth a monitoring-log line.
+
+    The UI polls several GET /api/* endpoints every few seconds; logging each successful
+    poll buries real boot activity. Failures, API writes and boot-file requests stay visible.
+    """
+    path = request.url.path
+    if path == "/ui" or path.startswith(("/ui/", "/status")):
+        return True
+    return request.method == "GET" and path.startswith("/api/") and status_code < 400
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Log HTTP requests to monitoring system."""
@@ -47,7 +59,7 @@ async def log_requests(request: Request, call_next):
         response = await call_next(request)
         _record_http_boot_flow(request, request.url.path, response.status_code)
 
-        if not request.url.path.startswith(("/ui/", "/status")):
+        if not _is_quiet_request(request, response.status_code):
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
 
             level = "info"
