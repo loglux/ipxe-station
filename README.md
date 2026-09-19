@@ -2,19 +2,22 @@
 
 **iPXE Station** is a self-hosted PXE/iPXE boot server with a modern web interface. It handles the full workflow: downloading distro assets, building hierarchical boot menus, and configuring DHCP — all without touching config files manually.
 
-## 📸 Screenshots
-
-| Menu Builder | Asset Manager |
-|:---:|:---:|
-| ![Menu Builder](docs/screenshots/builder.png) | ![Asset Manager](docs/screenshots/assets.png) |
-
-| DHCP (Proxy DHCP) | Boot Files |
-|:---:|:---:|
-| ![DHCP configuration helper](docs/screenshots/dhcp.png) | ![Boot Files editor](docs/screenshots/boot-files.png) |
-
 ## ✨ Features
 
+> Screenshots are taken from a running instance. The numbered markers on each screenshot match the
+> list underneath it. Click a screenshot to open it full size.
+
 ### 🎨 Visual Menu Builder
+
+[![Menu Builder: tree of entries on the left, properties of the selected entry on the right](docs/screenshots/builder.png)](docs/screenshots/builder.png)
+
+1. **Search and bulk actions** — filter entries, expand or collapse groups, enable or disable everything; **+ Add Entry** opens the scenario wizard
+2. **Menu tree** — submenus and entries; drag to reorder or move an entry into another submenu
+3. **Kernel and initrd** — filled in by the boot recipe for the chosen scenario and downloaded version
+4. **Command-line helper** — merge or replace kernel parameters from ready-made sets
+5. **Save Menu** — regenerates `boot.ipxe`; clients pick up the change on their next boot
+6. **iPXE Script Preview** — the exact script a client will run
+
 - **Scenario-based wizard** — pick a distro/scenario, choose a downloaded version, and kernel/initrd/cmdline are auto-filled
 - **Boot Recipe Engine** — automatically generates correct kernel parameters per distro and boot mode (NFS, HTTP ISO, netboot)
 - **Hierarchical menus** — create submenus to organise entries
@@ -22,6 +25,16 @@
 - **Live preview** — see the generated iPXE script in real time
 
 ### 📦 Asset Manager
+
+[![Asset Manager: what is on disk and quick download of Ubuntu versions](docs/screenshots/assets.png)](docs/screenshots/assets.png)
+
+1. **Categories** — Ubuntu, Debian, Tools & Rescue, Windows, and Presets
+2. **Scan** refreshes the catalog of local assets; **Upload File** adds your own
+3. **Discovered on disk** — shows which parts of each version are present (kernel, initrd, ISO, squashfs), so you know which boot modes will work
+4. **Version picker** — versions come from the official release servers
+5. **Availability check** — confirms the download URL works and shows its size before you start
+6. **Download ISO** — downloads with a progress bar and extracts the ISO for network boot
+
 - **Ubuntu Server & Desktop LTS** — dynamic version picker, downloads directly from releases.ubuntu.com
 - **SystemRescue, Kaspersky Rescue Disk, Debian** — version pickers with direct ISO/netboot downloads
 - **Automatic ISO extraction** — ISOs are extracted in-place for network boot
@@ -29,6 +42,16 @@
 - **Upload & catalog scan** — upload any file, scan local assets
 
 ### 🌐 DHCP Configuration
+
+[![DHCP helper: built-in Proxy DHCP server and network validation](docs/screenshots/dhcp.png)](docs/screenshots/dhcp.png)
+
+1. **Mode** — Proxy DHCP (recommended, no router changes) or Router DHCP config (ready-to-paste settings)
+2. **Status** of the built-in dnsmasq proxy
+3. **Client types** to answer: BIOS (`undionly.kpxe`) and UEFI (`ipxe.efi`)
+4. **UEFI HTTP Boot** (experimental) — see the note below
+5. **Save & Apply** — stores the settings and applies them to the running proxy
+6. **Network DHCP Validation** — sends real DHCP probes and explains what is wrong
+
 - **Proxy DHCP server** — built-in dnsmasq in proxy mode (BIOS + EFI), starts automatically on container restart
 - **Config generator** — ready-to-paste configs for dnsmasq, ISC DHCP, MikroTik RouterOS, Windows Server
 - **Network validator** — sends real DHCP probes (BIOS, UEFI, iPXE) and diagnoses the result with fix suggestions
@@ -38,6 +61,16 @@
   against real HTTPClient-capable UEFI firmware.
 
 ### 🔧 Boot Files
+
+[![Boot Files: autoexec.ipxe editor and Debian preseed profiles](docs/screenshots/boot-files.png)](docs/screenshots/boot-files.png)
+
+1. **autoexec.ipxe templates** — Direct Boot, Chainload Full iPXE, or your own script
+2. **Editor** for the first script a client fetches over TFTP
+3. **Save** writes the file to the TFTP root
+4. **Preseed profiles** — the ★ marks the active profile, served at `/preseed.cfg`
+5. **Templates** for new profiles (Debian Minimal, Debian Desktop)
+6. **Editor** for the selected preseed profile
+
 - **autoexec.ipxe editor** — edit or apply templates directly from the UI
 - **Preseed profiles** — create, activate, and serve Debian unattended install templates from the UI
 - **NFS boot** — Ubuntu Server NFS cmdline with auto-detected export path
@@ -313,7 +346,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (158 tests)
+make backend-test  # pytest (162 tests)
 make quality       # all of the above
 ```
 
