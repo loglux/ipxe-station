@@ -128,6 +128,48 @@ posture as the Debian Live prototype below):
 4. Record whether `dhcp-option-force=60,"HTTPClient"` was actually necessary for the specific
    firmware tested, or whether it accepted the URL without the echo — capture findings here.
 
+**UEFI-PXE validation checklist** (the `pxe-service=x86-64_EFI` path in `proxy_dhcp.py` exists but,
+unlike BIOS PXE, has not been confirmed on real hardware — only BIOS is listed under "What Works"):
+1. In firmware setup enable the UEFI network stack and turn Secure Boot off (note the original
+   values first; if BitLocker is active, have the recovery key ready — changing Secure Boot state or
+   boot order can trigger a recovery prompt).
+2. One-time boot menu → onboard NIC (UEFI, IPv4). Confirm the "Network Boot (UEFI)" offer, that
+   `ipxe.efi` loads over TFTP, and that `autoexec.ipxe` chains to `/ipxe/boot.ipxe`.
+3. Boot live-only entries (SystemRescue, Hiren's PE, Debian Live) — never installers — and record
+   per model: firmware version, boot time, RAM used, whether the NIC/USB-Ethernet adapter worked.
+4. Repeat with each laptop model in the target fleet and record results in a per-model table here.
+
+### 8. Secure Boot with an Organization Signing Key (Planned)
+
+**Goal:** Let UEFI clients with Secure Boot enabled network-boot iPXE, by signing our own iPXE build
+with an organization key and enrolling that certificate in the firmware — suitable for fleets under
+one administrative domain (e.g. preparing many laptops), not for arbitrary machines.
+
+- **Why it is needed:** the stock `ipxe.efi`/`snponly.efi` (local copies and the current
+  `boot.ipxe.org` build, checked with `sbverify` on 2026-09-19) carry no Authenticode signature, so
+  firmware with Secure Boot on refuses them. UEFI HTTP Boot does not avoid this — the firmware still
+  verifies the `.efi` file. Let's Encrypt is unrelated: it issues TLS certificates, not code-signing
+  trust that firmware honours.
+- **Approach (not started):** build iPXE from source in Docker (the existing "Building Custom iPXE
+  Binaries" section), sign with `sbsign` using the organization's Secure Boot key, and enroll the
+  certificate into the firmware `db` while keeping the Microsoft entries. `wimboot` (v2.9.0, pinned
+  in the Dockerfile) is already signed by Microsoft (UEFI CA 2011, checked with `sbverify` on
+  2026-09-19), so only iPXE itself needs our signature for the WinPE path; other chained EFI
+  binaries must be checked individually. The same custom build can embed the organization CA (`TRUST=`) so iPXE can
+  use HTTPS to this server without a public certificate.
+- **Constraints to design around:**
+  - The private signing key must never live under `data/` — `/srv/tftp` and `/srv/http` are served
+    over HTTP. Keep it offline or in a build-only volume.
+  - Enrollment is per machine (firmware UI "custom/expert key management", or scripted from a Linux
+    stage while the machine is in Setup Mode); firmware admin password policy applies.
+  - Distro kernels are signed with distro keys chained through shim, not the firmware `db`, so Linux
+    live entries need a shim chain or re-signed binaries. WinPE via `wimboot` is the expected
+    workable path (`wimboot` and `bootmgr` are both Microsoft-signed) — to be confirmed on hardware.
+- **Interim approach:** keep Secure Boot off during provisioning and enable it as the last
+  provisioning step.
+- **Validation:** boot a signed build with Secure Boot on for each target model; record which entry
+  types (WinPE, SystemRescue, Debian/Ubuntu live) load and which are rejected.
+
 ---
 
 ## Boot File Architecture (Reference)
