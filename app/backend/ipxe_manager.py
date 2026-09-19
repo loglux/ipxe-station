@@ -370,12 +370,19 @@ class iPXEValidator:
             return Path(base_path) / normalized
 
         kernel_path = resolve(entry.kernel)
-        initrd_path = resolve(entry.initrd)
+
+        # wimboot takes several space-separated files (BCD, boot.sdi, boot.wim)
+        is_wimboot = bool(entry.kernel) and (
+            entry.kernel == "wimboot" or entry.kernel.endswith("/wimboot")
+        )
+        initrd_values = entry.initrd.split() if is_wimboot and entry.initrd else [entry.initrd]
 
         if kernel_path and not kernel_path.exists():
             warnings.append(f"{entry.name}: kernel file missing at {kernel_path}")
-        if initrd_path and not initrd_path.exists():
-            warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
+        for initrd_value in initrd_values:
+            initrd_path = resolve(initrd_value)
+            if initrd_path and not initrd_path.exists():
+                warnings.append(f"{entry.name}: initrd file missing at {initrd_path}")
 
         # ISO check:
         # - Skip NFS live mode (no local ISO required)

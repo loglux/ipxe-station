@@ -273,7 +273,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (95 tests)
+make backend-test  # pytest (156 tests)
 make quality       # all of the above
 ```
 

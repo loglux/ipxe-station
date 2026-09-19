@@ -258,3 +258,48 @@ def test_lint_http_mount_prefix_relative_path_maps_to_base_path(tmp_path):
 
     warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
     assert not any("ISO missing" in w for w in warnings)
+
+
+def _wimboot_menu(initrd: str) -> iPXEMenu:
+    return iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="winpe",
+                title="WinPE",
+                kernel="wimboot",
+                initrd=initrd,
+                entry_type="boot",
+                boot_mode="custom",
+            )
+        ],
+    )
+
+
+def test_lint_wimboot_multi_file_initrd_checks_each_file(tmp_path):
+    base = tmp_path
+    (base / "winpe").mkdir(parents=True, exist_ok=True)
+    (base / "wimboot").write_text("wimboot")
+    for name in ("BCD", "boot.sdi", "boot.wim"):
+        (base / "winpe" / name).write_text(name)
+
+    menu = _wimboot_menu("winpe/BCD winpe/boot.sdi winpe/boot.wim")
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    assert not any("initrd file missing" in w for w in warnings)
+
+
+def test_lint_wimboot_multi_file_initrd_reports_only_missing_file(tmp_path):
+    base = tmp_path
+    (base / "winpe").mkdir(parents=True, exist_ok=True)
+    (base / "wimboot").write_text("wimboot")
+    (base / "winpe" / "BCD").write_text("BCD")
+    (base / "winpe" / "boot.wim").write_text("wim")
+
+    menu = _wimboot_menu("winpe/BCD winpe/boot.sdi winpe/boot.wim")
+
+    warnings = iPXEValidator.lint_menu(menu, base_path=str(base))
+    missing = [w for w in warnings if "initrd file missing" in w]
+    assert len(missing) == 1
+    assert "boot.sdi" in missing[0]
