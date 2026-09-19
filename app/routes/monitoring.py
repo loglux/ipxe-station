@@ -210,9 +210,9 @@ async def get_service_status():
 
         rsyslog_status = "unknown"
         try:
-            result = subprocess.run(
-                ["service", "rsyslog", "status"], capture_output=True, text=True, timeout=5
-            )
+            # The container has no rsyslog init script, so `service rsyslog status` always
+            # fails ("unrecognized service"); look for the daemon process instead.
+            result = subprocess.run(["pgrep", "-x", "rsyslogd"], capture_output=True, timeout=5)
             rsyslog_status = "running" if result.returncode == 0 else "stopped"
         except Exception:
             rsyslog_status = "unknown"
