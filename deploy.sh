@@ -4,9 +4,15 @@
 
 set -e
 
-COMPOSE="docker-compose"
+# Prefer Compose v2 (`docker compose`); the legacy v1 `docker-compose` can fail to recreate a
+# container after its image was rebuilt ("No such image ... has been removed").
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+else
+    COMPOSE="docker-compose"
+fi
 if [ "${DEV:-0}" = "1" ]; then
-    COMPOSE="docker-compose -f docker-compose.yml -f docker-compose.dev.yml"
+    COMPOSE="$COMPOSE -f docker-compose.yml -f docker-compose.dev.yml"
 fi
 CONTAINER="ipxe-station"
 PORT="9021"
