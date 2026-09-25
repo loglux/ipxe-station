@@ -18,6 +18,7 @@ from .state import (
     add_log,
     download_progress,
     download_progress_lock,
+    list_client_inventory,
 )
 
 monitoring_router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
@@ -261,3 +262,9 @@ async def get_metrics():
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@monitoring_router.get("/clients")
+async def get_clients():
+    """Machines that reported themselves at boot: brand, model, serial, BIOS, MAC, NIC."""
+    return {"success": True, "clients": list_client_inventory()}

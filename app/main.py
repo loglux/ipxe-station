@@ -25,6 +25,7 @@ from app.routes.state import (
     _refresh_boot_sessions,  # noqa: F401 — re-exported for test imports
     _track_ipxe_loop,  # noqa: F401 — re-exported for test imports
     add_log,
+    record_client_inventory,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def _is_quiet_request(request: Request, status_code: int) -> bool:
     poll buries real boot activity. Failures, API writes and boot-file requests stay visible.
     """
     path = request.url.path
-    if path == "/ui" or path.startswith(("/ui/", "/status")):
+    if path == "/ui" or path.startswith(("/ui/", "/status", "/client-info")):
         return True
     return request.method == "GET" and path.startswith("/api/") and status_code < 400
 
@@ -106,6 +107,38 @@ async def serve_ipxe(filename: str):
     except (ValueError, OSError):
         pass
     return Response("File not found", status_code=404)
+
+
+_CLIENT_INFO_FIELDS = (
+    "mac",
+    "uuid",
+    "manufacturer",
+    "product",
+    "sku",
+    "family",
+    "serial",
+    "asset",
+    "bios_version",
+    "bios_date",
+    "platform",
+    "arch",
+    "busid",
+    "chip",
+    "ipxe",
+)
+
+
+@app.get("/client-info")
+async def client_info(request: Request):
+    """Receive the machine details an iPXE script reports about itself.
+
+    Open on purpose: iPXE cannot present a token. Every value is length-limited and cleaned before
+    it reaches the log or the client list, and the list is capped.
+    """
+    fields = {name: request.query_params.get(name, "")[:200] for name in _CLIENT_INFO_FIELDS}
+    client_ip = request.client.host if request.client else "unknown"
+    record_client_inventory(client_ip, fields)
+    return Response("ok", media_type="text/plain", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/tftp/{filename}")

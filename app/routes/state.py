@@ -1,7 +1,9 @@
 """Shared state, models, and utility functions for all route modules."""
 
+import json
 import logging
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -133,6 +135,151 @@ def add_log(log_type: str, level: str, message: str, **context):
     SYSTEM_LOGS.append(log_entry)  # maxlen=1000 auto-evicts oldest entries
 
     logger.debug("[%s] [%s] %s", log_type, level, message)
+
+
+# ---------------------------------------------------------------------------
+# Client inventory: what a booting machine reports about itself
+# ---------------------------------------------------------------------------
+
+INVENTORY_FILE = IPXE_ROOT / "clients.json"
+INVENTORY_MAX_CLIENTS = 2000
+CLIENT_INVENTORY: Dict[str, dict] = {}
+_inventory_lock = threading.RLock()
+_inventory_loaded = False
+
+# Free-text fields reported by iPXE (SMBIOS and network device), with their length limits.
+_INVENTORY_TEXT_FIELDS = {
+    "manufacturer": 80,
+    "product": 80,
+    "sku": 80,
+    "family": 80,
+    "serial": 80,
+    "asset": 80,
+    "bios_version": 60,
+    "bios_date": 30,
+    "platform": 16,
+    "arch": 16,
+    "chip": 40,
+    "ipxe": 40,
+}
+_MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def _clean_text(value, limit: int = 80) -> str:
+    """Make a client-supplied string safe for logs and the UI: printable, one line, bounded."""
+    if not value:
+        return ""
+    text = "".join(ch if ch.isprintable() else " " for ch in str(value))
+    return " ".join(text.split())[:limit]
+
+
+def _normalise_inventory(fields: dict) -> dict:
+    """Validate and clean the values a client reported; drop anything that does not look right."""
+    info = {
+        name: _clean_text(fields.get(name), limit) for name, limit in _INVENTORY_TEXT_FIELDS.items()
+    }
+
+    mac = _clean_text(fields.get("mac"), 17).lower()
+    info["mac"] = mac if _MAC_RE.match(mac) else ""
+
+    uuid = _clean_text(fields.get("uuid"), 36).lower()
+    all_same = len(set(uuid.replace("-", ""))) <= 1
+    info["uuid"] = uuid if _UUID_RE.match(uuid) and not all_same else ""
+
+    # iPXE reports the NIC bus id as bytes: bus type, vendor id, device id (hyphen separated hex).
+    digits = re.sub(r"[^0-9a-f]", "", _clean_text(fields.get("busid"), 32).lower())
+    info["nic_pci"] = (
+        f"{digits[2:6]}:{digits[6:10]}" if len(digits) == 10 and digits[:2] == "01" else ""
+    )
+    return info
+
+
+def _describe_client(record: dict) -> str:
+    """One readable line: brand and model first, then the identifiers that matter."""
+    name = " ".join(part for part in (record.get("manufacturer"), record.get("product")) if part)
+    details = []
+    for label, key in (("SKU", "sku"), ("serial", "serial"), ("BIOS", "bios_version")):
+        if record.get(key):
+            details.append(f"{label} {record[key]}")
+    if record.get("mac"):
+        details.append(f"MAC {record['mac']}")
+    if record.get("nic_pci"):
+        details.append(f"NIC {record['nic_pci']}")
+    mode = " ".join(part for part in (record.get("platform"), record.get("arch")) if part)
+    if mode:
+        details.append(mode)
+    return f"{name or 'Unknown machine'}" + (f" ({', '.join(details)})" if details else "")
+
+
+def _load_inventory_locked() -> None:
+    global _inventory_loaded
+    if _inventory_loaded:
+        return
+    _inventory_loaded = True
+    try:
+        data = json.loads(INVENTORY_FILE.read_text())
+        if isinstance(data, dict):
+            CLIENT_INVENTORY.update(data)
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not read %s: %s", INVENTORY_FILE, exc)
+
+
+def _save_inventory_locked() -> None:
+    tmp = INVENTORY_FILE.with_suffix(".json.tmp")
+    try:
+        tmp.write_text(json.dumps(CLIENT_INVENTORY, indent=2, sort_keys=True))
+        os.replace(tmp, INVENTORY_FILE)
+    except OSError as exc:
+        logger.warning("Could not save %s: %s", INVENTORY_FILE, exc)
+
+
+def record_client_inventory(client_ip: str, fields: dict) -> dict | None:
+    """Store what a client reported (SMBIOS, MAC, NIC) and write one readable log line."""
+    info = _normalise_inventory(fields)
+    if not any(info[key] for key in ("mac", "uuid", "manufacturer", "product", "serial")):
+        return None
+
+    key = info["uuid"] or info["mac"] or client_ip
+    now = time.time()
+    with _inventory_lock:
+        _load_inventory_locked()
+        record = CLIENT_INVENTORY.get(key)
+        if record is None:
+            if len(CLIENT_INVENTORY) >= INVENTORY_MAX_CLIENTS:
+                oldest = min(
+                    CLIENT_INVENTORY, key=lambda k: CLIENT_INVENTORY[k].get("last_seen_at", 0)
+                )
+                del CLIENT_INVENTORY[oldest]
+            record = {"id": key, "first_seen_at": now, "boots": 0}
+            CLIENT_INVENTORY[key] = record
+        # A field that comes back empty does not erase what we learned earlier.
+        record.update({name: value for name, value in info.items() if value})
+        record.update({"client_ip": client_ip, "last_seen_at": now, "boots": record["boots"] + 1})
+        _save_inventory_locked()
+        snapshot = dict(record)
+
+    add_log(
+        "boot",
+        "info",
+        f"Client info: {_describe_client(snapshot)}",
+        client_ip=client_ip,
+        stage="inventory",
+    )
+    return snapshot
+
+
+def list_client_inventory() -> List[dict]:
+    """All known clients, most recently seen first."""
+    with _inventory_lock:
+        _load_inventory_locked()
+        return sorted(
+            (dict(record) for record in CLIENT_INVENTORY.values()),
+            key=lambda record: record.get("last_seen_at", 0),
+            reverse=True,
+        )
 
 
 # ---------------------------------------------------------------------------
