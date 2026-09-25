@@ -183,6 +183,88 @@ one administrative domain (e.g. preparing many laptops), not for arbitrary machi
 - **Validation:** boot a signed build with Secure Boot on for each target model; record which entry
   types (WinPE, SystemRescue, Debian/Ubuntu live) load and which are rejected.
 
+### 9. Device Scenarios (Planned)
+
+**Goal:** Let the server decide what a machine should do at network boot, from what it reports about
+itself (brand, model, SKU, serial, BIOS version). Two ways to run a scenario: **offered** in the machine's
+own PXE menu for the operator to choose, or **automatic** after a short cancellable countdown.
+
+**Core mechanism:** the server builds the iPXE menu **per machine**. `boot.ipxe` stays a small static
+stub: it reports the machine (already done), then chains to a server-built menu
+(`/ipxe/menu?mac=&uuid=&manufacturer=&product=&sku=&bios_version=`) and falls back to the current static
+menu if the server does not answer. A scenario describes: which machines it applies to, what it runs (an
+existing menu entry, or a job for a WinPE/Linux executor), the mode (offer / auto with countdown), and how
+often it may run.
+
+**What a scenario can do (the target list):**
+- **Install Windows with the right drivers** for the model: image (WIM) library, disk layout templates
+  (UEFI/GPT), unattended answer files with variables (computer name from serial or asset tag, locale, local
+  admin, domain or Entra join), per-model driver packs injected at install, post-install packages and a
+  first-boot script.
+- **Update BIOS** per model (package + SHA256, guards: AC power, battery, BitLocker, allow-list, attempt limit).
+- **Change BIOS settings** per model from a profile (desired state; audit and diff first; Secure Boot last; BIOS
+  password kept out of published files).
+- **Also:** read-only hardware audit and post-provisioning verification (BIOS version, settings, drivers,
+  encryption) shown as compliance in the Devices tab; ordered **workflows** (steps, conditions, reboots,
+  retries) such as "update BIOS, apply settings, install Windows, verify"; device **groups and tags** (lab,
+  staff, batch); asset tagging and naming; secure erase with a certificate; Linux installs; Autopilot/Intune
+  registration; Wake-on-LAN maintenance windows; notifications; an **audit log** and per-serial **allow-lists**
+  for anything that writes to a machine.
+
+**Everything is set up in the web UI, and every setting is also data.** The wizard and the editors only
+write the same human-readable files (JSON, in `data/srv/ipxe/`), so nothing has to be clicked through twice:
+- **Profiles and packages:** BIOS settings profiles, BIOS packages per model, driver packs, OS images, answer
+  file templates, disk layouts, workflows, scenarios, groups, allow-lists.
+- **Export / import:** export one object or a whole bundle (zip: the config files plus a manifest; large
+  binaries are referenced by name and SHA256 and optionally included; **secrets are never exported**). Import
+  shows a preview with validation and a diff, then applies it; conflicts are chosen per object. Bundles can be
+  kept in git and copied to another server.
+- **Reuse instead of wizard-every-time:** clone an existing scenario or profile, start from ready presets
+  (for example "Dell Latitude standard"), and **capture a profile from a golden machine** (read its BIOS
+  settings, then save them as a profile).
+- **API first:** the UI uses the same `/api/...` calls, so config can be scripted.
+
+**Stages (each usable on its own):**
+1. **Per-machine menu and device info — done, one real boot confirmed.** `boot.ipxe` asks `/ipxe/menu`, the
+   server answers with the menu plus a "Recommended for this device" block and a *Device information* screen;
+   rules live in `scenarios.json` (`GET`/`PUT /api/scenarios`), an automatic scenario is pre-selected with a
+   countdown, and the Devices tab lists the scenarios that apply. Read-only, nothing is changed on the client.
+   Confirmed on a Dell Latitude 5530 (the recommended block appears); still to confirm on real iPXE: the
+   `chain ... && exit || goto start` fallback and the `prompt` on the information screen.
+2. **Configuration as data.** One config store with validation, groups and tags for devices, the scenario
+   editor in the UI (list, edit form, clone, enable/disable), and **export/import with preview**. Built before
+   the features below so each of them stores its settings the same way.
+3. **Jobs and workflows.** The chosen scenario is remembered per machine; a booted WinPE or Linux asks the
+   server "what should I do?" (by MAC/UUID) and receives its steps. States (queued, running, done, failed),
+   attempt limits, an audit log, allow-lists, and the wizard that builds a workflow.
+4. **Hardware audit (read-only) and compliance.** SystemRescue's autorun (present in 12.03, with `dmidecode`,
+   `smartctl`, `lscpu`, `lsblk`, `nvme`, `upower`, `ethtool`, `lspci`) or the WinPE `start.ps1` collects CPU,
+   memory, disks and SMART, battery wear, NICs and, where the kernel exposes it, BIOS settings
+   (`/sys/class/firmware-attributes`), and posts JSON to the server; shown in the Devices detail.
+5. **BIOS.** Per-model target versions shown as compliance first, then the update job on one model (after a
+   test on a machine that can be recovered); then settings profiles with diff, apply, and capture from a
+   golden machine.
+6. **Windows installation.** Image and driver-pack library, answer-file templates with variables, disk
+   layouts, post-install packages, verification step; per-model driver selection.
+7. **Later:** Linux installation, secure erase, asset tagging, Autopilot/Intune, Wake-on-LAN windows,
+   notifications, central logging.
+
+**Tools catalog (can run in parallel with the stages):** a generic *Add tool from ISO* flow. The ISO is
+uploaded or dropped into Assets, its layout is detected (`sources/boot.wim` → WinPE via wimboot; `live/` +
+squashfs → live-boot; `casper/` → Ubuntu; archiso; syslinux or GRUB config → parsed for kernel/initrd and
+parameters), and a menu entry is created with the right command line (including the boot-NIC parameter for
+live-boot). Each tool is a preset in the same config format (files needed, boot method, command line, RAM,
+BIOS/UEFI support, licence note, verified status), so presets can be exported and imported. Candidates:
+AOMEI Backupper and PE Builder, Acronis True Image bootable media, Macrium Reflect rescue media, Veeam
+recovery media, Rescuezilla, ShredOS/nwipe (erase), Bitdefender/ESET/Dr.Web rescue disks, Ultimate Boot CD,
+Windows installation media. Commercial tools use the bootable media their own product builds, under their own
+licence. Backup images and large install sources need a network target: an SMB share or an HTTP download step.
+
+**Safe first scenarios to try on real hardware:** device information; a recommended live system for a
+model (Kaspersky or SystemRescue); BIOS compliance display (no flashing); read-only hardware audit.
+Anything that writes to the machine (BIOS update, settings, install, erase) comes after these, behind an
+allow-list and a confirmation.
+
 ---
 
 ## Boot File Architecture (Reference)
