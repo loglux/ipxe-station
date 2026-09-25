@@ -1,16 +1,26 @@
 """iPXE menu management routes."""
 
+import json
 import re
+from typing import List, Optional, Set
 
 from fastapi import APIRouter, Response
 
-from app.backend.ipxe_manager import iPXEManager
+from app.backend.device_scenarios import (
+    TARGET_ENTRY_TYPES,
+    Scenario,
+    build_device_menu,
+    load_scenarios,
+    scenarios_for_device,
+)
+from app.backend.ipxe_manager import iPXEGenerator, iPXEManager
 from app.backend.ipxe_schema import IpxeMenuModel, menu_to_model, model_to_menu
 
 from .state import IPXE_ROOT, TFTP_ROOT, add_log, load_settings
 
 ipxe_router = APIRouter(prefix="/api/ipxe", tags=["ipxe"])
 ipxe_manager = iPXEManager(config_path=IPXE_ROOT / "boot.ipxe")
+SCENARIOS_FILE = IPXE_ROOT / "scenarios.json"
 
 
 def _default_menu_structure() -> dict:
@@ -58,6 +68,43 @@ def _apply_runtime_network_defaults(menu: IpxeMenuModel) -> IpxeMenuModel:
     s = load_settings()
     return menu.model_copy(
         update={"server_ip": s.server_ip, "http_port": s.http_port, "nfs_root": s.nfs_root}
+    )
+
+
+def saved_menu() -> Optional[IpxeMenuModel]:
+    """The menu last saved from the Builder (menu.json), or None if there is none yet."""
+    try:
+        data = json.loads((IPXE_ROOT / "menu.json").read_text())
+        model = IpxeMenuModel(**data)
+    except (OSError, ValueError, TypeError):
+        return None
+    return model if model.entries else None
+
+
+def scenario_entry_names(model: Optional[IpxeMenuModel] = None) -> Set[str]:
+    """Names of enabled menu entries a scenario may point to (they have a label to jump to)."""
+    model = model or saved_menu()
+    if model is None:
+        return set()
+    return {e.name for e in model.entries if e.enabled and e.entry_type in TARGET_ENTRY_TYPES}
+
+
+def scenarios_matching(device: dict) -> List[Scenario]:
+    """Scenarios that apply to this machine right now."""
+    return scenarios_for_device(load_scenarios(SCENARIOS_FILE), device, scenario_entry_names())
+
+
+def build_personal_menu_script(device: dict) -> Optional[str]:
+    """The iPXE menu for one machine, or None when no menu has been saved yet."""
+    model = saved_menu()
+    if model is None:
+        return None
+    model = _apply_runtime_network_defaults(model)
+    matched = scenarios_for_device(
+        load_scenarios(SCENARIOS_FILE), device, scenario_entry_names(model)
+    )
+    return iPXEGenerator.generate_ipxe_script(
+        model_to_menu(model), build_device_menu(device, matched)
     )
 
 

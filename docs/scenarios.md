@@ -53,3 +53,17 @@ Clients with Secure Boot on need the plan in [ROADMAP](../ROADMAP.md) §8 (or Se
 **DHCP** tab → *Router DHCP config* → choose your server type (dnsmasq, ISC DHCP, MikroTik RouterOS,
 Windows Server) → copy the generated settings to it. Run **Check Network DHCP** afterwards to see what
 your network actually answers.
+
+## 6. A scenario for specific machines
+
+Show a machine what fits it, in its own PXE menu (see
+[the menu is built for each machine](how-it-works.md#the-menu-is-built-for-each-machine)):
+
+1. Boot the machine once so it appears in the **Devices** tab (its brand, model and SKU are what you match on).
+2. Add a scenario in `data/srv/ipxe/scenarios.json`, or send it with `PUT /api/scenarios`. For example, offer
+   the Kaspersky entry to every Dell Latitude 5530:
+   `"match": {"manufacturer": "Dell*", "product": "Latitude 5530"}, "entry": "kaspersky_1"`.
+3. Boot the machine again: the menu shows **Recommended for Dell Inc. Latitude 5530** at the top, and
+   **Device information** prints what the server knows about it.
+4. `GET /api/scenarios/preview/<device id>` shows the menu a known machine would get without booting it.
+

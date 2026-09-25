@@ -267,4 +267,11 @@ async def get_metrics():
 @monitoring_router.get("/clients")
 async def get_clients():
     """Machines that reported themselves at boot: brand, model, serial, BIOS, MAC, NIC."""
-    return {"success": True, "clients": list_client_inventory()}
+    from .ipxe import scenarios_matching
+
+    clients = list_client_inventory()
+    for client in clients:
+        client["scenarios"] = [
+            {"id": s.id, "title": s.title, "mode": s.mode} for s in scenarios_matching(client)
+        ]
+    return {"success": True, "clients": clients}

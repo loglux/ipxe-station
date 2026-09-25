@@ -71,6 +71,65 @@ Things learned while building it (also in [ROADMAP](../ROADMAP.md)):
 - Kernel and initrd are loaded over HTTP, not NFS: the iPXE binaries do not include NFS support. NFS
   is used later, by the booted Linux itself, to read its root filesystem.
 
+## The menu is built for each machine
+
+`boot.ipxe` is a small script. Its first line asks the server for a menu built for the machine that is
+booting, sending what the machine reports about itself (the same data as in the Devices tab):
+
+```
+chain http://SERVER:9021/ipxe/menu?mac=...&manufacturer=...&product=...  && exit || goto start
+```
+
+The server records the machine, checks it against the **scenarios**, and answers with the normal menu plus:
+
+- a **Recommended for Dell Inc. Latitude 5530** block with the scenarios that match this machine;
+- a **Device information** item that prints brand, model, SKU, serial number, BIOS, network card, MAC, boot
+  mode and IP on the machine's own screen;
+- optionally, one **automatic** scenario pre-selected with a 15 second countdown (any key or another choice
+  cancels it). An *offered* scenario never starts on its own: when a machine has recommendations and no
+  automatic one, the menu waits for the operator instead of counting down to its first item.
+
+**If the server cannot answer** (no saved menu, server down, an error in the personal menu), the ordinary menu
+that follows in `boot.ipxe` is used, so a machine is never left without a menu.
+
+### Scenarios
+
+A scenario says which machines it applies to and which existing menu entry it points to. They live in
+`data/srv/ipxe/scenarios.json` and can be read and replaced through the API (`GET` / `PUT /api/scenarios`;
+`GET /api/scenarios/preview/<device id>` shows what a known machine would get):
+
+```json
+{
+  "scenarios": [
+    {
+      "id": "live-latitude-5530",
+      "title": "Live system: Kaspersky Rescue Disk",
+      "match": { "manufacturer": "Dell*", "product": "Latitude 5530" },
+      "entry": "kaspersky_1",
+      "mode": "offer"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `id`, `title`, `description` | Name shown in the menu and the lists |
+| `match` | Field → pattern; **all** must match. Fields: `manufacturer`, `product`, `sku`, `family`, `serial`, `uuid`, `mac`, `platform`, `arch`, `nic_pci`. `*` and `?` are wildcards, case does not matter. `*` also accepts a field the machine did not report; `?*` requires a value |
+| `entry` | Name of an enabled menu entry (a boot, chain or submenu entry) |
+| `mode` | `offer` (listed in the recommended block) or `auto` (pre-selected with a countdown; needs a `match`; only the first automatic scenario applies) |
+| `enabled` | Turn a scenario off without deleting it |
+
+`PUT` refuses duplicate ids and entries that do not exist. A broken item in the file is skipped instead of
+hiding the others. The Devices tab shows the scenarios that apply to each machine.
+
+**Safety.** Everything a machine reports is untrusted. Before it is printed in a script, text is reduced to a
+small safe set (letters, digits and a few punctuation marks): `||`, `&&`, `${...}` and line breaks from a
+machine cannot become commands. The values also decide which scenarios match, so a machine that lies about
+itself can only pick a different *recommendation*; keep anything destructive behind a per-serial allow-list.
+`/ipxe/menu` is open like `boot.ipxe` because iPXE cannot present a token; the scenarios API is behind the
+token boundary.
+
 ## What the server learns about a client
 
 Two sources, both visible in the **Monitoring** log:

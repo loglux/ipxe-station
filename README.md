@@ -95,6 +95,9 @@
   type underneath.
 - **Kept on your server** in `data/srv/ipxe/clients.json`; the same list is available at
   `GET /api/monitoring/clients`.
+- **A menu built for each machine** — matching *scenarios* appear at the top of its own PXE menu as
+  "Recommended for this device", with a *Device information* screen; see
+  [how it works](docs/how-it-works.md#the-menu-is-built-for-each-machine).
 
 ### 📊 Monitoring
 - Live boot event log
@@ -385,7 +388,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (178 tests)
+make backend-test  # pytest (198 tests)
 make quality       # all of the above
 ```
 

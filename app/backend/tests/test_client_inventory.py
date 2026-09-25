@@ -128,16 +128,15 @@ def test_report_stays_open_in_token_mode_but_the_client_list_does_not(monkeypatc
     assert ok.status_code == 200 and len(ok.json()["clients"]) == 1
 
 
-def test_menu_script_reports_to_this_server_and_never_blocks_the_menu():
+def test_menu_script_asks_this_server_for_a_personal_menu_and_falls_back():
     script = iPXEGenerator.generate_ipxe_script(iPXEMenu(server_ip="10.0.0.1", http_port=8080))
 
-    assert "imgfetch --name client-info http://10.0.0.1:8080/client-info?" in script
-    assert "|| echo Client info report skipped" in script
-    assert "imgfree client-info ||" in script
-    assert script.index("client-info") < script.index(":start")
+    assert "chain http://10.0.0.1:8080/ipxe/menu?" in script
+    assert "&& exit || goto start" in script  # a failing server never blocks the menu
+    assert script.index("/ipxe/menu") < script.index(":start")
 
 
-def test_menu_script_without_server_address_skips_the_report():
+def test_menu_script_without_server_address_does_not_ask():
     script = iPXEGenerator.generate_ipxe_script(iPXEMenu())
 
-    assert "client-info" not in script
+    assert "/ipxe/menu" not in script

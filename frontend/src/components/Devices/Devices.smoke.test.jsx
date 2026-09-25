@@ -21,6 +21,7 @@ const CLIENTS = [
     platform: 'efi',
     arch: 'x86_64',
     client_ip: '192.168.10.35',
+    scenarios: [{ id: 'live', title: 'Live system for Latitude', mode: 'offer' }],
     boots: 3,
     first_seen_at: NOW - 86400 * 3,
     last_seen_at: NOW - 30,
@@ -102,6 +103,8 @@ describe('Devices', () => {
     expect(screen.getByText('4c4c4544-0000-0000-0000-000000000001')).toBeInTheDocument()
     expect(screen.getByText('UUID')).toBeInTheDocument()
     expect(screen.getByText('BIOS date')).toBeInTheDocument()
+    expect(screen.getByText('Scenarios for this device')).toBeInTheDocument()
+    expect(screen.getByText('Live system for Latitude')).toBeInTheDocument()
   })
 
   it('explains how a device appears when the list is empty', async () => {

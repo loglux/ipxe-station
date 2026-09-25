@@ -11,9 +11,10 @@ from app.routes.assets import assets_router
 from app.routes.boot import boot_router
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
-from app.routes.ipxe import ipxe_router
+from app.routes.ipxe import build_personal_menu_script, ipxe_router
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
 from app.routes.proxy_dhcp import proxy_dhcp_router
+from app.routes.scenarios import scenarios_router
 from app.routes.settings import settings_router
 from app.routes.state import (
     HTTP_ROOT,
@@ -21,6 +22,7 @@ from app.routes.state import (
     PXE_CLIENTS,  # noqa: F401 — re-exported for test imports
     SYSTEM_LOGS,  # noqa: F401 — re-exported for test imports
     TFTP_ROOT,
+    _normalise_inventory,
     _record_http_boot_flow,
     _refresh_boot_sessions,  # noqa: F401 — re-exported for test imports
     _track_ipxe_loop,  # noqa: F401 — re-exported for test imports
@@ -93,22 +95,6 @@ app.mount("/http", StaticFiles(directory=str(HTTP_ROOT)), name="http")
 # ---------------------------------------------------------------------------
 
 
-@app.get("/ipxe/{filename}")
-@app.head("/ipxe/{filename}")
-async def serve_ipxe(filename: str):
-    """Serve iPXE files."""
-    try:
-        file_path = (IPXE_ROOT / filename).resolve()
-        file_path.relative_to(IPXE_ROOT.resolve())
-        if file_path.exists():
-            return FileResponse(
-                file_path, media_type="text/plain", headers={"Cache-Control": "no-cache"}
-            )
-    except (ValueError, OSError):
-        pass
-    return Response("File not found", status_code=404)
-
-
 _CLIENT_INFO_FIELDS = (
     "mac",
     "uuid",
@@ -126,6 +112,41 @@ _CLIENT_INFO_FIELDS = (
     "chip",
     "ipxe",
 )
+
+
+@app.get("/ipxe/menu")
+async def personal_menu(request: Request):
+    """Build the boot menu for the machine that asks, and record what it reports about itself.
+
+    Open like boot.ipxe: iPXE cannot present an API token. ``preview=1`` builds the menu
+    without recording the machine (for testing).
+    """
+    fields = {name: request.query_params.get(name, "")[:200] for name in _CLIENT_INFO_FIELDS}
+    client_ip = request.client.host if request.client else "unknown"
+    if request.query_params.get("preview") == "1":
+        device = _normalise_inventory(fields)
+    else:
+        device = record_client_inventory(client_ip, fields) or _normalise_inventory(fields)
+    script = build_personal_menu_script(device)
+    if script is None:
+        return Response("No menu saved yet", status_code=404)
+    return Response(script, media_type="text/plain", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/ipxe/{filename}")
+@app.head("/ipxe/{filename}")
+async def serve_ipxe(filename: str):
+    """Serve iPXE files."""
+    try:
+        file_path = (IPXE_ROOT / filename).resolve()
+        file_path.relative_to(IPXE_ROOT.resolve())
+        if file_path.exists():
+            return FileResponse(
+                file_path, media_type="text/plain", headers={"Cache-Control": "no-cache"}
+            )
+    except (ValueError, OSError):
+        pass
+    return Response("File not found", status_code=404)
 
 
 @app.get("/client-info")
@@ -210,6 +231,7 @@ _api_routers = (
     proxy_dhcp_router,
     monitoring_router,
     settings_router,
+    scenarios_router,
 )
 for _router in _api_routers:
     app.include_router(_router, dependencies=[Depends(api_boundary_context)])

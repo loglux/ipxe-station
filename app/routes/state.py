@@ -469,7 +469,7 @@ def _record_http_boot_flow(request: Request, path: str, status_code: int):
     normalized = path.lstrip("/")
     stage = None
 
-    if normalized == "ipxe/boot.ipxe":
+    if normalized in ("ipxe/boot.ipxe", "ipxe/menu"):
         state = _get_pxe_client_state(client_ip)
         state["last_boot_script_at"] = time.time()
         state["recent_ipxe_efi_requests"].clear()

@@ -39,6 +39,12 @@ function sortDevices(devices, sortKey) {
   return list.sort(by[sortKey] || by.last_seen)
 }
 
+function scenarioSummary(device) {
+  return (device.scenarios || [])
+    .map((s) => (s.mode === 'auto' ? `${s.title} (automatic)` : s.title))
+    .join(', ')
+}
+
 function DeviceDetails({ device }) {
   const rows = [
     ['Brand', device.manufacturer],
@@ -55,6 +61,7 @@ function DeviceDetails({ device }) {
     ['Network card (PCI id)', device.nic_pci],
     ['Network driver in iPXE', device.chip],
     ['Boot mode', bootMode(device)],
+    ['Scenarios for this device', scenarioSummary(device)],
     ['iPXE version', device.ipxe],
     ['First seen', formatDateTime(device.first_seen_at)],
     ['Last seen', formatDateTime(device.last_seen_at)],

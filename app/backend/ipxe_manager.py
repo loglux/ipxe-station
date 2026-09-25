@@ -79,6 +79,26 @@ class iPXEMenu:
         self.entries.sort(key=lambda x: (x.order, x.name))
 
 
+@dataclass
+class DeviceRecommendation:
+    """A menu item shown to one machine that jumps to an existing entry."""
+
+    item: str
+    title: str
+    target: str
+    auto: bool = False  # pre-selected with a countdown
+
+
+@dataclass
+class DeviceMenu:
+    """What the server knows about the machine that asks for its menu."""
+
+    name: str = "this machine"
+    info: List[Tuple[str, str]] = field(default_factory=list)  # (label, already-safe text)
+    recommendations: List[DeviceRecommendation] = field(default_factory=list)
+    auto_timeout_ms: int = 15000
+
+
 class iPXEValidator:
     """iPXE configuration validation utilities"""
 
@@ -635,8 +655,13 @@ class iPXEGenerator:
         children_map: Dict[Optional[str], List[iPXEEntry]],
         parent_map: Dict[str, Optional[str]],
         back_labels: List[Tuple[str, str]],
+        device: Optional[DeviceMenu] = None,
     ) -> List[str]:
-        """Render a menu (root or submenu) with its children."""
+        """Render a menu (root or submenu) with its children.
+
+        ``device`` personalises the root menu: a "Recommended for this device" block, a device
+        information item, and an optional pre-selected scenario with a countdown.
+        """
         lines: List[str] = []
         label = cls._menu_label(current)
         lines.extend(
@@ -646,6 +671,15 @@ class iPXEGenerator:
                 "item --gap -- -------------------------------",
             ]
         )
+
+        if current is None and device and device.recommendations:
+            lines.append(f"item --gap -- Recommended for {device.name}")
+            for rec in device.recommendations:
+                note = f" (starts in {device.auto_timeout_ms // 1000} s)" if rec.auto else ""
+                lines.append(
+                    f"item {rec.item} [FOR THIS DEVICE] {cls._escape_echo_text(rec.title)}{note}"
+                )
+            lines.append("item --gap -- -------------------------------")
 
         if current is not None:
             # Add back navigation
@@ -675,9 +709,11 @@ class iPXEGenerator:
                 lines.append(f"item {entry.name} [CHAIN] {entry.title}")
 
         if current is None:
+            lines.extend(["item --gap --"])
+            if device:
+                lines.append("item device_info [INFO] Device information")
             lines.extend(
                 [
-                    "item --gap --",
                     "item shell [SHELL]  Drop to iPXE shell",
                     "item reboot [REBOOT] Reboot computer",
                     "item exit [EXIT] Exit to BIOS",
@@ -690,10 +726,22 @@ class iPXEGenerator:
             else None
         )
 
-        if default_for_menu:
+        auto_item = None
+        if current is None and device:
+            auto_item = next((r.item for r in device.recommendations if r.auto), None)
+
+        if auto_item and device:
+            lines.append(
+                f"choose --default {auto_item} --timeout {device.auto_timeout_ms} target && goto ${{target}}"  # noqa: E501
+            )
+        elif default_for_menu:
             lines.append(
                 f"choose --default {default_for_menu} --timeout {menu.timeout} target && goto ${{target}}"  # noqa: E501
             )
+        elif current is None and device and device.recommendations:
+            # With no --default, iPXE picks the first item when the timeout runs out, and that is
+            # now an offered scenario. An offer must never start by itself: wait for the operator.
+            lines.append("choose target && goto ${target}")
         else:
             lines.append(
                 f"choose --timeout {menu.timeout if current is None else 0} target && goto ${{target}}"  # noqa: E501
@@ -706,17 +754,19 @@ class iPXEGenerator:
             if entry.entry_type in {"submenu", "menu"}:
                 lines.extend(
                     cls._render_menu_block(
-                        entry.name, entry.title, menu, children_map, parent_map, back_labels
+                        entry.name, entry.title, menu, children_map, parent_map, back_labels, device
                     )
                 )
 
         return lines
 
     @staticmethod
-    def _client_info_lines(menu: iPXEMenu) -> List[str]:
-        """iPXE lines that tell the server what machine this is (SMBIOS, MAC, NIC).
+    def _personal_menu_lines(menu: iPXEMenu) -> List[str]:
+        """Ask the server for a menu built for this machine, with the menu below as the fallback.
 
-        Failure-tolerant: an unreachable server or an unknown setting never stops the menu.
+        The request also tells the server what the machine is (SMBIOS, MAC, NIC), so the server
+        records it. If the server cannot answer, or the personal menu fails, the static menu that
+        follows in this script is used.
         """
         if not menu.server_ip or not menu.http_port:
             return []
@@ -740,15 +790,47 @@ class iPXEGenerator:
             ]
         )
         return [
-            "# Report what this machine is (brand, model, serial, BIOS, NIC) to the monitoring log",
-            f"imgfetch --name client-info http://{menu.server_ip}:{menu.http_port}/client-info?{query} || echo Client info report skipped",  # noqa: E501
-            "imgfree client-info ||",
+            "# Ask the server for a menu built for this machine (this also reports what it is);",
+            "# if the server cannot answer, the menu below is used.",
+            f"chain http://{menu.server_ip}:{menu.http_port}/ipxe/menu?{query} && exit || goto start",  # noqa: E501
             "",
         ]
 
+    @classmethod
+    def _device_label_lines(cls, device: DeviceMenu) -> List[str]:
+        """Labels behind the personalised items: the recommendations and the info screen."""
+        lines: List[str] = []
+        for rec in device.recommendations:
+            lines.extend(
+                [
+                    f":{rec.item}",
+                    f"echo Starting {cls._escape_echo_text(rec.title)}...",
+                    f"goto {rec.target}",
+                    "",
+                ]
+            )
+        lines.extend(
+            [":device_info", "echo", f"echo ===== Device information: {device.name} ====="]
+        )
+        lines.extend(f"echo {label}: {value}" for label, value in device.info)
+        lines.extend(
+            [
+                "echo IP address: ${net0/ip}",
+                "echo",
+                "prompt --timeout 120000 Press any key to return to the menu",
+                "goto start",
+                "",
+            ]
+        )
+        return lines
+
     @staticmethod
-    def generate_ipxe_script(menu: iPXEMenu) -> str:
-        """Generate iPXE script content with enhanced multi-mode support"""
+    def generate_ipxe_script(menu: iPXEMenu, device: Optional[DeviceMenu] = None) -> str:
+        """Generate iPXE script content with enhanced multi-mode support.
+
+        Without ``device`` this is the static menu, which starts by asking the server for a menu
+        built for the machine. With ``device`` it is that personalised menu (it must not ask again).
+        """
         script_lines = [
             "#!ipxe",
             "",
@@ -756,7 +838,8 @@ class iPXEGenerator:
             "# Generated by PXE Boot Station",
             "",
         ]
-        script_lines.extend(iPXEGenerator._client_info_lines(menu))
+        if device is None:
+            script_lines.extend(iPXEGenerator._personal_menu_lines(menu))
 
         # Add header text if provided
         if menu.header_text:
@@ -769,7 +852,7 @@ class iPXEGenerator:
         back_labels: List[Tuple[str, str]] = []
         script_lines.extend(
             iPXEGenerator._render_menu_block(
-                None, menu.title, menu, children_map, parent_map, back_labels
+                None, menu.title, menu, children_map, parent_map, back_labels, device
             )
         )
 
@@ -890,6 +973,9 @@ class iPXEGenerator:
                 script_lines.extend(
                     [f":{entry.name}", f"goto {iPXEGenerator._menu_label(entry.name)}", ""]
                 )
+
+        if device:
+            script_lines.extend(iPXEGenerator._device_label_lines(device))
 
         # Back navigation labels for submenus
         for back_item, target_label in back_labels:
