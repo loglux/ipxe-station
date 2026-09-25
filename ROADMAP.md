@@ -244,10 +244,14 @@ write the same human-readable files (JSON, in `data/srv/ipxe/`), so nothing has 
 5. **BIOS.** Per-model target versions shown as compliance first, then the update job on one model (after a
    test on a machine that can be recovered); then settings profiles with diff, apply, and capture from a
    golden machine.
-6. **Windows installation.** Image and driver-pack library, answer-file templates with variables, disk
-   layouts, post-install packages, verification step; per-model driver selection.
+6. **Windows installation (first priority for provisioning).** Image and driver-pack library, answer-file
+   templates with variables, disk layouts, first-boot configuration, post-install **packages** (name,
+   installer file or URL, silent arguments, detection rule, groups) installed as a workflow step, a
+   verification step; per-model driver selection.
 7. **Later:** Linux installation, secure erase, asset tagging, Autopilot/Intune, Wake-on-LAN windows,
-   notifications, central logging.
+   notifications, central logging, and **software distribution to running machines**. Installing software
+   during provisioning (stage 6) needs only what we have; keeping software up to date on machines that are
+   already in use needs an agent or an existing tool (winget, Intune, SCCM) and is a separate decision.
 
 **Tools catalog (can run in parallel with the stages):** a generic *Add tool from ISO* flow. The ISO is
 uploaded or dropped into Assets, its layout is detected (`sources/boot.wim` → WinPE via wimboot; `live/` +
