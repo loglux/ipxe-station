@@ -77,8 +77,23 @@
 
 ### 📊 Monitoring
 - Live boot event log
+- **Client info** — each booting machine reports its brand, model, serial, BIOS version, MAC and NIC
+  (see [how it works](docs/how-it-works.md#what-the-server-learns-about-a-client))
 - Syslog stream
 - Service status (TFTP, HTTP, dnsmasq)
+
+---
+
+## 📚 Documentation
+
+| | |
+|---|---|
+| [How it works](docs/how-it-works.md) | Components, ports, and what happens from F12 to the menu |
+| [Boot methods](docs/boot-methods.md) | BIOS PXE, UEFI PXE, HTTP Boot, Secure Boot, Linux and WinPE modes: what is verified |
+| [Typical scenarios](docs/scenarios.md) | Rescue toolkit, live Linux, unattended Debian, your own WinPE automation |
+| [Troubleshooting](docs/troubleshooting.md) | Client does not boot, falls back to another device, WinPE cannot see the disk |
+| [WinPE provisioning example](examples/winpe-provision/README.md) | Scripts and guide for running your own automation in a network-booted WinPE |
+| [Roadmap](ROADMAP.md) | What works, what is unverified, what is planned |
 
 ---
 
@@ -281,6 +296,9 @@ Things to know:
 - Everything under `data/srv/http/` is downloadable by anyone on the network. Keep passwords and
   keys out of the WinPE image and its scripts.
 
+To run your own automation once WinPE is up (detect the model, fetch a per-model package, load
+drivers, start a script), see the [WinPE provisioning example](examples/winpe-provision/README.md).
+
 ### Debian Live Research Status
 
 Debian publishes official Live install images separately from installer media, and they
@@ -346,7 +364,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (162 tests)
+make backend-test  # pytest (172 tests)
 make quality       # all of the above
 ```
 
