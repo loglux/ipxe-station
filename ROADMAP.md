@@ -19,6 +19,9 @@
   UEFI PXE → iPXE menu → `wimboot` → a custom WinPE 26100 image; confirmed 2026-09-19 from the
   server's request log (`boot.ipxe`, `wimboot`, `BCD`, `boot.sdi`, `boot.wim`). Secure Boot on, HTTP
   Boot and other laptop models are still unverified.
+- **Kaspersky Rescue Disk 24 over NFS** — on a Dell Latitude 5530 the live system now gets an address and
+  mounts the NFS export (confirmed 2026-09-25 from server logs: DHCP request from the initramfs and an NFS
+  mount request). It failed before the `BOOTIF` fix, see Key Technical Findings.
 - **Windows PE via wimboot** — documented in the README (file layout, RAM, Secure Boot and
   RAID/VMD storage-driver notes)
 - **HTTP file serving** — `/srv/http/` at `/http/`, `/srv/ipxe/` at `/ipxe/` (no-cache), `/srv/tftp/` at `/tftp/`
@@ -267,6 +270,16 @@ cp bin-x86_64-efi/ipxe.efi /path/to/ipxe-station/data/srv/tftp/ipxe.efi
 - `/srv/ipxe/boot.ipxe` — API-generated menu (correct, use this)
 - `/srv/tftp/boot.ipxe` — chain-to-HTTP stub, updated by save_menu API
 - autoexec.ipxe must chain to `/ipxe/boot.ipxe`, NOT `/tftp/boot.ipxe`
+
+### live-boot picks the wrong network card
+
+Debian live-boot (Debian Live, Kaspersky Rescue Disk 24) uses the first interface that reports a link. On
+a laptop with a cellular modem that is `wwan0` (wired `eth0` gets its link half a second later), and
+`ipconfig` then fails with "no devices to configure", ending in `NFS over TCP not available from <server>`.
+Fix: add `BOOTIF=01-${net0/mac:hexhyp}` to the command line (iPXE fills in the MAC of the boot NIC). The boot
+recipes and the KRD scenario template include it, and Save Menu warns when a network live entry lacks
+`BOOTIF=`/`ethdevice=`/`live-netdev=`. Diagnosis that worked: the client's DHCP requests and NFS mount
+requests in the server log (none arrived), then the on-screen text.
 
 ### Ubuntu Boot Modes
 - **NFS** (`netboot=nfs nfsroot=`): reads squashfs on demand, no RAM limit — recommended for Server

@@ -34,23 +34,45 @@ are not logged; boot-file requests (`/ipxe`, `/tftp`, `/http`) and errors are.
 
 ## A Linux live entry says "NFS over TCP not available from ..."
 
-Typical with Kaspersky Rescue Disk 24 (Debian live-boot), which mounts its files with `netboot=nfs`.
-The message comes from the tiny NFS client inside the initrd and means it could not get the NFS port from
-the server. **It does not mean your NFS server lacks TCP**: check with `rpcinfo -p SERVER` that NFS v3 over
-TCP is registered (modern servers list only TCP, which is normal).
+Seen with Kaspersky Rescue Disk 24 and applies to every Debian **live-boot** system (Debian Live, KRD 24)
+that loads its files over the network. On the client screen:
 
-The usual cause is that **the network never came up inside the live system**. Confirm from the server:
+```
+Looking for a connected Ethernet interface ... eth0 ? wwan0 ?
+Connected wwan0 found
+ipconfig: no devices to configure
+connect: Network is unreachable
+NFS over TCP not available from 192.168.10.170        (repeats, then "Unable to find a live file system")
+```
 
-- The Monitoring log (or `docker exec ipxe-station grep dnsmasq-dhcp /var/log/syslog`) shows the client's
-  DHCP requests. If, after the client downloaded `vmlinuz` and `initrd`, no further DHCP request from its
-  MAC appears, the live kernel never brought a NIC up.
-- The NFS server's log has no mount request from the client (`journalctl -u nfs-mountd`).
+**Cause.** live-boot picks the *first* network interface that reports a link. On a laptop with a cellular
+modem (`wwan0`) the modem has "link" immediately, while the wired card gets it a moment later. live-boot
+takes the modem, cannot configure it (`no devices to configure`), and never gets an address. The NFS
+message is only the last symptom; it does **not** mean the NFS server lacks TCP. Docks, USB adapters and
+virtual interfaces can trigger the same thing.
 
-Next steps: read the machine's NIC id from its `Client info` line and check that the live kernel knows
-it (the kernel in the live image can be older than your hardware); try a USB Ethernet adapter (Realtek
-r8152 and ASIX chips are widely supported); boot a rescue system with a newer kernel (SystemRescue) on
-the same machine to tell a hardware-support problem from a server problem. live-boot also accepts
-`ethdevice=eth0` and `ethdevice-timeout=60` if the link is slow to come up.
+**Fix.** Tell live-boot which card to use, by adding this to the entry's command line:
+
+```
+BOOTIF=01-${net0/mac:hexhyp}
+```
+
+It is the same parameter pxelinux sets. iPXE replaces `${net0/mac:hexhyp}` with the MAC of the card the
+machine booted from, so it is right on every machine. The recipes already add it for KRD 24 and Debian
+Live, and **Save Menu warns** about a network live entry that lacks `BOOTIF=`, `ethdevice=` or
+`live-netdev=`. Custom entries must include it themselves.
+
+**Confirm from the server** (no need to read the client screen):
+
+- The DHCP log shows a request with vendor class `Linux ipconfig` from the client's MAC after it downloaded
+  `vmlinuz` and `initrd` (that is the live system asking for an address).
+- `journalctl -u nfs-mountd` shows `authenticated mount request from <client>`.
+
+If neither appears, the live system still has no network: check the machine's NIC id in its `Client info`
+line against the live kernel's drivers (an old kernel is possible but has to be checked, not assumed), try
+a USB Ethernet adapter, boot a rescue system with a newer kernel (SystemRescue) on the same machine, and
+consider `ethdevice-timeout=60` if the link is slow to come up. `rpcinfo -p SERVER` should list NFS v3 over
+TCP (modern servers list only TCP, which is normal).
 
 ## WinPE booted but something is wrong
 

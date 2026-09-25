@@ -45,6 +45,10 @@ Known pitfalls (from real boots):
 - Ubuntu 22.04+ with `fetch=` on the squashfs fails via iPXE ("no medium found"): do not use it.
 - `root=/dev/nfs` is for a kernel-NFS root, not for casper live boot: do not add it to casper command
   lines.
+- **live-boot** systems (Debian Live, Kaspersky Rescue Disk 24) choose the first network interface with a
+  link; on laptops with a cellular modem that is `wwan0`, and the boot dies with "NFS over TCP not
+  available". Their command lines must contain `BOOTIF=01-${net0/mac:hexhyp}` (the recipes add it, and
+  Save Menu warns when it is missing). Details in [Troubleshooting](troubleshooting.md).
 - Debian Live is an **experimental** prototype ([README](../README.md) has its validation checklist).
 
 ### Windows PE (wimboot)

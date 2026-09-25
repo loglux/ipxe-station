@@ -303,3 +303,44 @@ def test_lint_wimboot_multi_file_initrd_reports_only_missing_file(tmp_path):
     missing = [w for w in warnings if "initrd file missing" in w]
     assert len(missing) == 1
     assert "boot.sdi" in missing[0]
+
+
+def _live_menu(cmdline: str) -> iPXEMenu:
+    return iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="live",
+                title="Live",
+                kernel="live/vmlinuz",
+                initrd="live/initrd.img",
+                cmdline=cmdline,
+                boot_mode="live",
+                entry_type="boot",
+            )
+        ],
+    )
+
+
+def _bootif_warnings(cmdline: str) -> list[str]:
+    return [w for w in iPXEValidator.lint_menu(_live_menu(cmdline)) if "wrong network card" in w]
+
+
+def test_lint_warns_when_a_network_live_boot_does_not_pin_the_nic():
+    """Regression: live-boot chose the modem (wwan0) over the wired card and never got an IP."""
+    assert _bootif_warnings("boot=live components netboot=nfs nfsroot=10.0.0.1:/x")
+    assert _bootif_warnings("boot=live components fetch=http://10.0.0.1/live.iso ip=dhcp")
+
+
+def test_lint_is_quiet_when_the_nic_is_named():
+    base = "boot=live components netboot=nfs nfsroot=10.0.0.1:/x"
+
+    assert not _bootif_warnings(base + " BOOTIF=01-${net0/mac:hexhyp}")
+    assert not _bootif_warnings(base + " ethdevice=eth0")
+    assert not _bootif_warnings(base + " live-netdev=eth0")
+
+
+def test_lint_ignores_entries_that_are_not_network_live_boots():
+    assert not _bootif_warnings("boot=live components")  # live from local media
+    assert not _bootif_warnings("ip=dhcp boot=casper netboot=nfs nfsroot=10.0.0.1:/x")

@@ -52,6 +52,12 @@ from dataclasses import dataclass, field
 from typing import List
 from urllib.parse import quote
 
+# live-boot (Debian Live, Kaspersky Rescue Disk 24) picks the first network interface that reports a
+# link, which on laptops with a cellular modem is often "wwan0" rather than the wired card, and then
+# cannot get an address. BOOTIF names the card that booted from the network (the same parameter
+# pxelinux sets); iPXE fills in its MAC when it runs the kernel line.
+LIVE_BOOT_NETDEV = "BOOTIF=01-${net0/mac:hexhyp}"
+
 
 @dataclass
 class BootOption:
@@ -236,7 +242,10 @@ def kaspersky_recipe(
                 label="Kaspersky Rescue Disk 24 — ISO fetch (official, ~660 MB)",
                 kernel=kernel,
                 initrd=initrd,
-                cmdline=f"boot=live components locales=en_US.UTF-8 fetch={iso_url}",
+                cmdline=(
+                    f"boot=live components locales=en_US.UTF-8 fetch={iso_url} "
+                    f"{LIVE_BOOT_NETDEV}"
+                ),
                 recommended=True,
             )
         )
@@ -249,7 +258,10 @@ def kaspersky_recipe(
                 label="Kaspersky Rescue Disk 24 — squashfs fetch (~460 MB)",
                 kernel=kernel,
                 initrd=initrd,
-                cmdline=f"boot=live components locales=en_US.UTF-8 fetch={squashfs_url}",
+                cmdline=(
+                    f"boot=live components locales=en_US.UTF-8 fetch={squashfs_url} "
+                    f"{LIVE_BOOT_NETDEV}"
+                ),
             )
         )
 
@@ -262,7 +274,10 @@ def kaspersky_recipe(
                 label="Kaspersky Rescue Disk — ISO fetch",
                 kernel=kernel,
                 initrd=initrd,
-                cmdline=f"boot=live components locales=en_US.UTF-8 fetch={iso_url}",
+                cmdline=(
+                    f"boot=live components locales=en_US.UTF-8 fetch={iso_url} "
+                    f"{LIVE_BOOT_NETDEV}"
+                ),
                 recommended=True,
             )
         )
@@ -328,7 +343,7 @@ def debian_live_recipe(
                 label="Debian Live (Experimental) — ISO fetch",
                 kernel=kernel,
                 initrd=initrd,
-                cmdline=f"boot=live components fetch={iso_url} ip=dhcp",
+                cmdline=f"boot=live components fetch={iso_url} ip=dhcp {LIVE_BOOT_NETDEV}",
             )
         )
 
@@ -340,7 +355,7 @@ def debian_live_recipe(
                 label="Debian Live (Experimental) — squashfs fetch",
                 kernel=kernel,
                 initrd=initrd,
-                cmdline=f"boot=live components fetch={squashfs_url} ip=dhcp",
+                cmdline=f"boot=live components fetch={squashfs_url} ip=dhcp {LIVE_BOOT_NETDEV}",
             )
         )
 

@@ -364,7 +364,7 @@ export const SCENARIOS = {
     },
 
     template: () => ({
-      cmdline: `boot=live components locales=en_US.UTF-8 netboot=nfs nfsroot=\${server_ip}:\${nfs_root}/kaspersky-\${version} net.ifnames=0 nomodeset`,
+      cmdline: `boot=live components locales=en_US.UTF-8 netboot=nfs nfsroot=\${server_ip}:\${nfs_root}/kaspersky-\${version} net.ifnames=0 nomodeset BOOTIF=01-\${net0/mac:hexhyp}`,
     }),
 
     assetDiscovery: {

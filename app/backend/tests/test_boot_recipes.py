@@ -593,3 +593,57 @@ class TestGetRecipe:
         r1 = get_recipe("ubuntu_live", entry, SERVER_IP, PORT)
         r2 = get_recipe("ubuntu_netboot", entry, SERVER_IP, PORT)
         assert r1["options"] == r2["options"]
+
+
+# ---------------------------------------------------------------------------
+# live-boot network device selection
+# ---------------------------------------------------------------------------
+
+
+class TestLiveBootNetworkDevice:
+    """Regression: live-boot took the first interface with a link, which on a laptop with a cellular
+    modem is wwan0, so the wired card was never configured ("ipconfig: no devices to configure")."""
+
+    def test_krd24_options_pin_the_boot_nic(self):
+        entry = {
+            "kernel": "kaspersky-24/live/vmlinuz",
+            "initrd": "kaspersky-24/live/initrd.img",
+            "iso": "kaspersky-24/krd-24.iso",
+            "squashfs": "kaspersky-24/live/filesystem.squashfs",
+        }
+        opts = kaspersky_recipe(entry, SERVER_IP, PORT)
+
+        assert opts and all("BOOTIF=01-${net0/mac:hexhyp}" in o.cmdline for o in opts)
+
+    def test_debian_live_options_pin_the_boot_nic(self):
+        entry = {
+            "kernel": "debian-13.3-live/vmlinuz",
+            "initrd": "debian-13.3-live/initrd.img",
+            "iso": "debian-13.3-live/live.iso",
+            "squashfs": "debian-13.3-live/live/filesystem.squashfs",
+        }
+        opts = debian_live_recipe(entry, SERVER_IP, PORT)
+
+        assert len(opts) == 2
+        assert all("BOOTIF=01-${net0/mac:hexhyp}" in o.cmdline for o in opts)
+
+    def test_ipxe_expands_the_mac_at_boot_so_the_generator_must_leave_it_alone(self):
+        from app.backend.ipxe_manager import iPXEEntry, iPXEGenerator, iPXEMenu
+
+        menu = iPXEMenu(
+            server_ip="10.0.0.1",
+            http_port=8080,
+            entries=[
+                iPXEEntry(
+                    name="krd",
+                    title="KRD",
+                    kernel="k/vmlinuz",
+                    initrd="k/initrd.img",
+                    cmdline="boot=live nfsroot=${server_ip}:/x BOOTIF=01-${net0/mac:hexhyp}",
+                )
+            ],
+        )
+
+        script = iPXEGenerator.generate_ipxe_script(menu)
+
+        assert "nfsroot=10.0.0.1:/x BOOTIF=01-${net0/mac:hexhyp}" in script

@@ -391,6 +391,19 @@ class iPXEValidator:
         cmdline = entry.cmdline or ""
         cmdline_lower = cmdline.lower()
         is_nfs_live = "netboot=nfs" in cmdline_lower or "nfsroot=" in cmdline_lower
+
+        # live-boot picks the first network interface that reports a link, which on a laptop with a
+        # cellular modem is often wwan0, so a network live boot must say which card to use.
+        if (
+            "boot=live" in cmdline_lower
+            and any(key in cmdline_lower for key in ("netboot=", "fetch=", "httpfs=", "ftpfs="))
+            and not any(key in cmdline_lower for key in ("bootif=", "ethdevice=", "live-netdev="))
+        ):
+            warnings.append(
+                f"{entry.name}: live-boot may choose the wrong network card (for example a "
+                "cellular modem) and fail with 'NFS over TCP not available'. "
+                "Add BOOTIF=01-${net0/mac:hexhyp} to the command line."
+            )
         needs_local_iso_check = (
             entry.requires_iso or entry.boot_mode == "live"
         ) and not is_nfs_live
