@@ -75,6 +75,27 @@
 - **Preseed profiles** — create, activate, and serve Debian unattended install templates from the UI
 - **NFS boot** — Ubuntu Server NFS cmdline with auto-detected export path
 
+### 🖥️ Devices
+
+[![Devices: machines that reported themselves at network boot, with details of one machine expanded (sample data)](docs/screenshots/devices.png)](docs/screenshots/devices.png)
+
+*Sample data.*
+
+1. **Summary** — devices known, models, seen in the last 24 hours, active in the last 5 minutes
+2. **Search, brand filter, sort** — by model, serial number, MAC, IP, BIOS version or UUID
+3. **Status** — *Active* while a machine is booting, otherwise how long ago it was seen
+4. **BIOS** — version and date at a glance, so outdated machines stand out
+5. **Click a name** to open the full record of that machine
+6. **Details** — SKU, serial number, UUID, MAC, network card id, boot mode, first and last seen
+
+- **Reported by the machine itself** when it reaches the iPXE menu (SMBIOS), so no operating system or agent
+  is needed; a blank machine shows up too. See
+  [what the server learns about a client](docs/how-it-works.md#what-the-server-learns-about-a-client).
+- **Readable names** — HP's repeated brand is collapsed and Lenovo shows its ThinkPad name with the machine
+  type underneath.
+- **Kept on your server** in `data/srv/ipxe/clients.json`; the same list is available at
+  `GET /api/monitoring/clients`.
+
 ### 📊 Monitoring
 - Live boot event log
 - **Client info** — each booting machine reports its brand, model, serial, BIOS version, MAC and NIC
@@ -364,7 +385,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (172 tests)
+make backend-test  # pytest (178 tests)
 make quality       # all of the above
 ```
 

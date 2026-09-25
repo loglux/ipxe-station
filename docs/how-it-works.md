@@ -84,6 +84,7 @@ Two sources, both visible in the **Monitoring** log:
 | Client machine id (option 97) | The SMBIOS UUID; on Dell it starts with `44454c4c` ("DELL") |
 | Client name (option 12) | The hostname the OS or WinPE announces, e.g. `Latitude5530` or `minint-xxxx` |
 | User class `iPXE` | The request came from iPXE, not the firmware |
+| Vendor class `Linux ipconfig` | A live Linux system's own initramfs asking for an address: the client got as far as booting its kernel |
 
 This tells you *that* a machine is there and roughly what it is, but the name is whatever the OS chose.
 
@@ -102,7 +103,7 @@ says about itself. It is failure-tolerant: an unreachable server never blocks th
 Each report becomes one log line, for example
 `Client info: Dell Inc. Latitude 5530 (SKU 0B3D, serial ABC1234, BIOS 1.20.0, MAC 00:be:..., NIC 8086:1a1c, efi x86_64)`,
 and updates a persistent client list (`data/srv/ipxe/clients.json`, one record per machine, keyed by UUID
-or MAC). The list is available at `GET /api/monitoring/clients`.
+or MAC). The list is shown in the **Devices** tab and available at `GET /api/monitoring/clients`.
 
 Things to know:
 
@@ -111,9 +112,10 @@ Things to know:
 - `/client-info` is deliberately open, because iPXE cannot present an API token. In token mode the
   client *list* stays protected; the *report* endpoint does not.
 - Serial numbers and UUIDs identify hardware; they stay on your server, in the log and in `clients.json`.
-- The SMBIOS fields SKU, family and BIOS version use raw SMBIOS offsets and have not yet been checked
-  against real machines; if a field comes back empty, the machine does not provide it (or the offset
-  is wrong for it).
+- Checked on a Dell Latitude 5530: brand, model, SKU, family, serial, BIOS version and date, MAC, UUID
+  and the NIC (`8086:1a1e`, driver `i219lm-16`) all arrive correctly. Other vendors fill SMBIOS
+  differently (see the table); an empty field means that machine does not provide it. Note that the
+  container's HTTP access log also contains the full report (serial and UUID included).
 
 ## Security model
 

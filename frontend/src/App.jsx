@@ -9,10 +9,11 @@ import DHCPHelper from './components/DHCPHelper/DHCPHelper'
 import AddEntryWizard from './components/Wizard/AddEntryWizard'
 import Settings from './components/Settings/Settings'
 import Monitoring from './components/Monitoring/Monitoring'
+import Devices from './components/Devices/Devices'
 import BootFiles from './components/BootFiles/BootFiles'
 import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 
-const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'monitoring']
+const VALID_TABS = ['builder', 'assets', 'dhcp', 'boot', 'devices', 'monitoring']
 
 function App() {
   const githubProfileUrl = import.meta.env.VITE_GITHUB_PROFILE_URL || 'https://github.com/loglux'
@@ -424,6 +425,15 @@ function App() {
             </button>
             <button
               role="tab"
+              className={`tab ${activeTab === 'devices' ? 'active' : ''}`}
+              onClick={() => switchTab('devices')}
+              aria-selected={activeTab === 'devices'}
+              aria-controls="tab-panel-devices"
+            >
+              🖥️ Devices
+            </button>
+            <button
+              role="tab"
               className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`}
               onClick={() => switchTab('monitoring')}
               aria-selected={activeTab === 'monitoring'}
@@ -579,6 +589,7 @@ function App() {
             {activeTab === 'assets' && <div role="tabpanel" id="tab-panel-assets"><AssetManager /></div>}
             {activeTab === 'dhcp' && <div role="tabpanel" id="tab-panel-dhcp"><DHCPHelper settingsVersion={settingsVersion} /></div>}
             {activeTab === 'boot' && <div role="tabpanel" id="tab-panel-boot"><BootFiles /></div>}
+            {activeTab === 'devices' && <div role="tabpanel" id="tab-panel-devices"><Devices /></div>}
             {activeTab === 'monitoring' && <div role="tabpanel" id="tab-panel-monitoring" className="monitoring-tab-panel"><Monitoring /></div>}
           </div>
         </main>
