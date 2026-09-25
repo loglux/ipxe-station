@@ -22,6 +22,9 @@
 - **Kaspersky Rescue Disk 24 over NFS** — on a Dell Latitude 5530 the live system now gets an address and
   mounts the NFS export (confirmed 2026-09-25 from server logs: DHCP request from the initramfs and an NFS
   mount request). It failed before the `BOOTIF` fix, see Key Technical Findings.
+- **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
+  releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
+  single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.
 - **Windows PE via wimboot** — documented in the README (file layout, RAM, Secure Boot and
   RAID/VMD storage-driver notes)
 - **HTTP file serving** — `/srv/http/` at `/http/`, `/srv/ipxe/` at `/ipxe/` (no-cache), `/srv/tftp/` at `/tftp/`
@@ -258,10 +261,11 @@ uploaded or dropped into Assets, its layout is detected (`sources/boot.wim` → 
 squashfs → live-boot; `casper/` → Ubuntu; archiso; syslinux or GRUB config → parsed for kernel/initrd and
 parameters), and a menu entry is created with the right command line (including the boot-NIC parameter for
 live-boot). Each tool is a preset in the same config format (files needed, boot method, command line, RAM,
-BIOS/UEFI support, licence note, verified status), so presets can be exported and imported. Candidates:
+BIOS/UEFI support, licence note, verified status), so presets can be exported and imported. **Started:**
+Rescuezilla and ShredOS are the first entries of a server-side tool catalog (`tool_catalog.py`,
+`GET /api/assets/tools`) with a generic download section in the UI; new tools are added to that list. Candidates:
 AOMEI Backupper and PE Builder, Acronis True Image bootable media, Macrium Reflect rescue media, Veeam
-recovery media, Rescuezilla, ShredOS/nwipe (erase), Bitdefender/ESET/Dr.Web rescue disks, Ultimate Boot CD,
-Windows installation media. Commercial tools use the bootable media their own product builds, under their own
+recovery media, Bitdefender/ESET/Dr.Web rescue disks, Ultimate Boot CD, Windows installation media. Commercial tools use the bootable media their own product builds, under their own
 licence. Backup images and large install sources need a network target: an SMB share or an HTTP download step.
 
 **Safe first scenarios to try on real hardware:** device information; a recommended live system for a

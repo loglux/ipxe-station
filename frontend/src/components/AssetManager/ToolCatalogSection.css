@@ -1,0 +1,42 @@
+.tool-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tool-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tool-warning,
+.tool-error {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.tool-warning {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+}
+
+.tool-error {
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+}
+
+[data-theme="dark"] .tool-warning {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+[data-theme="dark"] .tool-error {
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.12);
+}

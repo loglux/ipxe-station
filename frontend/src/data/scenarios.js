@@ -448,6 +448,86 @@ export const SCENARIOS = {
     `,
   },
 
+  rescuezilla: {
+    id: 'rescuezilla',
+    displayName: 'Rescuezilla',
+    description: 'Disk backup, restore and cloning with a graphical interface',
+    icon: '💾',
+    category: 'rescue',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'rescue',
+      requires_iso: false,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel', 'initrd'],
+      optional: ['cmdline', 'description'],
+      hidden: ['url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: 'ip=dhcp boot=casper noprompt fsck.mode=skip',
+    }),
+
+    assetDiscovery: {
+      pattern: 'rescuezilla-*/casper/vmlinuz',
+      requiredFiles: ['casper/vmlinuz', 'casper/initrd.lz'],
+    },
+
+    help: `
+      Rescuezilla is an Ubuntu-based live system for backing up and restoring disks.
+
+      - Download it in Assets → Tools & Rescue → More tools (the download is checked against
+        the publisher's checksum).
+      - NFS mode (recommended) reads the system on demand and needs no RAM limit;
+        ISO mode loads the whole 1.6 GB image into memory (about 4 GB of RAM).
+      - Backup images need a place to go: a local disk or a network share.
+    `,
+  },
+
+  shredos: {
+    id: 'shredos',
+    displayName: 'ShredOS (disk eraser)',
+    description: 'Secure disk erasure with nwipe. Erases disks: use with care',
+    icon: '🧨',
+    category: 'rescue',
+
+    generated: {
+      entry_type: 'boot',
+      boot_mode: 'tool',
+      requires_iso: false,
+      requires_internet: false,
+    },
+
+    fields: {
+      required: ['name', 'title', 'kernel'],
+      optional: ['cmdline', 'description'],
+      hidden: ['initrd', 'url', 'parent'],
+    },
+
+    template: () => ({
+      cmdline: 'console=tty3 loglevel=3',
+    }),
+
+    assetDiscovery: {
+      pattern: 'shredos-*/boot/bzImage',
+      requiredFiles: ['boot/bzImage'],
+    },
+
+    help: `
+      ShredOS is a single kernel image (no initrd) that starts the nwipe disk eraser.
+
+      WARNING: it erases disks. Boot it only on machines whose data you no longer need,
+      and check the disk list before starting a wipe.
+
+      - The full version needs at least 2 GB of RAM; the Lite version runs in 512 MB.
+      - Download it in Assets → Tools & Rescue → More tools.
+    `,
+  },
+
   gparted: {
     id: 'gparted',
     displayName: 'GParted Live',

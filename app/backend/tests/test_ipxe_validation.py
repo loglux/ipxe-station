@@ -344,3 +344,34 @@ def test_lint_is_quiet_when_the_nic_is_named():
 def test_lint_ignores_entries_that_are_not_network_live_boots():
     assert not _bootif_warnings("boot=live components")  # live from local media
     assert not _bootif_warnings("ip=dhcp boot=casper netboot=nfs nfsroot=10.0.0.1:/x")
+
+
+def _kernel_only_menu(boot_mode: str) -> iPXEMenu:
+    return iPXEMenu(
+        title="Menu",
+        timeout=1000,
+        entries=[
+            iPXEEntry(
+                name="single",
+                title="Single image",
+                kernel="tool-1/boot/bzImage",
+                initrd=None,
+                boot_mode=boot_mode,
+                entry_type="boot",
+            )
+        ],
+    )
+
+
+def test_a_tool_entry_may_be_one_kernel_image_without_an_initrd():
+    """Regression: ShredOS is a single bzImage with its system built in; the validator demanded an
+    initrd for every boot entry, so it could not be saved in the menu."""
+    is_valid, errors = iPXEValidator.validate_menu(_kernel_only_menu("tool"))
+
+    assert is_valid, errors
+
+
+def test_other_boot_modes_still_need_an_initrd():
+    is_valid, errors = iPXEValidator.validate_menu(_kernel_only_menu("rescue"))
+
+    assert not is_valid and any("should define initrd" in e for e in errors)

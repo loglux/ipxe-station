@@ -39,6 +39,8 @@ Let's Encrypt is unrelated: it issues TLS certificates, not code-signing trust f
 | **Live over HTTP ISO** (`url=`) | The whole ISO is downloaded into RAM | Ubuntu Server ≥ 4 GB RAM, Desktop ≥ 8 GB |
 | **Netboot / preseed installer** | Debian installer kernel and initrd; optional unattended install from a preseed profile | Internet or a mirror; a preseed profile for unattended installs |
 | **Rescue ISO/netboot** | SystemRescue over HTTP; Kaspersky Rescue Disk (KRD 18 netboot, KRD 24 ISO fetch); GParted; Clonezilla (manual ISO); Memtest86+ | The asset downloaded or added in Assets |
+| **Rescuezilla** (Ubuntu casper live) | NFS like Ubuntu Live, or the ISO over HTTP (`url=`) into RAM | An NFS export (recommended) or about 4 GB of RAM for ISO mode |
+| **ShredOS** (single kernel image) | `bzImage` with its system built in: no initrd, `console=tty3 loglevel=3` | 2 GB RAM (Lite: 512 MB). Entry mode `tool`. **It erases disks** |
 
 Known pitfalls (from real boots):
 
@@ -49,6 +51,8 @@ Known pitfalls (from real boots):
   link; on laptops with a cellular modem that is `wwan0`, and the boot dies with "NFS over TCP not
   available". Their command lines must contain `BOOTIF=01-${net0/mac:hexhyp}` (the recipes add it, and
   Save Menu warns when it is missing). Details in [Troubleshooting](troubleshooting.md).
+- **ShredOS erases disks.** Boot it only on machines whose data you no longer need; you pick the disks and
+  start the wipe yourself. It has no initrd, so its entry uses boot mode `tool`, which is allowed to omit one.
 - Debian Live is an **experimental** prototype ([README](../README.md) has its validation checklist).
 
 ### Windows PE (wimboot)

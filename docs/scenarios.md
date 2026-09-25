@@ -67,3 +67,14 @@ Show a machine what fits it, in its own PXE menu (see
    **Device information** prints what the server knows about it.
 4. `GET /api/scenarios/preview/<device id>` shows the menu a known machine would get without booting it.
 
+## 7. Back up a disk, or erase one
+
+**Assets** → *Tools & Rescue* → **More tools**: download **Rescuezilla** (backup and restore) or **ShredOS**
+(secure erase) from the official releases; the file is checked against the publisher's checksum. Then
+**Builder** → **+ Add Entry** → *Rescuezilla* or *ShredOS* → **Save Menu**.
+
+- **Rescuezilla**: NFS mode is recommended (no RAM limit); ISO mode needs about 4 GB of RAM. Backup images need a
+  disk or a network share to be written to.
+- **ShredOS erases disks.** Use it only on machines whose data is no longer needed, check the disk list before
+  starting, and never leave it as an automatic scenario.
+

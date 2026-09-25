@@ -397,6 +397,94 @@ def hiren_recipe(entry: dict, server_ip: str, port: int, nfs_root: str = "") -> 
     ]
 
 
+def rescuezilla_recipe(
+    entry: dict, server_ip: str, port: int, nfs_root: str = ""
+) -> List[BootOption]:
+    """Boot options for Rescuezilla (an Ubuntu casper live system, ~1.6 GB ISO).
+
+    Offered modes:
+      nfs — NFS mount of the extracted ISO directory: reads on demand, no RAM limit.
+      iso — Whole ISO downloaded to RAM via ``url=`` (needs about 4 GB of RAM).
+    ``noprompt`` stops it asking to remove media at shutdown, which makes no sense over the network.
+    """
+    kernel = entry.get("kernel") or ""
+    initrd = entry.get("initrd") or ""
+    iso = entry.get("iso")
+    opts: List[BootOption] = []
+    if not kernel or not initrd:
+        return opts
+
+    if nfs_root:
+        nfs_path = f"{nfs_root.rstrip('/')}/{kernel.split('/')[0]}"
+        base = (
+            f"ip=dhcp boot=casper netboot=nfs nfsroot={server_ip}:{nfs_path} "
+            f"ignore_uuid fsck.mode=skip cloud-init=disabled noprompt {LIVE_BOOT_NETDEV}"
+        )
+        opts.append(
+            BootOption(
+                mode="nfs",
+                label="NFS — reads on demand, no RAM limit ✅",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=f"{base} quiet splash",
+                recommended=True,
+            )
+        )
+        opts.append(
+            BootOption(
+                mode="nfs-safe",
+                label="NFS — graphical fallback (display problems)",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=f"{base} xforcevesa nomodeset",
+            )
+        )
+
+    if iso:
+        iso_url = f"http://{server_ip}:{port}/http/{iso}"
+        opts.append(
+            BootOption(
+                mode="iso",
+                label="ISO — to RAM (~1.6 GB, requires ≥ 4 GB RAM)",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=(
+                    "boot=casper ip=dhcp cloud-config-url=/dev/null cloud-init=disabled "
+                    f"noprompt url={iso_url} {LIVE_BOOT_NETDEV} quiet splash"
+                ),
+                recommended=not nfs_root,
+            )
+        )
+    return opts
+
+
+def shredos_recipe(entry: dict, server_ip: str, port: int, nfs_root: str = "") -> List[BootOption]:
+    """Boot options for ShredOS, a single kernel image with its system built in (no initrd).
+
+    ShredOS starts the nwipe disk eraser; it erases disks, so the labels say so.
+    """
+    kernel = entry.get("kernel") or ""
+    if not kernel:
+        return []
+    return [
+        BootOption(
+            mode="tool",
+            label="ShredOS — disk eraser (you choose the disks)",
+            kernel=kernel,
+            initrd="",
+            cmdline="console=tty3 loglevel=3",
+            recommended=True,
+        ),
+        BootOption(
+            mode="tool-safe",
+            label="ShredOS — display fallback (nomodeset)",
+            kernel=kernel,
+            initrd="",
+            cmdline="console=tty3 loglevel=3 nomodeset",
+        ),
+    ]
+
+
 RECIPE_MAP = {
     "ubuntu_live": ubuntu_live_recipe,
     "ubuntu_netboot": ubuntu_live_recipe,  # same assets, same recipe logic
@@ -407,6 +495,8 @@ RECIPE_MAP = {
     "debian_preseed": debian_preseed_recipe,
     "debian_live": debian_live_recipe,
     "hiren": hiren_recipe,
+    "rescuezilla": rescuezilla_recipe,
+    "shredos": shredos_recipe,
 }
 
 

@@ -29,6 +29,8 @@ const SCENARIO_CATALOG_KEY = {
   debian_live: 'debian',
   systemrescue:   'rescue',
   kaspersky:      'kaspersky',
+  rescuezilla:    'rescuezilla',
+  shredos:        'shredos',
 }
 
 const RECIPE_SCENARIOS = new Set([
@@ -40,6 +42,8 @@ const RECIPE_SCENARIOS = new Set([
   'debian_live',
   'systemrescue',
   'kaspersky',
+  'rescuezilla',
+  'shredos',
 ])
 
 const MANUAL_ISO_SCENARIOS = new Set([

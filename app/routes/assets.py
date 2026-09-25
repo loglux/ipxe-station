@@ -1,5 +1,6 @@
 """Asset management routes (download, upload, extract, catalog)."""
 
+import hashlib
 import json
 import re
 import shutil
@@ -12,6 +13,7 @@ import requests
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from app.backend.tool_catalog import list_tools, tool_versions
 from app.backend.url_guard import UnsafeURLError, assert_public_http_url, safe_request
 
 from .state import (
@@ -374,6 +376,25 @@ def _prune_asset_labels(existing_http_files: list[str]) -> dict[str, str]:
 class DownloadRequest(BaseModel):
     url: str
     dest: str = ""
+    # Optional "sha256:<hex>" or "sha1:<hex>"; the file is discarded if it does not match.
+    checksum: str = ""
+
+
+_CHECKSUM_LENGTHS = {"sha256": 64, "sha1": 40}
+
+
+def _parse_checksum(value: str):
+    """Split "algo:hex" into (algo, hex), or None when no checksum was given."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    algo, _, digest = value.partition(":")
+    algo, digest = algo.lower(), digest.lower()
+    if algo not in _CHECKSUM_LENGTHS or not re.fullmatch(r"[0-9a-f]+", digest):
+        raise ValueError("checksum must look like sha256:<hex> or sha1:<hex>")
+    if len(digest) != _CHECKSUM_LENGTHS[algo]:
+        raise ValueError(f"a {algo} checksum has {_CHECKSUM_LENGTHS[algo]} hex digits")
+    return algo, digest
 
 
 class ExtractISORequest(BaseModel):
@@ -450,6 +471,8 @@ def assets_catalog():
     rescue = _scan_distro_versions("rescue", HTTP_ROOT)
     kaspersky = _scan_distro_versions("kaspersky", HTTP_ROOT)
     hiren = _scan_distro_versions("hiren", HTTP_ROOT)
+    rescuezilla = _scan_distro_versions("rescuezilla", HTTP_ROOT)
+    shredos = _scan_distro_versions("shredos", HTTP_ROOT)
 
     return {
         "ubuntu": ubuntu,
@@ -458,6 +481,8 @@ def assets_catalog():
         "rescue": rescue,
         "kaspersky": kaspersky,
         "hiren": hiren,
+        "rescuezilla": rescuezilla,
+        "shredos": shredos,
     }
 
 
@@ -610,6 +635,11 @@ def download_asset(request: DownloadRequest):
     except UnsafeURLError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    try:
+        expected_checksum = _parse_checksum(request.checksum)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     default_filename = Path(urlparse(request.url).path).name or "download.bin"
     target = _resolve_within_root(
         HTTP_ROOT,
@@ -638,10 +668,13 @@ def download_asset(request: DownloadRequest):
             add_log("download", "info", f"Started downloading {progress_key} ({total_size} bytes)")
 
             downloaded = 0
+            hasher = hashlib.new(expected_checksum[0]) if expected_checksum else None
             with open(tmp_target, "wb") as fh:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         fh.write(chunk)
+                        if hasher:
+                            hasher.update(chunk)
                         downloaded += len(chunk)
 
                         if downloaded % (1024 * 1024) < 8192 or downloaded == total_size:
@@ -653,6 +686,12 @@ def download_asset(request: DownloadRequest):
                                     "percentage": round(percentage, 1),
                                     "status": "downloading",
                                 }
+
+        if hasher and expected_checksum and hasher.hexdigest() != expected_checksum[1]:
+            raise ValueError(
+                f"Checksum mismatch: expected {expected_checksum[0]} {expected_checksum[1]}, "
+                f"got {hasher.hexdigest()}. The file was discarded."
+            )
 
         # Atomically move completed download to final path
         tmp_target.replace(target)
@@ -989,6 +1028,24 @@ def get_kaspersky_versions():
         },
     ]
     return {"versions": versions}
+
+
+@assets_router.get("/tools")
+def get_tool_catalog():
+    """Downloadable rescue and maintenance tools with their available versions."""
+    return {"tools": list_tools()}
+
+
+@assets_router.get("/versions/rescuezilla")
+def get_rescuezilla_versions():
+    """Available Rescuezilla releases (from GitHub, with a known-good fallback)."""
+    return {"versions": tool_versions("rescuezilla")}
+
+
+@assets_router.get("/versions/shredos")
+def get_shredos_versions():
+    """Available ShredOS releases (from GitHub, with a known-good fallback)."""
+    return {"versions": tool_versions("shredos")}
 
 
 @assets_router.get("/versions/hiren")

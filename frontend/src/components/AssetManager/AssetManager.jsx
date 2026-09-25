@@ -3,6 +3,7 @@ import './AssetManager.css'
 import UbuntuSection from './UbuntuSection'
 import DebianSection from './DebianSection'
 import ToolsSection from './ToolsSection'
+import ToolCatalogSection from './ToolCatalogSection'
 import WindowsSection from './WindowsSection'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
@@ -1120,6 +1121,7 @@ function AssetManager() {
 
         {/* ── Tools & Rescue ── */}
         {(activeAcquireSection === 'tools' || activeAcquireSection === 'antivirus' || activeAcquireSection === 'tools_rescue') && (
+          <>
           <ToolsSection
             catalog={catalog}
             manualToolsRescueFiles={manualToolsRescueFiles}
@@ -1143,6 +1145,8 @@ function AssetManager() {
             onDownloadKaspersky={downloadKaspersky}
             onDownloadHiren={downloadHiren}
           />
+          <ToolCatalogSection catalog={catalog} onDownloaded={fetchCatalog} />
+          </>
         )}
 
         {/* ── Windows / wimboot ── */}

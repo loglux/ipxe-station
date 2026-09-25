@@ -234,7 +234,8 @@ class iPXEValidator:
                 )
                 if not is_valid:
                     errors.append(f"Entry {i + 1} ({entry.name}) kernel: {msg}")
-                if not entry.initrd:
+                # A "tool" is a self-contained kernel image (ShredOS, Memtest): no initrd needed.
+                if not entry.initrd and entry.boot_mode != "tool":
                     errors.append(
                         f"Entry {i + 1} ({entry.name}): Boot entries should define initrd"
                     )

@@ -578,6 +578,11 @@ def _scan_distro_versions(prefix: str, base: Path):
                 candidate = path / "sysresccd" / "boot" / "x86_64" / "sysresccd.img"
                 if candidate.exists():
                     initrd = f"{path.name}/sysresccd/boot/x86_64/sysresccd.img"
+        elif prefix == "shredos":
+            # ShredOS is one kernel image with its system built in: no initrd, no squashfs.
+            candidate = path / "boot" / "bzImage"
+            if candidate.exists():
+                kernel = f"{path.name}/boot/bzImage"
         elif prefix == "debian":
             for name in ["linux", "vmlinuz"]:
                 candidate = path / name

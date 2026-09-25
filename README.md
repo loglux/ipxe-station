@@ -39,6 +39,8 @@
 - **SystemRescue, Kaspersky Rescue Disk, Debian** — version pickers with direct ISO/netboot downloads
 - **Automatic ISO extraction** — ISOs are extracted in-place for network boot
 - **Real-time progress bars** — per-file progress (kernel, initrd, ISO) with GB counter
+- **More tools** — Rescuezilla and ShredOS download from their official GitHub releases; versions and
+  checksums are read from the release, and a download that does not match its checksum is discarded
 - **Upload & catalog scan** — upload any file, scan local assets
 
 ### 🌐 DHCP Configuration
@@ -204,6 +206,8 @@ Open **http://localhost:9021/ui**
 | SystemRescue | Recovery environment, HTTP boot |
 | Kaspersky Rescue Disk | KRD 18 (netboot) and KRD 24 (ISO fetch) |
 | Hiren's BootCD PE | Windows PE toolkit, booted with wimboot |
+| Rescuezilla | Graphical disk backup, restore and cloning — NFS (recommended) or HTTP ISO (≥ 4 GB RAM) |
+| ShredOS | Secure disk erasure (nwipe); a single kernel image. **Erases disks.** Full needs 2 GB RAM, Lite 512 MB |
 | GParted Live | Partition editor and disk maintenance (official PXE or ISO) |
 | Clonezilla Live | Disk imaging and cloning (manual ISO) |
 | Memtest86+ | Memory testing |
@@ -388,7 +392,7 @@ python -m venv .venv
 
 make format        # black + isort
 make backend-lint  # ruff
-make backend-test  # pytest (198 tests)
+make backend-test  # pytest (219 tests)
 make quality       # all of the above
 ```
 
