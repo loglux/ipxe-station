@@ -44,7 +44,7 @@
 - **Kaspersky Rescue Disk upkeep** — one button updates the antivirus databases (checked against Kaspersky's
   SHA-512, the old ones kept for rollback), and a small firmware archive gives the disk Wi-Fi and Bluetooth
   drivers for the machines you name, and the text size of its desktop is set from the server (automatic from the
-  panel size, or per model)
+  panel size, or per model); [details](docs/kaspersky.md)
 - **Upload & catalog scan** — upload any file, scan local assets
 
 ### 🌐 DHCP Configuration

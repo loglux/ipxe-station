@@ -32,7 +32,9 @@
   as none, selected devices or everything; machines can report missing firmware on their own through the boot
   script, which the page turns into recommendations. Planned: a scheduled daily check, and telling a running machine's NFS session from an
   idle one before replacing the file.
-  Screen text size and video mode are settable from the server (not yet booted on hardware).
+  Screen text size and video mode are settable from the server; confirmed on the Dell Latitude 5530 with a
+  fixed 150% and the native resolution (text is larger). Not yet tried: "Automatic" (from the panel's EDID),
+  rules per model, and whether the Kaspersky window itself follows.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

@@ -180,5 +180,8 @@ Things to know:
 
 Designed for a trusted LAN. By default there is no authentication. Set `SECURITY_MODE=token` and
 `API_TOKEN` to require a bearer token on `/api/*` (the served boot files stay open, because clients
-must fetch them without credentials). Asset downloads reject loopback, private and other non-public
+must fetch them without credentials). Two more endpoints are open for the same reason, because a booting
+Kaspersky Rescue Disk cannot present a token: `GET /ipxe/krd-display.sh` (a small script made for the machine
+that asks) and `POST /ipxe/krd-report` (missing-firmware lines from the machine; size-limited, one entry per
+machine, see [Kaspersky Rescue Disk](kaspersky.md#the-boot-script)). Asset downloads reject loopback, private and other non-public
 targets (SSRF guard), and the `wimboot` binary is pinned and hash-checked at build time.

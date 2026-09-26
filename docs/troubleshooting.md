@@ -80,7 +80,7 @@ Kaspersky Rescue Disk 24 raises this when the kernel could not load firmware for
 Latitude 5530 it was the **Intel Wi-Fi (AX211)** and **Intel Bluetooth**; scanning and the wired network are not
 affected. To see what your machine lacks, run `dmesg | grep -iE "firmware|failed to load"` in a terminal on it.
 The names in `failed to load <file>` are the missing files. To fix it, choose the firmware in
-**Assets** → *Kaspersky Rescue Disk upkeep* ([scenario 8](scenarios.md#8-kaspersky-rescue-disk-fresh-databases-and-the-firmware-it-lacks)).
+**Assets** → *Kaspersky Rescue Disk upkeep* ([Kaspersky Rescue Disk](kaspersky.md)).
 The Wi-Fi driver names dozens of versions of one file (`...-72.ucode`, `...-71.ucode`, ...); they are one
 problem, and the newest is the one the kernel wants.
 
@@ -90,7 +90,7 @@ The disk's desktop (Cinnamon) shows text at 96 dpi. On a 15 inch laptop with a F
 small. The default entry also carries `nomodeset`, which keeps the video driver out and leaves the screen in the
 mode the firmware set. Set a text size, and if you want the panel's own resolution turn on *Use the screen's own
 resolution*, both under **Assets** → *Kaspersky Rescue Disk upkeep* → *Screen*
-([scenario 8](scenarios.md#8-kaspersky-rescue-disk-fresh-databases-and-the-firmware-it-lacks)). What the machine
+([Kaspersky Rescue Disk](kaspersky.md)). What the machine
 decided is written to `/var/log/ipxe-station-display.log` on the machine, and the server logs the value it sent.
 
 ## WinPE booted but something is wrong

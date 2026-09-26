@@ -78,40 +78,14 @@ Show a machine what fits it, in its own PXE menu (see
 - **ShredOS erases disks.** Use it only on machines whose data is no longer needed, check the disk list before
   starting, and never leave it as an automatic scenario.
 
-## 8. Kaspersky Rescue Disk: fresh databases and the firmware it lacks
+## 8. Kaspersky Rescue Disk: fresh databases, firmware, a readable screen
 
-Download the disk (**Assets** → *Tools & Rescue* → Kaspersky), then use **Kaspersky Rescue Disk upkeep** further
-down the same tab.
+Download the disk (**Assets** → *Tools & Rescue*), add its entry in the Builder, then use **Kaspersky Rescue Disk
+upkeep** further down the same tab:
 
-- **Antivirus databases.** The disk carries the databases of its release date. **Check for updates** compares
-  them with what Kaspersky publishes; **Update databases** downloads the new module, verifies it against
-  Kaspersky's SHA-512, keeps the old one in `data/srv/_src/krd-backups/` (the last three) and swaps the file.
-  Kaspersky then reports "Databases are up to date". Do it while no machine is running Kaspersky from the
-  network: the running system reads that file.
-- **Firmware.** The disk has almost none, so the Wi-Fi and Bluetooth of many laptops stay dead and Kaspersky
-  shows *Some hardware does not work correctly* (harmless on a wired network). Choose what the disk gets:
-  **None**, **Selected devices**, or **Everything**.
-  - *Selected devices* needs the official linux-firmware release once (about 436 MB, checked against
-    kernel.org's checksum, kept on the server under `data/srv/_src/`, never sent to machines). From it the page
-    shows every device, grouped (Wi-Fi, Bluetooth, graphics, network cards, ...) and searchable; tick yours and
-    **Build archive**. It takes seconds and the archive is a few MB.
-  - *Everything* puts the whole release on the disk. It needs no thought, but every machine fetches it at start,
-    wants 4 GB of RAM and takes a few minutes longer to boot.
-  - **Recommendations.** With the boot script on (see *Screen*), each machine tells the server which firmware
-    the kernel could not find. The page lists these reports and **Select what they need** ticks the matching
-    devices. You can also paste a machine's `dmesg` output by hand.
-  - Only lines about missing firmware are sent, and only to this server.
+- **Antivirus databases**: one button, checked against Kaspersky's checksum, the old ones kept for a rollback.
+- **Firmware**: none, the devices you tick from a full catalog, or everything; machines can tell the server what
+  they are missing.
+- **Screen**: text size and resolution, decided on the server for every machine or per model.
 
-- **Screen.** The disk's desktop uses a text size meant for small screens, which is tiny on a 15 inch laptop with a
-  sharp panel. Under *Screen: text size and resolution* choose a size for every machine (**Automatic** reads the
-  panel's size and picks a comfortable one), and add rules for particular models (brand and model accept `*`).
-  Then tick **Use the server's boot script (text size and firmware reports)**: the Kaspersky entries of the menu get one extra
-  argument, and each machine fetches a small script from this server that sets the size before the desktop opens.
-  **Use the screen's own resolution** removes `nomodeset` from those entries so the video driver picks the panel's
-  resolution; turn it off again if a machine shows a black screen. Changes take effect the next time a machine
-  starts the disk; nothing is written to the disk itself.
-
-Only one firmware archive can be on the disk; building or downloading one replaces the other. The files come
-from the linux-firmware release `20230210`, which matches the disk's kernel 6.1 (newer releases dropped the
-Wi-Fi firmware version that kernel asks for). Machines with less than about 3 GB of RAM skip the firmware.
-
+All of it, how it works, what is verified and the limits: [Kaspersky Rescue Disk](kaspersky.md).
