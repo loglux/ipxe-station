@@ -95,6 +95,15 @@ down the same tab.
   shows; the missing files are found and added for you. **Full set** downloads everything (436 MB, needs 4 GB
   of RAM and a longer start).
 
+- **Screen.** The disk's desktop uses a text size meant for small screens, which is tiny on a 15 inch laptop with a
+  sharp panel. Under *Screen: text size and resolution* choose a size for every machine (**Automatic** reads the
+  panel's size and picks a comfortable one), and add rules for particular models (brand and model accept `*`).
+  Then tick **Apply the text size when the disk starts**: the Kaspersky entries of the menu get one extra
+  argument, and each machine fetches a small script from this server that sets the size before the desktop opens.
+  **Use the screen's own resolution** removes `nomodeset` from those entries so the video driver picks the panel's
+  resolution; turn it off again if a machine shows a black screen. Changes take effect the next time a machine
+  starts the disk; nothing is written to the disk itself.
+
 Only one firmware archive can be on the disk; building or downloading one replaces the other. The files come
 from the linux-firmware release `20230210`, which matches the disk's kernel 6.1 (newer releases dropped the
 Wi-Fi firmware version that kernel asks for). Machines with less than about 3 GB of RAM skip the firmware.

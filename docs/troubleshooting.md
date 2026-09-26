@@ -84,6 +84,15 @@ The names in `failed to load <file>` are the missing files. To fix it, build the
 The Wi-Fi driver names dozens of versions of one file (`...-72.ucode`, `...-71.ucode`, ...); they are one
 problem, and the newest is the one the kernel wants.
 
+## Kaspersky's text is tiny, or the screen is blurry
+
+The disk's desktop (Cinnamon) shows text at 96 dpi. On a 15 inch laptop with a Full HD or sharper panel that is
+small. The default entry also carries `nomodeset`, which keeps the video driver out and leaves the screen in the
+mode the firmware set. Set a text size, and if you want the panel's own resolution turn on *Use the screen's own
+resolution*, both under **Assets** → *Kaspersky Rescue Disk upkeep* → *Screen*
+([scenario 8](scenarios.md#8-kaspersky-rescue-disk-fresh-databases-and-the-firmware-it-lacks)). What the machine
+decided is written to `/var/log/ipxe-station-display.log` on the machine, and the server logs the value it sent.
+
 ## WinPE booted but something is wrong
 
 | Symptom | Likely cause and fix |

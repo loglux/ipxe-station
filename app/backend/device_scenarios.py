@@ -71,13 +71,18 @@ class Scenario(BaseModel):
         return self
 
 
-def scenario_matches(scenario: Scenario, device: dict) -> bool:
-    """True when every field of the rule matches what the machine reported."""
-    for field, pattern in scenario.match.items():
+def fields_match(match: Dict[str, str], device: dict) -> bool:
+    """True when every field pattern matches what the machine reported."""
+    for field, pattern in match.items():
         value = str(device.get(field) or "").lower()
         if not fnmatch.fnmatchcase(value, pattern.lower()):
             return False
     return True
+
+
+def scenario_matches(scenario: Scenario, device: dict) -> bool:
+    """True when every field of the rule matches what the machine reported."""
+    return fields_match(scenario.match, device)
 
 
 def scenarios_for_device(

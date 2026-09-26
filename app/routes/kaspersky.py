@@ -2,13 +2,16 @@
 
 import json
 import time
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.backend import krd_display as display
 from app.backend import krd_maintenance as krd
+from app.backend.device_scenarios import MATCH_FIELDS
 
+from . import ipxe as ipxe_routes
 from . import state
 from .state import add_log
 
@@ -187,3 +190,94 @@ def install_full(name: str):
 @kaspersky_router.delete("/{name}/firmware")
 def remove_firmware(name: str):
     return {"removed": krd.remove_firmware(_folder(name))}
+
+
+# --- screen: text size and video mode -----------------------------------------
+
+
+def display_settings() -> display.DisplaySettings:
+    return display.load_display_settings(state.IPXE_ROOT / "krd-display.json")
+
+
+def _is_krd_entry(entry) -> bool:
+    return "kaspersky" in (entry.kernel or "").lower() and "boot=live" in (entry.cmdline or "")
+
+
+def _is_hook_token(token: str) -> bool:
+    return token.startswith("live-config.hooks=") and display.HOOK_PATH in token
+
+
+def _menu_display_state(model) -> dict:
+    entries = [e for e in (model.entries if model else []) if _is_krd_entry(e)]
+    return {
+        "entries": [{"name": e.name, "title": e.title} for e in entries],
+        "hook": bool(entries) and all(any(map(_is_hook_token, e.cmdline.split())) for e in entries),
+        "native_video": bool(entries)
+        and all("nomodeset" not in e.cmdline.split() for e in entries),
+    }
+
+
+def _patched_cmdline(cmdline: str, hook: Optional[bool], native_video: Optional[bool]) -> str:
+    tokens = cmdline.split()
+    if hook is not None:
+        tokens = [t for t in tokens if not _is_hook_token(t)]
+        if hook:
+            tokens.append(display.hook_argument())
+    if native_video is not None:
+        tokens = [t for t in tokens if t != "nomodeset"]
+        if not native_video:
+            tokens.append("nomodeset")
+    return " ".join(tokens)
+
+
+@kaspersky_router.get("/display")
+def get_display():
+    """Text size settings, and how the Kaspersky entries of the menu are set up for them."""
+    settings = display_settings()
+    return {
+        "default": settings.default,
+        "rules": [r.model_dump() for r in settings.rules],
+        "match_fields": [
+            f for f in MATCH_FIELDS if f in ("manufacturer", "product", "sku", "family")
+        ],
+        "menu": _menu_display_state(ipxe_routes.saved_menu()),
+    }
+
+
+@kaspersky_router.put("/display")
+def put_display(payload: display.DisplaySettings):
+    display.save_display_settings(state.IPXE_ROOT / "krd-display.json", payload)
+    return {"success": True}
+
+
+@kaspersky_router.get("/display/preview")
+def preview_display(request: Request):
+    """The text size a machine would get, from the fields it reports (brand, model, ...)."""
+    fields = {n: request.query_params.get(n, "")[:200] for n in display.HOOK_QUERY_FIELDS}
+    scale, source = display.resolve_scale(display_settings(), state._normalise_inventory(fields))
+    return {"scale": scale, "source": source}
+
+
+class DisplayMenuChange(BaseModel):
+    hook: Optional[bool] = None
+    native_video: Optional[bool] = None
+
+
+@kaspersky_router.post("/display/menu")
+def change_display_menu(payload: DisplayMenuChange):
+    """Switch the text-size script and the native video mode in the Kaspersky menu entries."""
+    model = ipxe_routes.saved_menu()
+    entries = [e for e in (model.entries if model else []) if _is_krd_entry(e)]
+    if not entries:
+        raise HTTPException(status_code=404, detail="No Kaspersky Rescue Disk 24 entry in the menu")
+    for entry in entries:
+        entry.cmdline = _patched_cmdline(entry.cmdline, payload.hook, payload.native_video)
+    result = ipxe_routes.save_menu(model)
+    if not result.get("valid"):
+        raise HTTPException(status_code=422, detail=result.get("message") or "Menu not valid")
+    add_log(
+        "system",
+        "info",
+        f"Kaspersky menu entries updated for screen settings: {payload.model_dump()}",
+    )
+    return {"menu": _menu_display_state(model), "warnings": result.get("warnings", [])}

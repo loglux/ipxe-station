@@ -48,6 +48,16 @@ function mockApi(overrides = {}) {
     },
     'POST /api/kaspersky/kaspersky-24/firmware/custom': { started: true },
     'POST /api/kaspersky/kaspersky-24/bases/update': { started: true },
+    'GET /api/kaspersky/display': {
+      default: 'auto',
+      rules: [],
+      match_fields: ['manufacturer', 'product'],
+      menu: { entries: [{ name: 'kaspersky_1', title: 'Kaspersky 24' }], hook: false, native_video: false },
+    },
+    'PUT /api/kaspersky/display': { success: true },
+    'POST /api/kaspersky/display/menu': {
+      menu: { entries: [{ name: 'kaspersky_1', title: 'Kaspersky 24' }], hook: true, native_video: false },
+    },
     ...overrides,
   }
   vi.stubGlobal(
@@ -129,5 +139,65 @@ describe('KasperskySection', () => {
     expect(build).toBeDisabled()
     fireEvent.click(await screen.findByLabelText(/Intel Bluetooth/))
     expect(build).toBeEnabled()
+  })
+
+  describe('screen settings', () => {
+    it('shows the default text size and how the menu is set up', async () => {
+      mockApi()
+      render(<KasperskySection />)
+      expect(await screen.findByLabelText('Text size')).toHaveValue('auto')
+      expect(screen.getByText(/Entries: Kaspersky 24/)).toBeInTheDocument()
+      expect(screen.getByLabelText(/Apply the text size when the disk starts/)).not.toBeChecked()
+      expect(screen.getByLabelText(/Use the screen's own resolution/)).not.toBeChecked()
+    })
+
+    it('turns the script on in the menu when the box is ticked', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      fireEvent.click(await screen.findByLabelText(/Apply the text size when the disk starts/))
+      await waitFor(() => expect(screen.getByLabelText(/Apply the text size when the disk starts/)).toBeChecked())
+      const call = calls.find((c) => c.key === 'POST /api/kaspersky/display/menu')
+      expect(JSON.parse(call.body)).toEqual({ hook: true })
+    })
+
+    it('saves the default and a rule, leaving out empty fields', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      fireEvent.change(await screen.findByLabelText('Text size'), { target: { value: '1.5' } })
+      fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+      fireEvent.change(screen.getByLabelText('Model of rule 1'), { target: { value: 'Latitude 5530' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(calls.some((c) => c.key === 'PUT /api/kaspersky/display')).toBe(true))
+      const body = JSON.parse(calls.find((c) => c.key === 'PUT /api/kaspersky/display').body)
+      expect(body).toEqual({
+        default: '1.5',
+        rules: [{ title: '', match: { product: 'Latitude 5530' }, scale: '1.5' }],
+      })
+      expect(await screen.findByText(/Saved\./)).toBeInTheDocument()
+    })
+
+    it('does not send a rule that has nothing filled in', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      await screen.findByLabelText('Text size')
+      fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(calls.some((c) => c.key === 'PUT /api/kaspersky/display')).toBe(true))
+      expect(JSON.parse(calls.find((c) => c.key === 'PUT /api/kaspersky/display').body).rules).toEqual([])
+    })
+
+    it('explains when there is no Kaspersky entry in the menu yet', async () => {
+      mockApi({
+        'GET /api/kaspersky/display': {
+          default: 'auto',
+          rules: [],
+          match_fields: [],
+          menu: { entries: [], hook: false, native_video: false },
+        },
+      })
+      render(<KasperskySection />)
+      expect(await screen.findByText(/No Kaspersky Rescue Disk 24 entry in the menu yet/)).toBeInTheDocument()
+    })
   })
 })

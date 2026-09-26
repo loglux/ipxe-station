@@ -7,12 +7,13 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from app.backend import krd_display
 from app.routes.assets import assets_router
 from app.routes.boot import boot_router
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import build_personal_menu_script, ipxe_router
-from app.routes.kaspersky import kaspersky_router
+from app.routes.kaspersky import display_settings, kaspersky_router
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
 from app.routes.proxy_dhcp import proxy_dhcp_router
 from app.routes.scenarios import scenarios_router
@@ -132,6 +133,26 @@ async def personal_menu(request: Request):
     if script is None:
         return Response("No menu saved yet", status_code=404)
     return Response(script, media_type="text/plain", headers={"Cache-Control": "no-cache"})
+
+
+@app.get(krd_display.HOOK_PATH)
+async def krd_display_hook(request: Request):
+    """The text-size script for a Kaspersky Rescue Disk that is booting; open like boot.ipxe."""
+    fields = {
+        name: request.query_params.get(name, "")[:200] for name in krd_display.HOOK_QUERY_FIELDS
+    }
+    device = _normalise_inventory(fields)
+    scale, source = krd_display.resolve_scale(display_settings(), device)
+    add_log(
+        "system",
+        "info",
+        f"Kaspersky text size for {fields.get('product') or 'a machine'}: {scale} ({source})",
+    )
+    return Response(
+        krd_display.render_hook(scale),
+        media_type="text/x-shellscript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/ipxe/{filename}")

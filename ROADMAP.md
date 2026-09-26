@@ -26,9 +26,10 @@
   `live/KRD/30-bases.srm`, the module KRD's own updater replaces; verified with Kaspersky's SHA-512; backup
   kept; the disk's timestamp and `sha256sum.txt` updated) and build a small firmware archive
   (`linux-firmware-custom.tar.gz`) for chosen devices or for what a machine's `dmesg` reports. The manual
-  database swap was confirmed on hardware ("Databases are up to date"); the firmware archive is **not yet
-  booted on hardware**. Planned: a scheduled daily check, and telling a running machine's NFS session from an
+  database swap was confirmed on hardware ("Databases are up to date"), and so was the small firmware
+  archive (Dell Latitude 5530: no more "hardware does not work correctly" warning). Planned: a scheduled daily check, and telling a running machine's NFS session from an
   idle one before replacing the file.
+  Screen text size and video mode are settable from the server (not yet booted on hardware).
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.
@@ -393,6 +394,13 @@ requests in the server log (none arrived), then the on-screen text.
 - The kernel (6.1) asks for Wi-Fi firmware API 72; linux-firmware `20230210` still has it, newer releases may
   not. kernel.org answers 403 to the default python-requests User-Agent.
 - The warning dialog comes from `krt.sh`, which greps `dmesg` for `firmware: failed to load`.
+- Desktop: Cinnamon under lightdm. Cinnamon's `scaling-factor=0` only doubles on very dense screens, so a
+  15 inch Full HD panel stays at 96 dpi. `live-config` runs before `basic.target`, i.e. before the desktop, and
+  its `live-config.hooks=<url>` argument downloads and runs a script as root; iPXE Station serves one at
+  `/ipxe/krd-display.sh`, made per machine (rules on brand/model, else a default; "auto" reads the panel's EDID
+  size, or guesses for laptops when `nomodeset` leaves no EDID). It writes a gsettings override
+  (`text-scaling-factor`) and `Xft.dpi`. `nomodeset`, which the NFS template carries, keeps the video driver out
+  and leaves the resolution to the firmware.
 
 
 ### Ubuntu Boot Modes

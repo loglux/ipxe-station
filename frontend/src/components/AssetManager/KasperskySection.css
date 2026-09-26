@@ -55,3 +55,22 @@
   color: var(--color-warning-text);
   background: var(--color-warning-bg);
 }
+
+.krd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.krd-rule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.krd-rule input {
+  flex: 1 1 160px;
+  min-width: 0;
+}

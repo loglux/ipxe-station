@@ -402,6 +402,238 @@ function FirmwareCard({ folder, onChanged }) {
   )
 }
 
+const SCALE_CHOICES = [
+  ['auto', 'Automatic (from the screen)'],
+  ['off', 'Do not change'],
+  ['1.25', '125%'],
+  ['1.5', '150%'],
+  ['1.75', '175%'],
+  ['2', '200%'],
+  ['2.5', '250%'],
+]
+
+function ScaleSelect({ id, value, onChange, disabled }) {
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      {SCALE_CHOICES.map(([v, label]) => (
+        <option key={v} value={v}>
+          {label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Text size and video mode of the disk's desktop: decided here, applied when a machine boots. */
+function DisplayCard() {
+  const [settings, setSettings] = useState(null)
+  const [menu, setMenu] = useState(null)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/kaspersky/display')
+      .then((data) => {
+        if (cancelled) return
+        setSettings({ default: data.default, rules: data.rules })
+        setMenu(data.menu)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const save = async () => {
+    setBusy(true)
+    setError('')
+    setSaved('')
+    try {
+      await api('/api/kaspersky/display', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          default: settings.default,
+          // a rule with nothing filled in has nothing to match; drop it, and drop empty fields
+          rules: settings.rules
+            .map((r) => ({
+              ...r,
+              match: Object.fromEntries(Object.entries(r.match).filter(([, v]) => v && v.trim())),
+            }))
+            .filter((r) => Object.keys(r.match).length > 0),
+        }),
+      })
+      setSaved('Saved. Machines pick this up the next time they start Kaspersky.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const changeMenu = async (change) => {
+    setBusy(true)
+    setError('')
+    try {
+      const data = await api('/api/kaspersky/display/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(change),
+      })
+      setMenu(data.menu)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const setRule = (index, patch) =>
+    setSettings((s) => ({ ...s, rules: s.rules.map((r, i) => (i === index ? { ...r, ...patch } : r)) }))
+
+  const setRuleMatch = (index, field, value) =>
+    setSettings((s) => ({
+      ...s,
+      rules: s.rules.map((r, i) => {
+        if (i !== index) return r
+        const match = { ...r.match }
+        if (value) match[field] = value
+        else delete match[field]
+        return { ...r, match }
+      }),
+    }))
+
+  if (!settings) return error ? <div className="tool-error">{error}</div> : null
+
+  const hasEntries = menu && menu.entries.length > 0
+
+  return (
+    <div className="download-subsection tool-card krd-display">
+      <h4>🖥️ Screen: text size and resolution</h4>
+      <p className="tool-note">
+        The disk shows text at a size meant for small screens, which is tiny on a 15 inch laptop with a sharp panel.
+        The size is decided here and applied when a machine starts the disk.
+      </p>
+
+      <div className="krd-row">
+        <label htmlFor="krd-scale-default">Text size</label>
+        <ScaleSelect
+          id="krd-scale-default"
+          value={settings.default}
+          onChange={(v) => setSettings((s) => ({ ...s, default: v }))}
+          disabled={busy}
+        />
+      </div>
+      <p className="tool-note">
+        Automatic reads the size of the laptop&apos;s panel and picks a size that is comfortable to read. Rules below
+        override it for particular models.
+      </p>
+
+      {settings.rules.length > 0 && <strong>Rules for particular machines</strong>}
+      {settings.rules.map((rule, index) => (
+        <div key={index} className="krd-rule">
+          <input
+            aria-label={`Brand of rule ${index + 1}`}
+            placeholder="Brand, e.g. Dell*"
+            value={rule.match.manufacturer || ''}
+            onChange={(e) => setRuleMatch(index, 'manufacturer', e.target.value)}
+          />
+          <input
+            aria-label={`Model of rule ${index + 1}`}
+            placeholder="Model, e.g. Latitude 5530"
+            value={rule.match.product || ''}
+            onChange={(e) => setRuleMatch(index, 'product', e.target.value)}
+          />
+          <ScaleSelect
+            id={`krd-rule-scale-${index}`}
+            value={rule.scale}
+            onChange={(v) => setRule(index, { scale: v })}
+            disabled={busy}
+          />
+          <button
+            className="btn btn-secondary btn-small"
+            aria-label={`Remove rule ${index + 1}`}
+            onClick={() => setSettings((s) => ({ ...s, rules: s.rules.filter((_, i) => i !== index) }))}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      <div className="download-picker-actions">
+        <button
+          className="btn btn-secondary"
+          onClick={() =>
+            setSettings((s) => ({ ...s, rules: [...s.rules, { title: '', match: { product: '' }, scale: '1.5' }] }))
+          }
+          disabled={busy}
+        >
+          + Add rule
+        </button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>
+          Save
+        </button>
+      </div>
+      {saved && (
+        <div className="download-status" role="status">
+          {saved}
+        </div>
+      )}
+      {error && (
+        <div className="tool-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      <div className="krd-block">
+        <h5>In the boot menu</h5>
+        {!hasEntries && (
+          <p className="tool-note">
+            No Kaspersky Rescue Disk 24 entry in the menu yet. Add one in the Builder, then come back here.
+          </p>
+        )}
+        {hasEntries && (
+          <>
+            <p className="tool-note">Entries: {menu.entries.map((e) => e.title || e.name).join(', ')}</p>
+            <label className="krd-check">
+              <input
+                type="checkbox"
+                checked={menu.hook}
+                onChange={(e) => changeMenu({ hook: e.target.checked })}
+                disabled={busy}
+              />
+              <span>
+                Apply the text size when the disk starts
+                <small className="text-muted"> — the entries fetch a small script from this server</small>
+              </span>
+            </label>
+            <label className="krd-check">
+              <input
+                type="checkbox"
+                checked={menu.native_video}
+                onChange={(e) => changeMenu({ native_video: e.target.checked })}
+                disabled={busy}
+              />
+              <span>
+                Use the screen&apos;s own resolution
+                <small className="text-muted">
+                  {' '}
+                  — lets the video driver run (removes <code>nomodeset</code>). If a machine shows a black screen,
+                  turn this off.
+                </small>
+              </span>
+            </label>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Keeps extracted Kaspersky Rescue Disks current: antivirus databases and device firmware. */
 export default function KasperskySection({ onChanged }) {
   const [folders, setFolders] = useState([])
@@ -459,6 +691,7 @@ export default function KasperskySection({ onChanged }) {
           <FirmwareCard folder={folder} onChanged={changed} />
         </div>
       ))}
+      {folders.length > 0 && <DisplayCard />}
     </section>
   )
 }
