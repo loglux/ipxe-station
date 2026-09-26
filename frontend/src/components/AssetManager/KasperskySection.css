@@ -74,3 +74,30 @@
   flex: 1 1 160px;
   min-width: 0;
 }
+
+.krd-modes {
+  margin: 8px 0;
+}
+
+.krd-source,
+.krd-catalog {
+  margin: 10px 0;
+}
+
+.krd-catalog input[type='search'] {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.krd-catalog details {
+  margin: 4px 0;
+}
+
+.krd-catalog summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.krd-catalog details > label {
+  margin-left: 14px;
+}

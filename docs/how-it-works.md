@@ -8,7 +8,7 @@
 | HTTP file server | same process | 9021 | `/ipxe/` (generated menu, no-cache), `/http/` (kernels, ISOs, WinPE files), `/tftp/`, `/preseed*.cfg` |
 | TFTP server | container | 69/udp | The first iPXE binary and `autoexec.ipxe` |
 | Proxy DHCP (dnsmasq) | container, optional | 67/udp, 4011/udp | Tells PXE clients which boot file to fetch, without touching your DHCP server |
-| Storage | `./data/srv/{tftp,http,ipxe,dhcp}` on the host | | Everything you add or generate; survives container rebuilds |
+| Storage | `./data/srv/{tftp,http,ipxe,dhcp,_src}` on the host | | Everything you add or generate; survives container rebuilds. `_src` is never served: downloaded firmware, database backups |
 
 The container runs with host networking so DHCP and TFTP see the LAN directly.
 

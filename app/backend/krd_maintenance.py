@@ -1,6 +1,7 @@
 """Keeping a Kaspersky Rescue Disk (KRD) folder current, and giving it the firmware it lacks.
 
-Two independent jobs, both working on the extracted disk that is booted over NFS or HTTP:
+Two independent jobs on the extracted disk that is booted over NFS or HTTP (the firmware half is in
+krd_firmware.py):
 
 * **Antivirus databases.** KRD keeps them in one squashfs module, ``live/KRD/30-bases.srm``.
   Kaspersky publishes a fresh one (``42-freshbases.srm``) with its SHA-512 in ``hashes.txt``;
@@ -13,17 +14,14 @@ Two independent jobs, both working on the extracted disk that is booted over NFS
 """
 
 import hashlib
-import io
 import logging
 import os
 import re
 import shutil
-import tarfile
-import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
 import requests
 
@@ -38,23 +36,7 @@ CHECKSUM_FILE = "sha256sum.txt"
 MIN_FREE_BYTES = 400 * 1024 * 1024
 KEEP_BACKUPS = 3
 
-# The KRD 24 kernel (6.1) asks for API 72 of the Wi-Fi firmware; newer releases of linux-firmware
-# dropped the old versions, so both the small and the full archive come from this release.
-FIRMWARE_TAG = "20230210"
-FIRMWARE_FILE_URL = "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/{path}?h={tag}"
-FULL_ARCHIVE_URL = "https://mirrors.edge.kernel.org/pub/linux/kernel/firmware/{name}"
-FULL_SUMS_URL = "https://mirrors.edge.kernel.org/pub/linux/kernel/firmware/sha256sums.asc"
-CUSTOM_ARCHIVE = "linux-firmware-custom.tar.gz"
-FULL_ARCHIVE = f"linux-firmware-{FIRMWARE_TAG}.tar.gz"
-# kernel.org answers 403 to the default python-requests User-Agent.
-HEADERS = {"User-Agent": "ipxe-station"}
-MAX_FIRMWARE_FILE_BYTES = 30 * 1024 * 1024
-MAX_FIRMWARE_FILES = 60
-# KRD skips firmware below this much RAM (the value is in its boot hook, in kB).
-FIRMWARE_MIN_RAM_GB = 3.1
-
 _FOLDER_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
-_FIRMWARE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+\-/]{0,119}$")
 _SHA512 = re.compile(r"^([0-9a-fA-F]{128})\s+\*?(?:\./)?(\S+)\s*$")
 
 
@@ -262,317 +244,6 @@ def update_bases(
         "backup": str(backup) if backup else "",
         "message": f"Databases updated to {format_timestamp(remote['timestamp'])}.",
     }
-
-
-# ---------------------------------------------------------------------------
-# Firmware
-# ---------------------------------------------------------------------------
-
-# Firmware for common laptop Wi-Fi and Bluetooth chips, matched to the KRD 24 kernel. A file the
-# release does not have is skipped rather than failing the build.
-FIRMWARE_PRESETS: List[dict] = [
-    {
-        "id": "intel-ax211",
-        "name": "Intel Wi-Fi 6E AX211 / AX411",
-        "description": "Alder and Raptor Lake laptops (e.g. Dell Latitude 5530).",
-        "files": ["iwlwifi-so-a0-gf-a0-72.ucode", "iwlwifi-so-a0-gf-a0.pnvm"],
-    },
-    {
-        "id": "intel-ax201",
-        "name": "Intel Wi-Fi 6 AX200 / AX201",
-        "description": "Comet, Ice, Tiger and Alder Lake laptops.",
-        "files": [
-            "iwlwifi-cc-a0-72.ucode",
-            "iwlwifi-QuZ-a0-hr-b0-72.ucode",
-            "iwlwifi-Qu-c0-hr-b0-72.ucode",
-            "iwlwifi-so-a0-hr-b0-72.ucode",
-        ],
-    },
-    {
-        "id": "intel-ax210",
-        "name": "Intel Wi-Fi 6E AX210",
-        "description": "Add-in Wi-Fi 6E cards.",
-        "files": ["iwlwifi-ty-a0-gf-a0-72.ucode", "iwlwifi-ty-a0-gf-a0.pnvm"],
-    },
-    {
-        "id": "intel-bluetooth",
-        "name": "Intel Bluetooth",
-        "description": "Bluetooth of the Intel Wi-Fi cards above.",
-        "files": [
-            "intel/ibt-0040-0041.sfi",
-            "intel/ibt-0040-0041.ddc",
-            "intel/ibt-0040-4150.sfi",
-            "intel/ibt-0040-4150.ddc",
-            "intel/ibt-19-0-4.sfi",
-            "intel/ibt-19-0-4.ddc",
-            "intel/ibt-19-16-4.sfi",
-            "intel/ibt-19-16-4.ddc",
-            "intel/ibt-19-32-4.sfi",
-            "intel/ibt-19-32-4.ddc",
-        ],
-    },
-]
-
-_LOAD_FAILED = re.compile(
-    r"(?:firmware: failed to load|Direct firmware load for|Failed to load (?:Intel )?firmware file)"
-    r"\s+(\S+)"
-)
-_NUMBERED = re.compile(r"^(?P<stem>.+)-(?P<num>\d+)\.(?P<ext>ucode|fw|bin)$")
-
-
-def valid_firmware_name(name: str) -> bool:
-    return bool(_FIRMWARE_NAME.match(name or "")) and ".." not in name.split("/")
-
-
-def _companions(name: str) -> List[str]:
-    """Files that go with a firmware file but that the kernel does not report as missing."""
-    extras: List[str] = []
-    numbered = _NUMBERED.match(name)
-    if numbered and name.startswith("iwlwifi-") and "-gf-" in name:
-        extras.append(f"{numbered.group('stem')}.pnvm")
-    if name.startswith("intel/ibt-") and name.endswith(".sfi"):
-        extras.append(name[: -len(".sfi")] + ".ddc")
-    return extras
-
-
-def parse_missing_firmware(text: str) -> List[dict]:
-    """Which firmware files the kernel could not find, from ``dmesg`` output.
-
-    The Wi-Fi driver tries every API version from the newest downwards, so dozens of lines name
-    one chip; they are folded into one entry (the newest version, the others as alternatives).
-    """
-    names: List[str] = []
-    for match in _LOAD_FAILED.finditer(text or ""):
-        name = match.group(1).rstrip(",.;")
-        if name.startswith("(") or not valid_firmware_name(name):
-            continue
-        if name not in names:
-            names.append(name)
-
-    groups: Dict[Tuple[str, str], List[Tuple[int, str]]] = {}
-    plain: List[str] = []
-    for name in names:
-        numbered = _NUMBERED.match(name)
-        if numbered:
-            key = (numbered.group("stem"), numbered.group("ext"))
-            groups.setdefault(key, []).append((int(numbered.group("num")), name))
-        else:
-            plain.append(name)
-
-    found: List[dict] = []
-    for members in groups.values():
-        ordered = [n for _, n in sorted(members, reverse=True)]
-        found.append({"name": ordered[0], "alternatives": ordered[1:]})
-    found.extend({"name": n, "alternatives": []} for n in plain)
-    for item in found:
-        item["companions"] = _companions(item["name"])
-    return found
-
-
-def presets_covering(names: Iterable[str]) -> List[str]:
-    wanted = set(names)
-    return [p["id"] for p in FIRMWARE_PRESETS if wanted & set(p["files"])]
-
-
-def _fetch_firmware_file(path: str, tag: str) -> Optional[bytes]:
-    """One file from the linux-firmware release, or None when the release has no such file."""
-    url = FIRMWARE_FILE_URL.format(path=path, tag=tag)
-    try:
-        with requests.get(url, stream=True, timeout=30, headers=HEADERS) as response:
-            if response.status_code == 404:
-                return None
-            response.raise_for_status()
-            data = bytearray()
-            for block in response.iter_content(256 * 1024):
-                data.extend(block)
-                if len(data) > MAX_FIRMWARE_FILE_BYTES:
-                    raise KrdError(f"{path} is unexpectedly large; not adding it")
-            return bytes(data)
-    except requests.RequestException as exc:
-        raise KrdError(f"Could not download {path}: {exc}") from exc
-
-
-_INSTALLER = """#!/bin/sh
-# Copies the bundled firmware into the directory given as the first argument.
-# Called by the Kaspersky Rescue Disk boot hook in place of the stock copy-firmware.sh.
-dest="$1"
-[ -n "$dest" ] || exit 1
-here="$(cd "$(dirname "$0")" && pwd)"
-cd "$here/files" || exit 1
-find . -type f | while read -r file; do
-    mkdir -p "$dest/$(dirname "$file")"
-    cp "$file" "$dest/$file"
-done
-"""
-
-
-def firmware_archives(folder: Path) -> List[Path]:
-    return sorted(folder.glob("linux-firmware-*.tar.gz"))
-
-
-def firmware_state(folder: Path) -> dict:
-    archives = firmware_archives(folder)
-    return {
-        "archives": [{"name": a.name, "size": a.stat().st_size} for a in archives],
-        "kind": (
-            "custom"
-            if [a.name for a in archives] == [CUSTOM_ARCHIVE]
-            else "full" if archives else "none"
-        ),
-        "tag": FIRMWARE_TAG,
-        "min_ram_gb": FIRMWARE_MIN_RAM_GB,
-    }
-
-
-def _remove_archives(folder: Path) -> List[str]:
-    """KRD refuses to boot when the disk holds more than one linux-firmware archive."""
-    removed = []
-    for archive in firmware_archives(folder):
-        archive.unlink()
-        removed.append(archive.name)
-    return removed
-
-
-def build_custom_firmware(
-    folder: Path,
-    preset_ids: Iterable[str] = (),
-    files: Iterable[dict] = (),
-    tag: str = FIRMWARE_TAG,
-) -> dict:
-    """Make ``linux-firmware-custom.tar.gz`` from presets and named files.
-
-    ``files`` are ``{"name": ..., "alternatives": [...]}``; the first candidate that exists in the
-    release is taken. Companions (PNVM, DDC) are added when the release has them.
-    """
-    if not re.fullmatch(r"[0-9A-Za-z._-]{1,40}", tag):
-        raise KrdError("Invalid firmware release")
-    wanted: List[Tuple[str, List[str], bool]] = []  # (name, alternatives, must exist)
-    known = {p["id"]: p for p in FIRMWARE_PRESETS}
-    for preset_id in preset_ids:
-        if preset_id not in known:
-            raise KrdError(f"Unknown firmware preset '{preset_id}'")
-        wanted.extend((name, [], False) for name in known[preset_id]["files"])
-    for item in files:
-        name = str(item.get("name", "")).strip()
-        alternatives = [str(a).strip() for a in item.get("alternatives", [])]
-        for candidate in [name, *alternatives]:
-            if not valid_firmware_name(candidate):
-                raise KrdError(f"'{candidate}' is not a valid firmware file name")
-        wanted.append((name, alternatives, True))
-        wanted.extend((extra, [], False) for extra in _companions(name))
-
-    if not wanted:
-        raise KrdError("Choose at least one device or name a firmware file")
-    if len(wanted) > MAX_FIRMWARE_FILES:
-        raise KrdError(f"Too many files (limit {MAX_FIRMWARE_FILES})")
-
-    added: List[str] = []
-    skipped: List[str] = []
-    payload: Dict[str, bytes] = {}
-    for name, alternatives, _required in wanted:
-        if name in payload:
-            continue
-        data = None
-        used = name
-        for candidate in [name, *alternatives]:
-            data = _fetch_firmware_file(candidate, tag)
-            if data is not None:
-                used = candidate
-                break
-        if data is None:
-            skipped.append(name)
-            continue
-        payload[used] = data
-        added.append(used)
-
-    if not payload:
-        raise KrdError(f"None of the requested files exist in linux-firmware {tag}")
-
-    root = "linux-firmware-custom"
-    with tempfile.NamedTemporaryFile(dir=folder, suffix=".tmp", delete=False) as handle:
-        tmp = Path(handle.name)
-    try:
-        with tarfile.open(tmp, "w:gz") as tar:
-            installer = _INSTALLER.encode()
-            info = tarfile.TarInfo(f"{root}/copy-firmware.sh")
-            info.size, info.mode = len(installer), 0o755
-            tar.addfile(info, io.BytesIO(installer))
-            for name, data in payload.items():
-                info = tarfile.TarInfo(f"{root}/files/{name}")
-                info.size, info.mode = len(data), 0o644
-                tar.addfile(info, io.BytesIO(data))
-        replaced = _remove_archives(folder)
-        os.chmod(tmp, 0o644)
-        os.replace(tmp, folder / CUSTOM_ARCHIVE)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-    return {
-        "archive": CUSTOM_ARCHIVE,
-        "size": (folder / CUSTOM_ARCHIVE).stat().st_size,
-        "added": added,
-        "skipped": skipped,
-        "replaced": [r for r in replaced if r != CUSTOM_ARCHIVE],
-        "tag": tag,
-    }
-
-
-def _published_sha256(name: str) -> str:
-    try:
-        response = requests.get(FULL_SUMS_URL, timeout=30, headers=HEADERS)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise KrdError(f"Could not read the checksum list of kernel.org: {exc}") from exc
-    for line in response.text.splitlines():
-        parts = line.split()
-        if len(parts) == 2 and parts[1] == name and re.fullmatch(r"[0-9a-f]{64}", parts[0]):
-            return parts[0]
-    raise KrdError(f"kernel.org publishes no checksum for {name}")
-
-
-def install_full_firmware(
-    folder: Path, progress: Optional[Callable[[int, int], None]] = None
-) -> dict:
-    """Download the complete linux-firmware release matching the KRD kernel and verify it."""
-    expected = _published_sha256(FULL_ARCHIVE)
-    free = shutil.disk_usage(folder).free
-    if free < 1024 * 1024 * 1024:
-        raise KrdError(f"Not enough free disk space: {free // (1024 * 1024)} MB free, need ~1 GB")
-    partial = folder / (FULL_ARCHIVE + ".download")
-    digest = hashlib.sha256()
-    try:
-        with requests.get(
-            FULL_ARCHIVE_URL.format(name=FULL_ARCHIVE), stream=True, timeout=30, headers=HEADERS
-        ) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("Content-Length") or 0)
-            done = 0
-            with open(partial, "wb") as out:
-                for block in r.iter_content(1024 * 1024):
-                    out.write(block)
-                    digest.update(block)
-                    done += len(block)
-                    if progress:
-                        progress(done, total)
-        if digest.hexdigest() != expected:
-            raise KrdError("The download does not match kernel.org's checksum; it was discarded.")
-        replaced = _remove_archives(folder)
-        os.chmod(partial, 0o644)
-        os.replace(partial, folder / FULL_ARCHIVE)
-    except requests.RequestException as exc:
-        raise KrdError(f"Download failed: {exc}") from exc
-    finally:
-        partial.unlink(missing_ok=True)
-    return {
-        "archive": FULL_ARCHIVE,
-        "size": (folder / FULL_ARCHIVE).stat().st_size,
-        "replaced": replaced,
-        "tag": FIRMWARE_TAG,
-    }
-
-
-def remove_firmware(folder: Path) -> List[str]:
-    return _remove_archives(folder)
 
 
 # ---------------------------------------------------------------------------

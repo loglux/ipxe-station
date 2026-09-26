@@ -27,7 +27,10 @@
   kept; the disk's timestamp and `sha256sum.txt` updated) and build a small firmware archive
   (`linux-firmware-custom.tar.gz`) for chosen devices or for what a machine's `dmesg` reports. The manual
   database swap was confirmed on hardware ("Databases are up to date"), and so was the small firmware
-  archive (Dell Latitude 5530: no more "hardware does not work correctly" warning). Planned: a scheduled daily check, and telling a running machine's NFS session from an
+  archive (Dell Latitude 5530: no more "hardware does not work correctly" warning). The firmware is now chosen from
+  a catalog built from the official release's `WHENCE` (594 devices; big drivers such as iwlwifi split by chip),
+  as none, selected devices or everything; machines can report missing firmware on their own through the boot
+  script, which the page turns into recommendations. Planned: a scheduled daily check, and telling a running machine's NFS session from an
   idle one before replacing the file.
   Screen text size and video mode are settable from the server (not yet booted on hardware).
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub

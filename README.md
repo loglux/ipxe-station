@@ -245,7 +245,8 @@ Open **http://localhost:9021/ui**
 │   └── debian-12/           # Debian netboot files
 ├── ipxe/                    # iPXE scripts (/ipxe/, no-cache)
 │   └── boot.ipxe            # Generated boot menu
-└── dhcp/                    # Generated DHCP configs
+├── dhcp/                    # Generated DHCP configs
+└── _src/                    # Never served: downloaded firmware release, database backups, drop folder
 ```
 
 ---
@@ -381,7 +382,8 @@ Working principles for delivery and future extensibility are documented in
                    │
 ┌──────────────────┴───────────────────────────┐
 │  Storage (Docker volumes)                    │
-│  /srv/tftp  /srv/http  /srv/ipxe  /srv/dhcp  │
+│  /srv/tftp /srv/http /srv/ipxe /srv/dhcp     │
+│  /srv/_src                                   │
 └──────────────────────────────────────────────┘
 ```
 

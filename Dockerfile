@@ -48,8 +48,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create volume mount points with proper permissions
 # These directories will be mounted as volumes from host
-RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /srv/dhcp && \
-    chmod 755 /srv/tftp /srv/http /srv/ipxe /srv/dhcp
+RUN mkdir -p /srv/tftp /srv/http /srv/ipxe /srv/dhcp /srv/_src && \
+    chmod 755 /srv/tftp /srv/http /srv/ipxe /srv/dhcp /srv/_src
 
 # Create working directories
 RUN mkdir -p /mnt/iso /tmp/extract && \
@@ -96,7 +96,7 @@ WORKDIR /app
 CMD ["/usr/local/bin/start.sh"]
 
 # Volume declarations for documentation
-VOLUME ["/srv/tftp", "/srv/http", "/srv/ipxe", "/srv/dhcp"]
+VOLUME ["/srv/tftp", "/srv/http", "/srv/ipxe", "/srv/dhcp", "/srv/_src"]
 
 # Health check
 # Uses UVICORN_PORT (default 9021) for health check

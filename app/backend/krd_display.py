@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple
+from urllib.parse import urlencode
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -19,6 +20,7 @@ from .device_scenarios import MATCH_FIELDS, fields_match
 
 HOOK_TEMPLATE = Path(__file__).with_name("krd_display_hook.sh")
 HOOK_PATH = "/ipxe/krd-display.sh"
+REPORT_PATH = "/ipxe/krd-report"
 MIN_SCALE, MAX_SCALE = 1.0, 3.0
 
 # Fields the boot line sends to the server, so rules can match on them.
@@ -66,6 +68,8 @@ class DisplayRule(BaseModel):
 
 class DisplaySettings(BaseModel):
     default: str = "auto"
+    # the boot script also tells the server which firmware the machine could not find
+    report_firmware: bool = True
     rules: List[DisplayRule] = Field(default_factory=list, max_length=50)
 
     model_config = {"extra": "forbid"}
@@ -97,11 +101,24 @@ def resolve_scale(settings: DisplaySettings, device: dict) -> Tuple[str, str]:
     return settings.default, "default"
 
 
-def render_hook(scale: str) -> str:
+def render_hook(scale: str, report_url: str = "") -> str:
     """The script the machine runs, with the server's decision written into it."""
     if not valid_scale(scale):
         scale = "off"  # never put an unchecked value into a script
-    return HOOK_TEMPLATE.read_text().replace("__SCALE__", scale)
+    if report_url and not _SAFE_URL.match(report_url):
+        report_url = ""  # nothing but a plain http URL ever goes into a script
+    return (
+        HOOK_TEMPLATE.read_text().replace("__SCALE__", scale).replace("__REPORT_URL__", report_url)
+    )
+
+
+_SAFE_URL = re.compile(r"^http://[A-Za-z0-9.\-:]+/[A-Za-z0-9/_.\-]*\?[A-Za-z0-9=&%+._\-]*$")
+
+
+def report_url_for(host: str, device: dict) -> str:
+    """Where the machine sends its firmware report, naming itself by MAC and model."""
+    query = urlencode({k: device[k] for k in ("mac", "manufacturer", "product") if device.get(k)})
+    return f"http://{host}{REPORT_PATH}?{query}"
 
 
 def hook_argument() -> str:

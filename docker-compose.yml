@@ -22,6 +22,7 @@ services:
       - ./data/srv/http:/srv/http:rw    # HTTP boot files (Ubuntu versions)
       - ./data/srv/ipxe:/srv/ipxe:rw    # iPXE scripts
       - ./data/srv/dhcp:/srv/dhcp:rw    # DHCP configurations
+      - ./data/srv/_src:/srv/_src:rw    # Not served: downloaded firmware release, database backups
 
     environment:
       # Application settings

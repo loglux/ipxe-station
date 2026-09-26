@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.backend import krd_display as display
+from app.backend import krd_firmware as fw
 from app.backend import krd_maintenance as krd
 from app.backend.device_scenarios import MATCH_FIELDS
 
@@ -36,14 +37,6 @@ def _reports_file():
     return state.IPXE_ROOT / "krd-firmware-reports.json"
 
 
-def _load_reports() -> list:
-    try:
-        data = json.loads(_reports_file().read_text())
-    except (OSError, ValueError):
-        return []
-    return data if isinstance(data, list) else []
-
-
 def _job_key(folder_name: str, kind: str) -> str:
     return f"{folder_name}:{kind}"
 
@@ -59,7 +52,7 @@ def list_folders():
                 "version": krd.krd_version(folder),
                 "bases": krd.local_bases_timestamp(folder),
                 "bases_label": krd.format_timestamp(krd.local_bases_timestamp(folder)),
-                "firmware": krd.firmware_state(folder),
+                "firmware": fw.firmware_state(folder),
             }
         )
     return {"folders": folders}
@@ -100,14 +93,101 @@ def job(name: str, kind: str):
 # --- firmware -------------------------------------------------------------
 
 
+def _cache_root():
+    return state.BASE_ROOT / "_src" / "linux-firmware"
+
+
+@kaspersky_router.get("/firmware-source")
+def firmware_source():
+    """The downloaded firmware release (if any) and the devices it covers."""
+    info = fw.source_state(_cache_root())
+    return {
+        **info,
+        "catalog": fw.catalog_summary(_cache_root()),
+        "categories": fw.CATEGORY_LABELS,
+        "large_bytes": fw.LARGE_SELECTION_BYTES,
+    }
+
+
+@kaspersky_router.post("/firmware-source/download")
+def download_firmware_source():
+    def work(progress):
+        result = fw.download_source(_cache_root(), progress)
+        add_log("system", "info", f"Firmware release {fw.FIRMWARE_TAG} downloaded and verified")
+        return result
+
+    if not krd.start_job("source:download", work):
+        raise HTTPException(status_code=409, detail="The download is already running")
+    return {"started": True}
+
+
+@kaspersky_router.get("/firmware-source/job")
+def firmware_source_job():
+    return krd.job_status("source:download")
+
+
+@kaspersky_router.delete("/firmware-source")
+def remove_firmware_source():
+    return {"removed": fw.remove_source(_cache_root())}
+
+
+def _reports() -> list:
+    try:
+        data = json.loads(_reports_file().read_text())
+    except (OSError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def record_firmware_report(client: str, device: dict, text: str) -> list:
+    """Remember which firmware a machine could not find. One entry per machine, newest wins."""
+    missing = fw.parse_missing_firmware(text)
+    who = device.get("mac") or client
+    entry = {
+        "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "client": client,
+        "mac": device.get("mac", ""),
+        "device": " ".join(p for p in (device.get("manufacturer"), device.get("product")) if p),
+        "missing": missing,
+    }
+    reports = [r for r in _reports() if (r.get("mac") or r.get("client")) != who]
+    reports.append(entry)
+    _reports_file().write_text(json.dumps(reports[-KEEP_REPORTS:], indent=2))
+    add_log(
+        "system",
+        "info",
+        f"Firmware report from {entry['device'] or client}: {len(missing)} missing file(s)",
+    )
+    return missing
+
+
+def _names_of(missing: list) -> list:
+    names = []
+    for item in missing:
+        names.extend([item["name"], *item.get("alternatives", []), *item.get("companions", [])])
+    return names
+
+
+@kaspersky_router.get("/firmware-reports")
+def firmware_reports():
+    """What machines reported as missing, and the catalog entries that would fix it."""
+    reports = _reports()
+    recommended: list = []
+    for report in reports:
+        report["items"] = fw.items_covering(_cache_root(), _names_of(report.get("missing", [])))
+        recommended.extend(i for i in report["items"] if i not in recommended)
+    return {"reports": list(reversed(reports)), "recommended": recommended}
+
+
+@kaspersky_router.delete("/firmware-reports")
+def clear_firmware_reports():
+    _reports_file().unlink(missing_ok=True)
+    return {"cleared": True}
+
+
 @kaspersky_router.get("/{name}/firmware")
 def firmware_overview(name: str):
-    folder = _folder(name)
-    return {
-        **krd.firmware_state(folder),
-        "presets": krd.FIRMWARE_PRESETS,
-        "reports": _load_reports(),
-    }
+    return fw.firmware_state(_folder(name))
 
 
 class ScanRequest(BaseModel):
@@ -118,29 +198,19 @@ class ScanRequest(BaseModel):
 def scan_dmesg(name: str, payload: ScanRequest):
     """Which firmware files the kernel could not load, from pasted ``dmesg`` output."""
     _folder(name)
-    missing = krd.parse_missing_firmware(payload.text)
-    return {"missing": missing, "presets": krd.presets_covering(m["name"] for m in missing)}
+    missing = fw.parse_missing_firmware(payload.text)
+    return {"missing": missing, "items": fw.items_covering(_cache_root(), _names_of(missing))}
 
 
 @kaspersky_router.post("/{name}/firmware/report")
 async def report_dmesg(name: str, request: Request):
-    """Receive ``dmesg`` straight from a laptop running KRD (``wget --post-file``)."""
+    """Receive ``dmesg`` sent by hand (``wget --post-file``); the boot script sends it by itself."""
     _folder(name)
     body = await request.body()
     if len(body) > MAX_REPORT_BYTES:
         raise HTTPException(status_code=413, detail="Report too large")
-    missing = krd.parse_missing_firmware(body.decode("utf-8", errors="replace"))
     client = request.client.host if request.client else ""
-    reports = _load_reports()
-    reports.append(
-        {
-            "at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "client": client,
-            "missing": missing,
-        }
-    )
-    _reports_file().write_text(json.dumps(reports[-KEEP_REPORTS:], indent=2))
-    add_log("system", "info", f"Firmware report from {client}: {len(missing)} missing file(s)")
+    missing = record_firmware_report(client, {}, body.decode("utf-8", errors="replace"))
     return {"received": True, "missing": missing}
 
 
@@ -150,18 +220,18 @@ class FirmwareFile(BaseModel):
 
 
 class FirmwareBuild(BaseModel):
-    presets: List[str] = Field(default_factory=list)
+    items: List[str] = Field(default_factory=list, max_length=800)
     files: List[FirmwareFile] = Field(default_factory=list)
 
 
 @kaspersky_router.post("/{name}/firmware/custom")
 def build_custom(name: str, payload: FirmwareBuild):
-    """Build the small archive with the chosen devices and named files."""
+    """Build the small archive from the chosen devices and named files."""
     folder = _folder(name)
 
     def work(progress):
-        result = krd.build_custom_firmware(
-            folder, payload.presets, [f.model_dump() for f in payload.files]
+        result = fw.build_custom_firmware(
+            folder, _cache_root(), payload.items, [f.model_dump() for f in payload.files]
         )
         added = len(result["added"])
         add_log("system", "info", f"Firmware archive built for {name}: {added} file(s)")
@@ -174,11 +244,11 @@ def build_custom(name: str, payload: FirmwareBuild):
 
 @kaspersky_router.post("/{name}/firmware/full")
 def install_full(name: str):
-    """Download the complete linux-firmware release for the KRD kernel."""
+    """Put the complete release on the disk (it is downloaded first if it is not cached yet)."""
     folder = _folder(name)
 
     def work(progress):
-        result = krd.install_full_firmware(folder, progress)
+        result = fw.install_full_firmware(folder, _cache_root(), progress)
         add_log("system", "info", f"Full firmware archive installed for {name}")
         return result
 
@@ -189,7 +259,7 @@ def install_full(name: str):
 
 @kaspersky_router.delete("/{name}/firmware")
 def remove_firmware(name: str):
-    return {"removed": krd.remove_firmware(_folder(name))}
+    return {"removed": fw.remove_firmware(_folder(name))}
 
 
 # --- screen: text size and video mode -----------------------------------------
@@ -236,6 +306,7 @@ def get_display():
     settings = display_settings()
     return {
         "default": settings.default,
+        "report_firmware": settings.report_firmware,
         "rules": [r.model_dump() for r in settings.rules],
         "match_fields": [
             f for f in MATCH_FIELDS if f in ("manufacturer", "product", "sku", "family")

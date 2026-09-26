@@ -13,7 +13,12 @@ from app.routes.boot import boot_router
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import build_personal_menu_script, ipxe_router
-from app.routes.kaspersky import display_settings, kaspersky_router
+from app.routes.kaspersky import (
+    MAX_REPORT_BYTES,
+    display_settings,
+    kaspersky_router,
+    record_firmware_report,
+)
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
 from app.routes.proxy_dhcp import proxy_dhcp_router
 from app.routes.scenarios import scenarios_router
@@ -148,11 +153,29 @@ async def krd_display_hook(request: Request):
         "info",
         f"Kaspersky text size for {fields.get('product') or 'a machine'}: {scale} ({source})",
     )
+    settings = display_settings()
+    report_url = ""
+    if settings.report_firmware:
+        report_url = krd_display.report_url_for(request.headers.get("host", ""), device)
     return Response(
-        krd_display.render_hook(scale),
+        krd_display.render_hook(scale, report_url),
         media_type="text/x-shellscript",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@app.post(krd_display.REPORT_PATH)
+async def krd_report(request: Request):
+    """Missing-firmware lines a booting Kaspersky Rescue Disk sends; open like the script itself."""
+    body = await request.body()
+    if len(body) > MAX_REPORT_BYTES:
+        return Response("Report too large", status_code=413)
+    fields = {
+        name: request.query_params.get(name, "")[:200] for name in krd_display.HOOK_QUERY_FIELDS
+    }
+    client = request.client.host if request.client else ""
+    record_firmware_report(client, _normalise_inventory(fields), body.decode("utf-8", "replace"))
+    return Response(status_code=204)
 
 
 @app.get("/ipxe/{filename}")
