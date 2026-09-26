@@ -78,3 +78,24 @@ Show a machine what fits it, in its own PXE menu (see
 - **ShredOS erases disks.** Use it only on machines whose data is no longer needed, check the disk list before
   starting, and never leave it as an automatic scenario.
 
+## 8. Kaspersky Rescue Disk: fresh databases and the firmware it lacks
+
+Download the disk (**Assets** → *Tools & Rescue* → Kaspersky), then use **Kaspersky Rescue Disk upkeep** further
+down the same tab.
+
+- **Antivirus databases.** The disk carries the databases of its release date. **Check for updates** compares
+  them with what Kaspersky publishes; **Update databases** downloads the new module, verifies it against
+  Kaspersky's SHA-512, keeps the old one in `data/srv/_src/krd-backups/` (the last three) and swaps the file.
+  Kaspersky then reports "Databases are up to date". Do it while no machine is running Kaspersky from the
+  network: the running system reads that file.
+- **Firmware.** The disk has almost none, so the Wi-Fi and Bluetooth of many laptops stay dead and Kaspersky
+  shows *Some hardware does not work correctly* (harmless on a wired network). Tick the devices you have
+  (Intel Wi-Fi AX211, AX201, AX210, Intel Bluetooth) and **Build small archive** (a few MB). For a machine that
+  is not in the list, paste its `dmesg` output, or send it from the machine itself with the command the page
+  shows; the missing files are found and added for you. **Full set** downloads everything (436 MB, needs 4 GB
+  of RAM and a longer start).
+
+Only one firmware archive can be on the disk; building or downloading one replaces the other. The files come
+from the linux-firmware release `20230210`, which matches the disk's kernel 6.1 (newer releases dropped the
+Wi-Fi firmware version that kernel asks for). Machines with less than about 3 GB of RAM skip the firmware.
+

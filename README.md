@@ -41,6 +41,9 @@
 - **Real-time progress bars** — per-file progress (kernel, initrd, ISO) with GB counter
 - **More tools** — Rescuezilla and ShredOS download from their official GitHub releases; versions and
   checksums are read from the release, and a download that does not match its checksum is discarded
+- **Kaspersky Rescue Disk upkeep** — one button updates the antivirus databases (checked against Kaspersky's
+  SHA-512, the old ones kept for rollback), and a small firmware archive gives the disk Wi-Fi and Bluetooth
+  drivers for the machines you name
 - **Upload & catalog scan** — upload any file, scan local assets
 
 ### 🌐 DHCP Configuration

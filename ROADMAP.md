@@ -22,6 +22,13 @@
 - **Kaspersky Rescue Disk 24 over NFS** — on a Dell Latitude 5530 the live system now gets an address and
   mounts the NFS export (confirmed 2026-09-25 from server logs: DHCP request from the initramfs and an NFS
   mount request). It failed before the `BOOTIF` fix, see Key Technical Findings.
+- **Kaspersky Rescue Disk upkeep** — from the Assets tab: update the antivirus databases (replace
+  `live/KRD/30-bases.srm`, the module KRD's own updater replaces; verified with Kaspersky's SHA-512; backup
+  kept; the disk's timestamp and `sha256sum.txt` updated) and build a small firmware archive
+  (`linux-firmware-custom.tar.gz`) for chosen devices or for what a machine's `dmesg` reports. The manual
+  database swap was confirmed on hardware ("Databases are up to date"); the firmware archive is **not yet
+  booted on hardware**. Planned: a scheduled daily check, and telling a running machine's NFS session from an
+  idle one before replacing the file.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.
@@ -370,6 +377,23 @@ Fix: add `BOOTIF=01-${net0/mac:hexhyp}` to the command line (iPXE fills in the M
 recipes and the KRD scenario template include it, and Save Menu warns when a network live entry lacks
 `BOOTIF=`/`ethdevice=`/`live-netdev=`. Diagnosis that worked: the client's DHCP requests and NFS mount
 requests in the server log (none arrived), then the on-screen text.
+
+### How Kaspersky Rescue Disk 24 keeps databases and firmware
+
+- The disk is `live/KRD/{10-krd,20-krt,30-bases}.srm` on top of `filesystem.squashfs`. The antivirus
+  databases are only `30-bases.srm`. Kaspersky publishes a newer one as
+  `https://rescuedisk.s.kaspersky-labs.com/updatable/2024/bases/42-freshbases.srm`, with its SHA-512 in
+  `hashes.txt` and the release timestamp in `krd.xml` (`databases_timestamp`). The disk remembers its own in
+  `krd_bases_timestamp.txt`; `sha256sum.txt` is only read by KRD's `verify-checksums`.
+- Replacing `30-bases.srm` is enough: KRD showed "Databases are up to date". A machine running KRD reads that
+  file over NFS, so replace it while none is running.
+- Firmware: the boot hook (`live/boot/9990-firmware`) unpacks exactly one `linux-firmware-*.tar.gz` from the
+  disk root and runs `<name>/copy-firmware.sh` from it (two archives make it panic; under ~3.1 GB of RAM it
+  skips them). A small archive with its own `copy-firmware.sh` therefore works as well as the full release.
+- The kernel (6.1) asks for Wi-Fi firmware API 72; linux-firmware `20230210` still has it, newer releases may
+  not. kernel.org answers 403 to the default python-requests User-Agent.
+- The warning dialog comes from `krt.sh`, which greps `dmesg` for `firmware: failed to load`.
+
 
 ### Ubuntu Boot Modes
 - **NFS** (`netboot=nfs nfsroot=`): reads squashfs on demand, no RAM limit — recommended for Server

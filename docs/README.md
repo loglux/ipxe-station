@@ -4,7 +4,7 @@
 |----------|-----------------|
 | [How it works](how-it-works.md) | What runs where, and what happens between pressing F12 and seeing the menu |
 | [Boot methods](boot-methods.md) | BIOS PXE, UEFI PXE, UEFI HTTP Boot, Secure Boot, and the Linux/Windows boot modes: what each needs and what is verified |
-| [Typical scenarios](scenarios.md) | Ready-made setups: rescue toolkit, live Linux, unattended Debian, your own WinPE automation |
+| [Typical scenarios](scenarios.md) | Ready-made setups: rescue toolkit, live Linux, unattended Debian, your own WinPE automation, Kaspersky upkeep |
 | [Troubleshooting](troubleshooting.md) | The client does not boot, falls back to another device, or WinPE cannot see the disk |
 | [Boot variations catalog](boot-variations-catalog.md) | Research notes: the boot patterns the design has to cover |
 | [`examples/winpe-provision`](../examples/winpe-provision/README.md) | Scripts and guide for running your own automation in a network-booted WinPE |

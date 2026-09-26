@@ -1,0 +1,57 @@
+.krd-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.krd-block h5 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.krd-presets {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.krd-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.krd-scan textarea {
+  width: 100%;
+  margin: 6px 0;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.krd-command {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary, rgba(127, 127, 127, 0.12));
+}
+
+.krd-reports ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.krd-missing {
+  margin: 10px 0;
+}
+
+.krd-outdated {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+}

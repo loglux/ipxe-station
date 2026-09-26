@@ -4,6 +4,7 @@ import UbuntuSection from './UbuntuSection'
 import DebianSection from './DebianSection'
 import ToolsSection from './ToolsSection'
 import ToolCatalogSection from './ToolCatalogSection'
+import KasperskySection from './KasperskySection'
 import WindowsSection from './WindowsSection'
 
 const ASSETS_UPLOAD_STATUS_KEY = 'assets_upload_status_v1'
@@ -1146,6 +1147,7 @@ function AssetManager() {
             onDownloadHiren={downloadHiren}
           />
           <ToolCatalogSection catalog={catalog} onDownloaded={fetchCatalog} />
+          <KasperskySection onChanged={fetchCatalog} />
           </>
         )}
 

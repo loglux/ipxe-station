@@ -74,6 +74,16 @@ a USB Ethernet adapter, boot a rescue system with a newer kernel (SystemRescue) 
 consider `ethdevice-timeout=60` if the link is slow to come up. `rpcinfo -p SERVER` should list NFS v3 over
 TCP (modern servers list only TCP, which is normal).
 
+## Kaspersky shows "Some hardware does not work correctly"
+
+Kaspersky Rescue Disk 24 raises this when the kernel could not load firmware for some device. On the Dell
+Latitude 5530 it was the **Intel Wi-Fi (AX211)** and **Intel Bluetooth**; scanning and the wired network are not
+affected. To see what your machine lacks, run `dmesg | grep -iE "firmware|failed to load"` in a terminal on it.
+The names in `failed to load <file>` are the missing files. To fix it, build the firmware archive in
+**Assets** → *Kaspersky Rescue Disk upkeep* ([scenario 8](scenarios.md#8-kaspersky-rescue-disk-fresh-databases-and-the-firmware-it-lacks)).
+The Wi-Fi driver names dozens of versions of one file (`...-72.ucode`, `...-71.ucode`, ...); they are one
+problem, and the newest is the one the kernel wants.
+
 ## WinPE booted but something is wrong
 
 | Symptom | Likely cause and fix |

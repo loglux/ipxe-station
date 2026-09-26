@@ -12,6 +12,7 @@ from app.routes.boot import boot_router
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import build_personal_menu_script, ipxe_router
+from app.routes.kaspersky import kaspersky_router
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
 from app.routes.proxy_dhcp import proxy_dhcp_router
 from app.routes.scenarios import scenarios_router
@@ -232,6 +233,7 @@ _api_routers = (
     monitoring_router,
     settings_router,
     scenarios_router,
+    kaspersky_router,
 )
 for _router in _api_routers:
     app.include_router(_router, dependencies=[Depends(api_boundary_context)])
