@@ -12,6 +12,11 @@ nothing is configured by hand on the client.
 | [Firmware](#firmware) | Gives the disk Wi-Fi, Bluetooth and other drivers' firmware: none, selected devices, or everything | Selected devices: yes (warning gone); reports from the machine: yes |
 | [Screen](#screen-text-size-and-resolution) | Text size and video mode, decided on the server | Fixed 150% and native resolution: yes. Automatic and per-model rules: not yet |
 
+[![Kaspersky Rescue Disk upkeep: database update, and firmware chosen from a device catalog with what machines reported (sample data)](screenshots/kaspersky-upkeep.png)](screenshots/kaspersky-upkeep.png)
+
+*The upkeep block for one disk (sample data): databases on top, then the firmware modes, what machines reported,
+and the device catalog.*
+
 ## Booting it
 
 1. **Assets** → *Tools & Rescue* → download Kaspersky Rescue Disk 24 (the ISO is extracted into
@@ -103,6 +108,8 @@ KRD's desktop (Cinnamon) shows text at 96 dpi: tiny on a 15 inch laptop with a F
   *Automatic* falls back to a guess (laptops only, a 15.6 inch panel is assumed).
 
 The value is chosen when the machine asks, so a change applies the next time it starts the disk.
+
+[![The Screen card: default text size, a rule for one model, and the menu switches (sample data)](screenshots/kaspersky-screen.png)](screenshots/kaspersky-screen.png)
 
 ## The boot script
 
