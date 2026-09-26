@@ -34,10 +34,9 @@
   started Kaspersky recently. Planned: telling a running machine's NFS session from an idle one exactly, instead
   of going by when a machine last asked for the kernel.
   Screen text size and video mode are settable from the server; confirmed on the Dell Latitude 5530 with a
-  fixed 150% and the native resolution (text is larger). "Automatic" (from the panel's EDID) looks the same as a
-  fixed 150% there, which is what a 15.6 inch Full HD panel should get; the machine now reports what it decided
-  and from what (panel EDID or a guess), shown on the page. Not yet tried: rules per model, and whether the
-  Kaspersky window itself follows.
+  fixed 150% and the native resolution (text is larger). "Automatic" was confirmed on the same laptop: the machine reported that it read the
+  panel's size from its EDID (1920x1080, 344 mm wide) and chose 150%, the same as the fixed setting, and the text
+  is larger than before. Not yet tried: rules per model.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

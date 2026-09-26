@@ -10,7 +10,7 @@ nothing is configured by hand on the client.
 | [Boot over NFS](#booting-it) | Starts the disk from the server, no USB stick | Yes |
 | [Antivirus databases](#antivirus-databases) | Replaces the databases with Kaspersky's current ones | The replacement: yes ("Databases are up to date"). The **Update databases** button and the automatic check: not run for real on a disk that is behind, since the disk was already current |
 | [Firmware](#firmware) | Gives the disk Wi-Fi, Bluetooth and other drivers' firmware: none, selected devices, or everything | Selected devices: yes (warning gone); reports from the machine: yes |
-| [Screen](#screen-text-size-and-resolution) | Text size and video mode, decided on the server | Fixed 150% and native resolution: yes. Automatic: looks the same as 150% on this laptop, as expected for a 15.6 inch Full HD panel. Per-model rules: not yet |
+| [Screen](#screen-text-size-and-resolution) | Text size and video mode, decided on the server | Fixed 150%, native resolution and Automatic (panel size read from its EDID, 150%): yes. Per-model rules: not yet |
 
 [![Kaspersky Rescue Disk upkeep: database update, and firmware chosen from a device catalog with what machines reported (sample data)](screenshots/kaspersky-upkeep.png)](screenshots/kaspersky-upkeep.png)
 
@@ -184,5 +184,5 @@ All under `/api/kaspersky` unless noted, behind the usual token check.
 ## Not done yet
 
 - Telling a running machine's NFS session from an idle one before replacing the databases.
-- Trying per-model rules on hardware, and checking that Kaspersky's own window follows.
+- Trying per-model rules on hardware.
 - The same report-and-recommend idea for other systems ([ROADMAP](../ROADMAP.md)).

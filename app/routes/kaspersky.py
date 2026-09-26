@@ -218,7 +218,9 @@ def _display_lines(text: str) -> list:
     lines = []
     for raw in (text or "").splitlines():
         if raw.startswith(_DISPLAY_PREFIX):
-            lines.append(_UNSAFE.sub("?", raw[len(_DISPLAY_PREFIX) :])[:200].strip())
+            line = _UNSAFE.sub("?", raw[len(_DISPLAY_PREFIX) :])[:200].strip()
+            if not line.startswith("report:"):  # the script's own note about sending this report
+                lines.append(line)
     return lines[:10]
 
 
@@ -260,6 +262,9 @@ def firmware_reports():
     for report in reports:
         for missing in report.get("missing", []):
             missing["note"] = fw.firmware_note(missing["name"])  # also for older stored reports
+        report["display"] = [  # older reports kept the script's own note about sending
+            line for line in report.get("display", []) if not line.startswith("report:")
+        ]
         report["items"] = fw.items_covering(_cache_root(), _names_of(report.get("missing", [])))
         recommended.extend(i for i in report["items"] if i not in recommended)
     return {"reports": list(reversed(reports)), "recommended": recommended}

@@ -657,6 +657,7 @@ def test_the_installed_report_script_sends_only_the_firmware_lines(tmp_path):
 def test_the_report_carries_what_the_script_decided_about_the_screen(api):
     text = (
         "firmware: failed to load iwlwifi-so-a0-gf-a0-72.ucode (-2)\n"
+        "ipxe-station-display: report: will send missing-firmware lines to the server\n"
         "ipxe-station-display: text size requested: auto\n"
         "ipxe-station-display: screen: card0-eDP-1 1920x1080, 344 mm wide (from EDID)\n"
         "ipxe-station-display: text size: 150% (text-scaling-factor 1.50, Xft.dpi 144)\n"
@@ -688,3 +689,13 @@ def test_screen_lines_from_a_machine_are_cleaned_and_limited(api):
 def test_a_report_without_screen_lines_has_an_empty_list(api):
     client.post("/ipxe/krd-report", params={"mac": "aa:bb:cc:dd:ee:01"}, content=b"")
     assert client.get("/api/kaspersky/firmware-reports").json()["reports"][0]["display"] == []
+
+
+def test_an_older_stored_report_is_shown_without_the_scripts_own_note(api):
+    (state.IPXE_ROOT / "krd-firmware-reports.json").write_text(
+        '[{"at": "x", "client": "10.0.0.1", "mac": "", "device": "", "missing": [], '
+        '"display": ["report: will send missing-firmware lines to the server", '
+        '"text size: 150%"]}]'
+    )
+    got = client.get("/api/kaspersky/firmware-reports").json()["reports"][0]
+    assert got["display"] == ["text size: 150%"]
