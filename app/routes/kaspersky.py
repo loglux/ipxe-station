@@ -187,7 +187,11 @@ def clear_firmware_reports():
 
 @kaspersky_router.get("/{name}/firmware")
 def firmware_overview(name: str):
-    return fw.firmware_state(_folder(name))
+    folder = _folder(name)
+    return {
+        **fw.firmware_state(folder),
+        "installed_items": fw.installed_items(folder, _cache_root()),
+    }
 
 
 class ScanRequest(BaseModel):

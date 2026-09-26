@@ -220,6 +220,8 @@ function FirmwareCard({ folder, onChanged }) {
         setSource(src)
         setReports(rep)
         setMode(disk.kind === 'full' ? 'full' : disk.kind === 'custom' ? 'selected' : 'none')
+        // building replaces the archive, so start from what is already in it
+        setChosen(Object.fromEntries((disk.installed_items || []).map((id) => [id, true])))
       })
       .catch((err) => {
         if (!cancelled) setError(err.message)

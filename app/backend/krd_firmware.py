@@ -542,6 +542,25 @@ def firmware_state(folder: Path) -> dict:
     }
 
 
+def installed_items(folder: Path, cache_root: Path) -> List[str]:
+    """Catalog entries that have any file in the small archive on the disk.
+
+    Building replaces the archive, so the page starts from what is already installed. An entry
+    counts if even one of its files is there: an archive made by hand or by an older version may
+    hold only part of a chip's files, and dropping the chip on the next build would break it.
+    """
+    archive = folder / CUSTOM_ARCHIVE
+    catalog = load_catalog(cache_root)
+    if not archive.exists() or not catalog:
+        return []
+    try:
+        with tarfile.open(archive) as tar:
+            names = {n.split("/files/", 1)[1] for n in tar.getnames() if "/files/" in n}
+    except (tarfile.TarError, OSError):
+        return []
+    return [i["id"] for i in catalog["items"] if names & set(i["files"])]
+
+
 def _remove_archives(folder: Path) -> List[str]:
     """KRD refuses to boot when the disk holds more than one linux-firmware archive."""
     removed = []

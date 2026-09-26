@@ -394,6 +394,17 @@ def test_only_one_firmware_archive_may_remain(cache, folder):
     assert fw.firmware_state(folder)["kind"] == "custom"
 
 
+def test_the_page_can_start_from_what_is_already_installed(cache, folder):
+    assert fw.installed_items(folder, cache) == []
+    wanted = [item_named(cache, "AX211")["id"], item_named(cache, "btusb")["id"]]
+    fw.build_custom_firmware(folder, cache, wanted)
+    assert sorted(fw.installed_items(folder, cache)) == sorted(wanted)
+    # an archive holding only part of a chip's files still counts the chip, so a rebuild keeps it
+    fw.build_custom_firmware(folder, cache, [], [{"name": "iwlwifi-so-a0-gf-a0-72.ucode"}])
+    assert item_named(cache, "AX211")["id"] in fw.installed_items(folder, cache)
+    assert item_named(cache, "btusb")["id"] not in fw.installed_items(folder, cache)
+
+
 def test_full_set_comes_from_the_cache_without_downloading_again(cache, folder, monkeypatch):
     monkeypatch.setattr(fw.requests, "get", lambda *a, **k: pytest.fail("must not download"))
     (folder / "linux-firmware-custom.tar.gz").write_bytes(b"small")
@@ -478,6 +489,18 @@ def test_api_build_from_entries_and_remove(api):
     assert client.delete("/api/kaspersky/kaspersky-24/firmware").json()["removed"] == [
         "linux-firmware-custom.tar.gz"
     ]
+
+
+def test_api_folder_overview_lists_what_is_installed(api):
+    ids = [
+        i["id"]
+        for i in client.get("/api/kaspersky/firmware-source").json()["catalog"]
+        if i["name"] == "btusb"
+    ]
+    client.post("/api/kaspersky/kaspersky-24/firmware/custom", json={"items": ids})
+    wait_for("kaspersky-24")
+    got = client.get("/api/kaspersky/kaspersky-24/firmware").json()
+    assert got["kind"] == "custom" and got["installed_items"] == ids
 
 
 def test_api_build_reports_a_bad_choice(api):

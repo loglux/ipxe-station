@@ -153,6 +153,26 @@ describe('KasperskySection', () => {
       expect(screen.getByText(/linux-firmware-custom.tar.gz \(3.3 MB\)/)).toBeInTheDocument()
     })
 
+    it('starts from the devices already in the installed archive, so building does not drop them', async () => {
+      const calls = mockApi({
+        'GET /api/kaspersky/kaspersky-24/firmware': {
+          archives: [{ name: 'linux-firmware-custom.tar.gz', size: 3_300_000 }],
+          kind: 'custom',
+          tag: '20230210',
+          min_ram_gb: 3.1,
+          installed_items: ['ax211', 'ibt'],
+        },
+      })
+      render(<KasperskySection />)
+      expect(await screen.findByLabelText(/Wi-Fi 6E AX211/)).toBeChecked()
+      expect(screen.getByLabelText(/Intel Bluetooth/)).toBeChecked()
+      fireEvent.click(screen.getByLabelText(/amdgpu — navi10/))
+      fireEvent.click(screen.getByRole('button', { name: /Build archive/ }))
+      await waitFor(() => expect(posted(calls, 'POST /api/kaspersky/kaspersky-24/firmware/custom')).toBeTruthy())
+      const body = JSON.parse(posted(calls, 'POST /api/kaspersky/kaspersky-24/firmware/custom').body)
+      expect(body.items.sort()).toEqual(['amdgpu-navi', 'ax211', 'ibt'])
+    })
+
     it('lists every device by category with its size, ready to tick', async () => {
       mockApi()
       await openSelected()
