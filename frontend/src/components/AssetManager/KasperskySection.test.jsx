@@ -257,6 +257,30 @@ describe('KasperskySection', () => {
       expect(screen.getByLabelText(/Selected devices/)).toBeChecked()
     })
 
+    it('says which reported files an archive cannot fix, and recommends nothing for them', async () => {
+      mockApi({
+        'GET /api/kaspersky/firmware-reports': {
+          reports: [
+            {
+              at: '2026-09-26 21:33:16',
+              client: '192.168.10.35',
+              mac: 'aa:bb',
+              device: 'Dell Inc. Latitude 5530',
+              missing: [
+                { name: 'i915/adlp_dmc_ver2_16.bin', alternatives: [], companions: [], note: 'The video driver starts inside the boot image, before the archive is unpacked. Harmless.' },
+              ],
+              items: [],
+            },
+          ],
+          recommended: [],
+        },
+      })
+      render(<KasperskySection />)
+      expect(await screen.findByText('i915/adlp_dmc_ver2_16.bin')).toBeInTheDocument()
+      expect(screen.getByText(/cannot be added this way/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Select what they need \(0\)/ })).toBeDisabled()
+    })
+
     it('offers to download the release first when the list is not there yet', async () => {
       const calls = mockApi({
         'GET /api/kaspersky/firmware-source': { ...SOURCE, downloaded: false, size: 0, items: 0, catalog: [] },
@@ -343,4 +367,3 @@ describe('KasperskySection', () => {
     })
   })
 })
-

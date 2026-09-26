@@ -178,6 +178,19 @@ def test_parse_folds_wifi_versions_into_one_entry():
     assert found["intel/ibt-0040-0041.sfi"]["companions"] == ["intel/ibt-0040-0041.ddc"]
 
 
+def test_files_the_archive_cannot_help_with_are_flagged_and_never_recommended(cache):
+    text = (
+        "i915 0000:00:02.0: firmware: failed to load i915/adlp_dmc_ver2_16.bin (-2)\n"
+        "iwlwifi 0000:00:14.3: firmware: failed to load iwl-debug-yoyo.bin (-2)\n"
+        "iwlwifi 0000:00:14.3: firmware: failed to load iwlwifi-so-a0-gf-a0-72.ucode (-2)\n"
+    )
+    found = {m["name"]: m for m in fw.parse_missing_firmware(text)}
+    assert "before the archive is unpacked" in found["i915/adlp_dmc_ver2_16.bin"]["note"]
+    assert "debug" in found["iwl-debug-yoyo.bin"]["note"]
+    assert found["iwlwifi-so-a0-gf-a0-72.ucode"]["note"] == ""
+    assert fw.items_covering(cache, ["i915/adlp_dmc_ver2_16.bin", "iwl-debug-yoyo.bin"]) == []
+
+
 def test_parse_ignores_successful_loads_and_junk():
     assert fw.parse_missing_firmware("firmware: direct-loading firmware regulatory.db") == []
     assert fw.parse_missing_firmware("") == []
@@ -529,6 +542,17 @@ def test_a_machine_report_becomes_a_recommendation(api):
     got = client.get("/api/kaspersky/firmware-reports").json()
     assert got["reports"][0]["device"] == "Dell Inc. Latitude 5530"
     assert len(got["reports"][0]["items"]) == 2 and len(got["recommended"]) == 2
+
+
+def test_a_report_of_only_unfixable_files_recommends_nothing_and_says_why(api):
+    text = (
+        "firmware: failed to load i915/adlp_dmc_ver2_16.bin (-2)\n"
+        "firmware: failed to load iwl-debug-yoyo.bin (-2)"
+    )
+    client.post("/ipxe/krd-report", params={"mac": "aa:bb:cc:dd:ee:01"}, content=text.encode())
+    got = client.get("/api/kaspersky/firmware-reports").json()
+    assert got["recommended"] == []
+    assert all(m["note"] for m in got["reports"][0]["missing"])
 
 
 def test_each_machine_appears_once_and_a_clean_report_is_kept(api):

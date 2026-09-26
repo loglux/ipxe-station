@@ -65,6 +65,26 @@ _LOAD_FAILED = re.compile(
 _NUMBERED = re.compile(r"^(?P<stem>.+)-(?P<num>\d+)\.(?P<ext>ucode|fw|bin)$")
 
 
+# Files the archive cannot help with. The video driver is in the boot image and starts before the
+# archive is unpacked, so it never sees firmware added this way (checked: i915.ko is in KRD 24's
+# initrd, iwlwifi and btusb are not).
+_NOT_ADDABLE = (
+    (
+        "i915/",
+        "The video driver starts inside the boot image, before the archive is unpacked. Harmless.",
+    ),
+    ("iwl-debug", "A debug file. Kaspersky ignores it."),
+)
+
+
+def firmware_note(name: str) -> str:
+    """Why adding this file to the archive would not help, or an empty string when it would."""
+    for prefix, note in _NOT_ADDABLE:
+        if name.startswith(prefix):
+            return note
+    return ""
+
+
 def valid_firmware_name(name: str) -> bool:
     return bool(_FIRMWARE_NAME.match(name or "")) and ".." not in name.split("/")
 
@@ -111,6 +131,7 @@ def parse_missing_firmware(text: str) -> List[dict]:
     found.extend({"name": n, "alternatives": []} for n in plain)
     for item in found:
         item["companions"] = _companions(item["name"])
+        item["note"] = firmware_note(item["name"])
     return found
 
 
@@ -454,7 +475,7 @@ def catalog_summary(cache_root: Path) -> List[dict]:
 def items_covering(cache_root: Path, names: Iterable[str]) -> List[str]:
     """Catalog entries that hold any of these firmware files."""
     catalog = load_catalog(cache_root)
-    wanted = set(names)
+    wanted = {n for n in names if not firmware_note(n)}
     if not catalog or not wanted:
         return []
     return [i["id"] for i in catalog["items"] if wanted & set(i["files"])]

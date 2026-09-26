@@ -357,8 +357,18 @@ function FirmwareCard({ folder, onChanged }) {
                 {r.device || r.client}{' '}
                 <span className="text-muted">
                   ({r.at}):{' '}
-                  {r.missing.length ? r.missing.map((m) => m.name).join(', ') : 'nothing missing'}
+                  {r.missing.length === 0 && 'nothing missing'}
                 </span>
+                {r.missing.length > 0 && (
+                  <ul className="krd-missing-list">
+                    {r.missing.map((m) => (
+                      <li key={m.name}>
+                        <code>{m.name}</code>
+                        {m.note && <span className="text-muted"> — cannot be added this way. {m.note}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

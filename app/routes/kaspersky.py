@@ -174,6 +174,8 @@ def firmware_reports():
     reports = _reports()
     recommended: list = []
     for report in reports:
+        for missing in report.get("missing", []):
+            missing["note"] = fw.firmware_note(missing["name"])  # also for older stored reports
         report["items"] = fw.items_covering(_cache_root(), _names_of(report.get("missing", [])))
         recommended.extend(i for i in report["items"] if i not in recommended)
     return {"reports": list(reversed(reports)), "recommended": recommended}

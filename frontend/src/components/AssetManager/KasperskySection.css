@@ -101,3 +101,7 @@
 .krd-catalog details > label {
   margin-left: 14px;
 }
+
+.krd-missing-list {
+  margin: 2px 0 6px;
+}
