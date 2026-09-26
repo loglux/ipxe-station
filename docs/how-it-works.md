@@ -183,5 +183,6 @@ Designed for a trusted LAN. By default there is no authentication. Set `SECURITY
 must fetch them without credentials). Two more endpoints are open for the same reason, because a booting
 Kaspersky Rescue Disk cannot present a token: `GET /ipxe/krd-display.sh` (a small script made for the machine
 that asks) and `POST /ipxe/krd-report` (missing-firmware lines from the machine; size-limited, one entry per
-machine, see [Kaspersky Rescue Disk](kaspersky.md#the-boot-script)). Asset downloads reject loopback, private and other non-public
+machine, see [Kaspersky Rescue Disk](kaspersky.md#the-boot-script)). Two more serve [boot reports](boot-reports.md): `GET /ipxe/live-report.sh` and
+`POST /ipxe/boot-report` (size-limited, cleaned, one report per machine and system). Asset downloads reject loopback, private and other non-public
 targets (SSRF guard), and the `wimboot` binary is pinned and hash-checked at build time.

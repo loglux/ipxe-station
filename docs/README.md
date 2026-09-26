@@ -6,6 +6,7 @@
 | [Boot methods](boot-methods.md) | BIOS PXE, UEFI PXE, UEFI HTTP Boot, Secure Boot, and the Linux/Windows boot modes: what each needs and what is verified |
 | [Typical scenarios](scenarios.md) | Ready-made setups: rescue toolkit, live Linux, unattended Debian, your own WinPE automation, Kaspersky upkeep |
 | [Kaspersky Rescue Disk](kaspersky.md) | Booting it, keeping its databases current, giving it firmware, making its screen readable; the boot script behind it |
+| [Boot reports](boot-reports.md) | What a live system (Debian Live, for now) tells the server about the machine after it starts: devices without a driver, battery, errors |
 | [Troubleshooting](troubleshooting.md) | The client does not boot, falls back to another device, or WinPE cannot see the disk |
 | [Boot variations catalog](boot-variations-catalog.md) | Research notes: the boot patterns the design has to cover |
 | [`examples/winpe-provision`](../examples/winpe-provision/README.md) | Scripts and guide for running your own automation in a network-booted WinPE |

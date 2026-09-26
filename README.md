@@ -45,6 +45,9 @@
   SHA-512, the old ones kept for rollback), and a small firmware archive gives the disk Wi-Fi and Bluetooth
   drivers for the machines you name, and the text size of its desktop is set from the server (automatic from the
   panel size, or per model); [details](docs/kaspersky.md)
+- **Boot reports** — a live system (Debian Live for now) can tell the server how the machine went: devices
+  without a driver, battery health, kernel errors, missing firmware; shown on the Devices tab, no terminal on the
+  machine ([details](docs/boot-reports.md))
 - **Upload & catalog scan** — upload any file, scan local assets
 
 ### 🌐 DHCP Configuration

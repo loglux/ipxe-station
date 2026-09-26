@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import './Devices.css'
 import { DAY_S, bootMode, deviceName, deviceSub, formatAge } from './deviceFormat'
+import { BootReports, BootReportSettings } from './BootReports'
 
 const POLL_MS = 5000
 const ONLINE_WINDOW_S = 300
@@ -45,7 +46,7 @@ function scenarioSummary(device) {
     .join(', ')
 }
 
-function DeviceDetails({ device }) {
+function DeviceDetails({ device, onChanged }) {
   const rows = [
     ['Brand', device.manufacturer],
     ['Model', device.product],
@@ -68,14 +69,17 @@ function DeviceDetails({ device }) {
     ['Network boots', device.boots],
   ]
   return (
-    <dl className="device-details">
-      {rows.map(([label, value]) => (
-        <div key={label} className="device-detail">
-          <dt>{label}</dt>
-          <dd>{value === undefined || value === null || value === '' ? '—' : String(value)}</dd>
-        </div>
-      ))}
-    </dl>
+    <>
+      <dl className="device-details">
+        {rows.map(([label, value]) => (
+          <div key={label} className="device-detail">
+            <dt>{label}</dt>
+            <dd>{value === undefined || value === null || value === '' ? '—' : String(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <BootReports reports={device.boot_reports} onChanged={onChanged} />
+    </>
   )
 }
 
@@ -146,6 +150,8 @@ export default function Devices() {
           🔄 Refresh
         </button>
       </div>
+
+      <BootReportSettings />
 
       <div className="devices-summary">
         <div className="devices-tile"><strong>{summary.total}</strong><span>Devices</span></div>
@@ -220,6 +226,7 @@ export default function Devices() {
                     isOnline={isOnline}
                     age={age}
                     onToggle={() => setExpandedId(isOpen ? null : id)}
+                    onChanged={loadDevices}
                   />
                 )
               })}
@@ -236,7 +243,7 @@ export default function Devices() {
   )
 }
 
-function DeviceRow({ device, isOpen, isOnline, age, onToggle }) {
+function DeviceRow({ device, isOpen, isOnline, age, onToggle, onChanged }) {
   return (
     <>
       <tr className={`device-row ${isOpen ? 'open' : ''}`}>
@@ -256,6 +263,9 @@ function DeviceRow({ device, isOpen, isOnline, age, onToggle }) {
             {deviceName(device)}
           </button>
           {deviceSub(device) && <div className="device-sub">{deviceSub(device)}</div>}
+          {device.boot_reports?.length > 0 && (
+            <div className="device-sub">📋 {device.boot_reports.length} boot report{device.boot_reports.length > 1 ? 's' : ''}</div>
+          )}
         </td>
         <td className="mono">{device.serial || '—'}</td>
         <td>
@@ -275,7 +285,7 @@ function DeviceRow({ device, isOpen, isOnline, age, onToggle }) {
       {isOpen && (
         <tr className="device-details-row">
           <td colSpan={7}>
-            <DeviceDetails device={device} />
+            <DeviceDetails device={device} onChanged={onChanged} />
           </td>
         </tr>
       )}

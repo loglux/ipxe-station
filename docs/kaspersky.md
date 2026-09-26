@@ -146,6 +146,8 @@ booting disk cannot present a token; see the [security model](how-it-works.md#se
 the model, firmware file names and those screen lines only, is size-limited, cleaned of anything but plain text,
 and keeps one entry per machine.
 
+Other live systems (Debian Live) use the more general [boot reports](boot-reports.md).
+
 ## Where things are
 
 | What | Where |

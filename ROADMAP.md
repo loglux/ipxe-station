@@ -37,6 +37,12 @@
   fixed 150% and the native resolution (text is larger). "Automatic" was confirmed on the same laptop: the machine reported that it read the
   panel's size from its EDID (1920x1080, 344 mm wide) and chose 150%, the same as the fixed setting, and the text
   is larger than before. Not yet tried: rules per model.
+- **Boot reports from live systems** — the report-and-recommend idea of the Kaspersky work, generalised: a
+  `live-config` system (Debian Live) can be asked, per menu entry, to send a summary after it starts (memory, disks,
+  PCI/USB with drivers, battery health, kernel errors, missing firmware, failed services), kept per machine and
+  system on the Devices tab. Server side and script are tested and were run against the server; **not yet booted
+  on a real Debian Live**. Ubuntu (`casper`, no `live-config`) needs another way to run a script; SystemRescue
+  (`ar_source`) and WinPE (`start.ps1`) are candidates.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

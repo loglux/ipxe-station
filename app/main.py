@@ -7,9 +7,10 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.backend import krd_display, krd_schedule
+from app.backend import boot_report, krd_display, krd_schedule
 from app.routes.assets import assets_router
 from app.routes.boot import boot_router
+from app.routes.boot_reports import boot_reports_router, reports_file
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import build_personal_menu_script, ipxe_router
@@ -166,6 +167,41 @@ async def krd_display_hook(request: Request):
     )
 
 
+@app.get(boot_report.HOOK_PATH)
+async def live_report_hook(request: Request):
+    """The boot-report script for a live system that is starting; open like boot.ipxe."""
+    fields = {
+        name: request.query_params.get(name, "")[:200] for name in boot_report.HOOK_QUERY_FIELDS
+    }
+    device = _normalise_inventory(fields)
+    url = boot_report.report_url_for(request.headers.get("host", ""), device)
+    return Response(
+        boot_report.render_hook(url),
+        media_type="text/x-shellscript",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.post(boot_report.REPORT_PATH)
+async def live_boot_report(request: Request):
+    """What a live system reports about itself once it is up; open, size-limited, cleaned."""
+    body = await request.body()
+    if len(body) > boot_report.MAX_BODY_BYTES:
+        return Response("Report too large", status_code=413)
+    fields = {
+        name: request.query_params.get(name, "")[:200] for name in boot_report.HOOK_QUERY_FIELDS
+    }
+    client = request.client.host if request.client else ""
+    entry = boot_report.record(
+        reports_file(), client, _normalise_inventory(fields), body.decode("utf-8", "replace")
+    )
+    who = entry["device"] or client
+    add_log(
+        "system", "info", f"Boot report from {who}: {entry['summary']['os'] or 'a live system'}"
+    )
+    return Response(status_code=204)
+
+
 @app.post(krd_display.REPORT_PATH)
 async def krd_report(request: Request):
     """Missing-firmware lines a booting Kaspersky Rescue Disk sends; open like the script itself."""
@@ -280,6 +316,7 @@ _api_routers = (
     settings_router,
     scenarios_router,
     kaspersky_router,
+    boot_reports_router,
 )
 for _router in _api_routers:
     app.include_router(_router, dependencies=[Depends(api_boundary_context)])

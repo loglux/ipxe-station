@@ -267,10 +267,17 @@ async def get_metrics():
 @monitoring_router.get("/clients")
 async def get_clients():
     """Machines that reported themselves at boot: brand, model, serial, BIOS, MAC, NIC."""
+    from app.backend import boot_report
+
+    from .boot_reports import reports_file
     from .ipxe import scenarios_matching
 
     clients = list_client_inventory()
+    reports = boot_report.summaries(reports_file())
     for client in clients:
+        client["boot_reports"] = [
+            r for r in reports if r.get("mac") and r["mac"] == client.get("mac")
+        ]
         client["scenarios"] = [
             {"id": s.id, "title": s.title, "mode": s.mode} for s in scenarios_matching(client)
         ]

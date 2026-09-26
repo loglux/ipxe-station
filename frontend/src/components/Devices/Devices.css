@@ -251,3 +251,96 @@
     display: none;
   }
 }
+
+.boot-reports {
+  margin-top: 14px;
+}
+
+.boot-reports h4 {
+  margin: 0 0 8px;
+}
+
+.boot-report {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.boot-report-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.boot-report-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.boot-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(127, 127, 127, 0.16);
+}
+
+.boot-chip.bad {
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+}
+
+.boot-report-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.boot-report-details {
+  margin-top: 10px;
+}
+
+.boot-report-note {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.boot-report-section {
+  margin: 4px 0;
+}
+
+.boot-report-section summary {
+  cursor: pointer;
+}
+
+.boot-report-section pre {
+  max-height: 260px;
+  margin: 6px 0;
+  padding: 8px;
+  overflow: auto;
+  font-size: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.boot-report-settings {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.boot-report-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.boot-report-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
