@@ -1,7 +1,9 @@
 """Kaspersky Rescue Disk maintenance: fresh antivirus databases and the firmware the disk lacks."""
 
 import json
+import re
 import time
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -10,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.backend import krd_display as display
 from app.backend import krd_firmware as fw
 from app.backend import krd_maintenance as krd
+from app.backend import krd_schedule
 from app.backend.device_scenarios import MATCH_FIELDS
 
 from . import ipxe as ipxe_routes
@@ -90,6 +93,73 @@ def job(name: str, kind: str):
     return krd.job_status(_job_key(name, kind))
 
 
+# --- scheduled check of the databases --------------------------------------
+
+
+def _schedule_file():
+    return state.IPXE_ROOT / "krd-bases-schedule.json"
+
+
+def _log(message: str) -> None:
+    add_log("system", "info", message)
+
+
+def schedule_loop() -> None:
+    """Wake every minute and run the databases job when its time has come."""
+    while True:
+        time.sleep(60)
+        try:
+            krd_schedule.tick(
+                _schedule_file(), krd.find_krd_folders(state.HTTP_ROOT), _backup_root(), log=_log
+            )
+        except Exception as exc:  # the loop must survive a bad run
+            add_log("system", "warning", f"Scheduled Kaspersky check failed: {exc}")
+
+
+@kaspersky_router.get("/schedule")
+def get_schedule():
+    """The schedule, when it runs next, and what the last run found."""
+    saved = krd_schedule.load_state(_schedule_file())
+    schedule = saved["schedule"]
+    now = datetime.now()
+    return {
+        "schedule": schedule.model_dump(),
+        "next_run": (
+            krd_schedule.next_due(schedule, now).strftime("%Y-%m-%d %H:%M")
+            if schedule.enabled
+            else ""
+        ),
+        "last": saved["last"],
+        "server_time": now.strftime("%H:%M"),
+        "timezone": time.tzname[0],
+    }
+
+
+@kaspersky_router.put("/schedule")
+def put_schedule(payload: krd_schedule.Schedule):
+    krd_schedule.save_schedule(_schedule_file(), payload, datetime.now())
+    return get_schedule()
+
+
+@kaspersky_router.post("/schedule/run")
+def run_schedule_now():
+    """Run the job now, as the schedule would (a background job; poll /schedule/job)."""
+
+    def work(progress):
+        return krd_schedule.run_now(
+            _schedule_file(), krd.find_krd_folders(state.HTTP_ROOT), _backup_root(), log=_log
+        )
+
+    if not krd.start_job("schedule:run", work):
+        raise HTTPException(status_code=409, detail="A check is already running")
+    return {"started": True}
+
+
+@kaspersky_router.get("/schedule/job")
+def schedule_job():
+    return krd.job_status("schedule:run")
+
+
 # --- firmware -------------------------------------------------------------
 
 
@@ -139,6 +209,19 @@ def _reports() -> list:
     return data if isinstance(data, list) else []
 
 
+_DISPLAY_PREFIX = "ipxe-station-display: "
+_UNSAFE = re.compile(r"[^A-Za-z0-9 .,:;()%/=_+\-]")
+
+
+def _display_lines(text: str) -> list:
+    """What the boot script logged about the screen (a few short lines, cleaned)."""
+    lines = []
+    for raw in (text or "").splitlines():
+        if raw.startswith(_DISPLAY_PREFIX):
+            lines.append(_UNSAFE.sub("?", raw[len(_DISPLAY_PREFIX) :])[:200].strip())
+    return lines[:10]
+
+
 def record_firmware_report(client: str, device: dict, text: str) -> list:
     """Remember which firmware a machine could not find. One entry per machine, newest wins."""
     missing = fw.parse_missing_firmware(text)
@@ -149,6 +232,7 @@ def record_firmware_report(client: str, device: dict, text: str) -> list:
         "mac": device.get("mac", ""),
         "device": " ".join(p for p in (device.get("manufacturer"), device.get("product")) if p),
         "missing": missing,
+        "display": _display_lines(text),
     }
     reports = [r for r in _reports() if (r.get("mac") or r.get("client")) != who]
     reports.append(entry)

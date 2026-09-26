@@ -13,6 +13,8 @@ from typing import Dict, List
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.backend import krd_schedule
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -476,6 +478,8 @@ def _record_http_boot_flow(request: Request, path: str, status_code: int):
         stage = "boot_script"
     elif normalized.endswith(("/vmlinuz", "/linux", "/k-x86_64", "/k-x86")):
         stage = "kernel"
+        if "kaspersky" in normalized and status_code < 400:
+            krd_schedule.note_boot()  # a database update must not swap the file under it
     elif "initrd" in normalized or "sysresccd.img" in normalized:
         stage = "initrd"
 

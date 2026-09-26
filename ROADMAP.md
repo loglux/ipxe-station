@@ -30,11 +30,14 @@
   archive (Dell Latitude 5530: no more "hardware does not work correctly" warning). The firmware is now chosen from
   a catalog built from the official release's `WHENCE` (594 devices; big drivers such as iwlwifi split by chip),
   as none, selected devices or everything; machines can report missing firmware on their own through the boot
-  script, which the page turns into recommendations. Planned: a scheduled daily check, and telling a running machine's NFS session from an
-  idle one before replacing the file.
+  script, which the page turns into recommendations. The databases can be checked (or updated) on a schedule set from the admin page; the update waits if a machine
+  started Kaspersky recently. Planned: telling a running machine's NFS session from an idle one exactly, instead
+  of going by when a machine last asked for the kernel.
   Screen text size and video mode are settable from the server; confirmed on the Dell Latitude 5530 with a
-  fixed 150% and the native resolution (text is larger). Not yet tried: "Automatic" (from the panel's EDID),
-  rules per model, and whether the Kaspersky window itself follows.
+  fixed 150% and the native resolution (text is larger). "Automatic" (from the panel's EDID) looks the same as a
+  fixed 150% there, which is what a 15.6 inch Full HD panel should get; the machine now reports what it decided
+  and from what (panel EDID or a guess), shown on the page. Not yet tried: rules per model, and whether the
+  Kaspersky window itself follows.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

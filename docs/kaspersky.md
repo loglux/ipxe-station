@@ -8,9 +8,9 @@ nothing is configured by hand on the client.
 | Part | What it does | Checked on hardware (Dell Latitude 5530) |
 |------|--------------|------------------------------------------|
 | [Boot over NFS](#booting-it) | Starts the disk from the server, no USB stick | Yes |
-| [Antivirus databases](#antivirus-databases) | Replaces the databases with Kaspersky's current ones | The replacement: yes ("Databases are up to date"). The **Update databases** button itself: not run for real, the disk was already current |
+| [Antivirus databases](#antivirus-databases) | Replaces the databases with Kaspersky's current ones | The replacement: yes ("Databases are up to date"). The **Update databases** button and the automatic check: not run for real on a disk that is behind, since the disk was already current |
 | [Firmware](#firmware) | Gives the disk Wi-Fi, Bluetooth and other drivers' firmware: none, selected devices, or everything | Selected devices: yes (warning gone); reports from the machine: yes |
-| [Screen](#screen-text-size-and-resolution) | Text size and video mode, decided on the server | Fixed 150% and native resolution: yes. Automatic and per-model rules: not yet |
+| [Screen](#screen-text-size-and-resolution) | Text size and video mode, decided on the server | Fixed 150% and native resolution: yes. Automatic: looks the same as 150% on this laptop, as expected for a 15.6 inch Full HD panel. Per-model rules: not yet |
 
 [![Kaspersky Rescue Disk upkeep: database update, and firmware chosen from a device catalog with what machines reported (sample data)](screenshots/kaspersky-upkeep.png)](screenshots/kaspersky-upkeep.png)
 
@@ -43,6 +43,21 @@ squashfs module, `live/KRD/30-bases.srm`, and so does this page:
 Do it while no machine is running Kaspersky from the network: a running system reads that file. The page asks
 first.
 
+### Automatic check
+
+The **Automatic check of the antivirus databases** card runs the check on a schedule: every day or every week
+at a time you set (on the server's clock, which the card shows together with its time zone; a container runs on
+UTC unless you set `TZ`). Two actions:
+
+- **Only check**: records whether newer databases are published and shows it on the card. Nothing changes.
+- **Check and update**: installs them as the button does. Because a running system reads the file that is
+  replaced, the update **waits** if a machine asked for Kaspersky's kernel (or its boot script) within the last
+  *N* hours (default 4; 0 turns the wait off). A postponed update is tried again at the next scheduled time.
+
+Turning the schedule on, or changing it, counts from that moment, so saving at 15:00 a run set for 03:00 waits for
+tomorrow. A run missed because the server was down is made up once when it is back. **Run now** does the same job
+at once. The result of the last run is kept, one line per disk, and every run is written to the system log.
+
 **Roll back:** copy the three files from a backup folder over `live/KRD/30-bases.srm`,
 `krd_bases_timestamp.txt` and `sha256sum.txt` of the disk, again while nothing is running from it.
 
@@ -74,7 +89,8 @@ Why release 20230210: KRD 24's kernel (6.1) asks for Wi-Fi firmware API 72, and 
 
 With the [boot script](#the-boot-script) on, each machine tells the server, about a minute after it starts, which
 firmware the kernel could not find. **Machines reported missing firmware** lists them, and **Select what they
-need** ticks the matching devices. Only the lines about missing firmware are sent, and only to this server. You can
+need** ticks the matching devices. What is sent is the `dmesg` lines about missing firmware and the few lines the boot script logged about the
+screen (see below), only to this server. You can
 also paste a machine's `dmesg` output (*Something else?*), or send it by hand:
 
 ```
@@ -120,11 +136,15 @@ live-config downloads it early in boot, as root, before the desktop starts. The 
 1. **Screen**: writes a gsettings override for Cinnamon's `text-scaling-factor` and an `Xft.dpi` resource (Qt
    programs read that one). It logs what it decided to `/var/log/ipxe-station-display.log` on the machine.
 2. **Report** (if enabled on the **Screen** card): installs a small autostart entry that, 40 seconds after the
-   desktop starts, sends the missing-firmware lines of `dmesg` to `/ipxe/krd-report`.
+   desktop starts, sends two things to `/ipxe/krd-report`: the missing-firmware lines of `dmesg`, and the lines the
+   script logged about the screen (what text size it was asked for, the panel it found and how, whether the kernel
+   video driver is on, the size it set). The page shows these under each machine, so you can see what *Automatic*
+   decided and from what.
 
 It never fails the boot: on any problem it does nothing. Both endpoints are **open** like `boot.ipxe`, because the
 booting disk cannot present a token; see the [security model](how-it-works.md#security-model). The report holds
-model-identifying data and file names only, is size-limited, and keeps one entry per machine.
+the model, firmware file names and those screen lines only, is size-limited, cleaned of anything but plain text,
+and keeps one entry per machine.
 
 ## Where things are
 
@@ -135,6 +155,7 @@ model-identifying data and file names only, is size-limited, and keeps one entry
 | Downloaded firmware release and catalog | `data/srv/_src/linux-firmware/` (never served) |
 | Database backups | `data/srv/_src/krd-backups/` (never served) |
 | Screen settings | `data/srv/ipxe/krd-display.json` |
+| Automatic check: schedule and last result | `data/srv/ipxe/krd-bases-schedule.json` |
 | Reports from machines | `data/srv/ipxe/krd-firmware-reports.json` (the last 20, one per machine) |
 
 `data/srv/_src` must be mounted into the container (it is in `docker-compose.yml`); without it the backups and
@@ -156,12 +177,12 @@ All under `/api/kaspersky` unless noted, behind the usual token check.
 | `POST /{disk}/firmware/scan` (`text`) | Missing files (and the entries that cover them) from `dmesg` text |
 | `POST /{disk}/firmware/report` | Receive `dmesg` sent by hand |
 | `GET/DELETE /firmware-reports` | What machines reported, with recommendations |
+| `GET/PUT /schedule`, `POST /schedule/run`, `GET /schedule/job` | The automatic check of the databases |
 | `GET/PUT /display`, `GET /display/preview`, `POST /display/menu` | Screen settings, the value a machine would get, and the menu switches |
 | `GET /ipxe/krd-display.sh`, `POST /ipxe/krd-report` (**open**, not under `/api`) | Used by the booting disk |
 
 ## Not done yet
 
-- A scheduled check for new databases.
 - Telling a running machine's NFS session from an idle one before replacing the databases.
-- Trying *Automatic* text size and per-model rules on hardware, and checking that Kaspersky's own window follows.
+- Trying per-model rules on hardware, and checking that Kaspersky's own window follows.
 - The same report-and-recommend idea for other systems ([ROADMAP](../ROADMAP.md)).

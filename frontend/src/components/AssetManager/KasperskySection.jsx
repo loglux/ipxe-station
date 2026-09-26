@@ -359,6 +359,11 @@ function FirmwareCard({ folder, onChanged }) {
                   ({r.at}):{' '}
                   {r.missing.length === 0 && 'nothing missing'}
                 </span>
+                {r.display && r.display.length > 0 && (
+                  <div className="tool-note krd-screen-lines">
+                    <strong>Screen:</strong> {r.display.join(' · ')}
+                  </div>
+                )}
                 {r.missing.length > 0 && (
                   <ul className="krd-missing-list">
                     {r.missing.map((m) => (
@@ -813,6 +818,234 @@ function DisplayCard() {
   )
 }
 
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const STATE_LABELS = {
+  current: 'up to date',
+  available: 'newer databases available',
+  updated: 'updated',
+  postponed: 'waiting',
+  error: 'problem',
+}
+
+/** When to look for new antivirus databases, and whether to install them too. */
+function ScheduleCard() {
+  const [data, setData] = useState(null)
+  const [form, setForm] = useState(null)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/kaspersky/schedule')
+      .then((d) => {
+        if (cancelled) return
+        setData(d)
+        setForm(d.schedule)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const reload = useCallback(async () => {
+    try {
+      setData(await api('/api/kaspersky/schedule'))
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [])
+
+  const { job, start } = useJob('/api/kaspersky/schedule/job', reload)
+  const running = job?.state === 'running'
+
+  const save = async () => {
+    setBusy(true)
+    setError('')
+    setSaved('')
+    try {
+      const d = await api('/api/kaspersky/schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      setData(d)
+      setSaved('Saved.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!form || !data) return error ? <div className="tool-error">{error}</div> : null
+
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+  const last = data.last
+
+  return (
+    <div className="download-subsection tool-card krd-schedule">
+      <h4>🕒 Automatic check of the antivirus databases</h4>
+      <p className="tool-note">
+        Looks at what Kaspersky publishes at the time you set, and can install it. The server&apos;s clock is{' '}
+        <strong>
+          {data.server_time} ({data.timezone})
+        </strong>
+        .
+      </p>
+
+      <label className="krd-check">
+        <input
+          type="checkbox"
+          checked={form.enabled}
+          onChange={(e) => set({ enabled: e.target.checked })}
+          disabled={busy}
+        />
+        <span>Check automatically</span>
+      </label>
+
+      {form.enabled && (
+        <>
+          <div className="krd-row">
+            <label htmlFor="krd-sched-frequency">Every</label>
+            <select
+              id="krd-sched-frequency"
+              value={form.frequency}
+              onChange={(e) => set({ frequency: e.target.value })}
+              disabled={busy}
+            >
+              <option value="daily">day</option>
+              <option value="weekly">week</option>
+            </select>
+            {form.frequency === 'weekly' && (
+              <select
+                aria-label="Day of the week"
+                value={form.weekday}
+                onChange={(e) => set({ weekday: Number(e.target.value) })}
+                disabled={busy}
+              >
+                {WEEKDAYS.map((name, i) => (
+                  <option key={name} value={i}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label htmlFor="krd-sched-time">at</label>
+            <input
+              id="krd-sched-time"
+              type="time"
+              value={form.time}
+              onChange={(e) => set({ time: e.target.value })}
+              disabled={busy}
+            />
+          </div>
+
+          <div className="krd-modes" role="radiogroup" aria-label="What to do">
+            <label className="krd-check">
+              <input
+                type="radio"
+                name="krd-sched-action"
+                checked={form.action === 'check'}
+                onChange={() => set({ action: 'check' })}
+                disabled={busy}
+              />
+              <span>
+                Only check
+                <small className="text-muted"> — show here whether newer databases are published</small>
+              </span>
+            </label>
+            <label className="krd-check">
+              <input
+                type="radio"
+                name="krd-sched-action"
+                checked={form.action === 'update'}
+                onChange={() => set({ action: 'update' })}
+                disabled={busy}
+              />
+              <span>
+                Check and update
+                <small className="text-muted"> — install them, keeping the old ones for a rollback</small>
+              </span>
+            </label>
+          </div>
+
+          {form.action === 'update' && (
+            <>
+              <div className="tool-warning" role="note">
+                Replacing the databases changes a file that a machine reads while it runs Kaspersky. Choose a time when
+                nobody uses it, such as the night.
+              </div>
+              <div className="krd-row">
+                <label htmlFor="krd-sched-quiet">Wait if a machine started Kaspersky in the last</label>
+                <input
+                  id="krd-sched-quiet"
+                  type="number"
+                  min="0"
+                  max="48"
+                  value={form.quiet_hours}
+                  onChange={(e) => set({ quiet_hours: Number(e.target.value) })}
+                  disabled={busy}
+                />
+                <span>hours (0 = never wait)</span>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      <div className="download-picker-actions">
+        <button className="btn btn-primary" onClick={save} disabled={busy}>
+          Save
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => start('/api/kaspersky/schedule/run', {})}
+          disabled={busy || running}
+        >
+          {running ? '⏳ Running…' : 'Run now'}
+        </button>
+      </div>
+      {saved && (
+        <div className="download-status" role="status">
+          {saved}
+        </div>
+      )}
+      {error && (
+        <div className="tool-error" role="alert">
+          {error}
+        </div>
+      )}
+      <JobResult job={job} describe={() => 'Done. The result is below.'} />
+
+      <div className="krd-block">
+        <h5>Schedule and last check</h5>
+        <p className="tool-note">
+          {data.next_run ? `Next check: ${data.next_run}.` : 'Automatic checks are off.'}
+        </p>
+        {last ? (
+          <>
+            <p className="tool-note">Last check: {last.at}</p>
+            <ul className="krd-missing-list">
+              {last.folders.map((f) => (
+                <li key={f.name}>
+                  <code>{f.name}</code> — <strong>{STATE_LABELS[f.state] || f.state}</strong>
+                  <span className="text-muted"> — {f.message}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="tool-note">No check has run yet.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Keeps extracted Kaspersky Rescue Disks current: antivirus databases and device firmware. */
 export default function KasperskySection({ onChanged }) {
   const [folders, setFolders] = useState([])
@@ -870,6 +1103,7 @@ export default function KasperskySection({ onChanged }) {
           <FirmwareCard folder={folder} onChanged={changed} />
         </div>
       ))}
+      {folders.length > 0 && <ScheduleCard />}
       {folders.length > 0 && <DisplayCard />}
     </section>
   )

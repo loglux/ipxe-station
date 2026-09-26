@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import KasperskySection from './KasperskySection'
@@ -28,6 +28,14 @@ const SOURCE = {
   catalog: CATALOG,
   categories: { wifi: 'Wi-Fi', bluetooth: 'Bluetooth', graphics: 'Graphics', ethernet: 'Network cards', other: 'Everything else' },
   large_bytes: 250 * 1024 * 1024,
+}
+
+const SCHEDULE_OFF = {
+  schedule: { enabled: false, frequency: 'daily', time: '03:00', weekday: 0, action: 'check', quiet_hours: 4 },
+  next_run: '',
+  last: null,
+  server_time: '22:19',
+  timezone: 'UTC',
 }
 
 const DISK_NONE = { archives: [], kind: 'none', tag: '20230210', min_ram_gb: 3.1 }
@@ -66,6 +74,9 @@ function mockApi(overrides = {}) {
       match_fields: ['manufacturer', 'product'],
       menu: { entries: [{ name: 'kaspersky_1', title: 'Kaspersky 24' }], hook: false, native_video: false },
     },
+    'GET /api/kaspersky/schedule': SCHEDULE_OFF,
+    'PUT /api/kaspersky/schedule': { ...SCHEDULE_OFF, next_run: '2026-09-27 03:00' },
+    'POST /api/kaspersky/schedule/run': { started: true },
     'PUT /api/kaspersky/display': { success: true },
     'POST /api/kaspersky/display/menu': {
       menu: { entries: [{ name: 'kaspersky_1', title: 'Kaspersky 24' }], hook: true, native_video: false },
@@ -77,7 +88,11 @@ function mockApi(overrides = {}) {
     vi.fn((url, options = {}) => {
       const key = `${options.method || 'GET'} ${url}`
       calls.push({ key, body: options.body })
-      if (key in routes) return json(routes[key])
+      if (key in routes) {
+        const answer = routes[key]
+        // { __error: 'text' } stands for a refused request
+        return answer && answer.__error ? json({ detail: answer.__error }, false) : json(answer)
+      }
       return json({ detail: `unexpected ${key}` }, false)
     }),
   )
@@ -85,6 +100,7 @@ function mockApi(overrides = {}) {
 }
 
 const posted = (calls, key) => calls.find((c) => c.key === key)
+const inCard = (title) => within(screen.getByText(title).closest('.tool-card'))
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -257,6 +273,33 @@ describe('KasperskySection', () => {
       expect(screen.getByLabelText(/Selected devices/)).toBeChecked()
     })
 
+    it('shows what the machine decided about its screen, and from what', async () => {
+      mockApi({
+        'GET /api/kaspersky/firmware-reports': {
+          reports: [
+            {
+              at: '2026-09-26 21:33:16',
+              client: '10.0.0.20',
+              mac: 'aa:bb',
+              device: 'Dell Inc. Latitude 5530',
+              missing: [],
+              items: [],
+              display: [
+                'text size requested: auto',
+                'screen: card0-eDP-1 1920x1080, 344 mm wide (from EDID)',
+                'text size: 150% (text-scaling-factor 1.50, Xft.dpi 144)',
+              ],
+            },
+          ],
+          recommended: [],
+        },
+      })
+      render(<KasperskySection />)
+      expect(await screen.findByText(/from EDID/)).toBeInTheDocument()
+      expect(screen.getByText(/text size: 150%/)).toBeInTheDocument()
+      expect(screen.getByText(/nothing missing/)).toBeInTheDocument()
+    })
+
     it('says which reported files an archive cannot fix, and recommends nothing for them', async () => {
       mockApi({
         'GET /api/kaspersky/firmware-reports': {
@@ -306,6 +349,102 @@ describe('KasperskySection', () => {
     })
   })
 
+  describe('automatic check', () => {
+    const card = () => inCard(/Automatic check of the antivirus databases/)
+
+    it('starts switched off, with the server clock so the time can be read correctly', async () => {
+      mockApi()
+      render(<KasperskySection />)
+      expect(await screen.findByText(/22:19 \(UTC\)/)).toBeInTheDocument()
+      expect(card().getByLabelText('Check automatically')).not.toBeChecked()
+      expect(card().queryByLabelText('at')).not.toBeInTheDocument()
+      expect(card().getByText('Automatic checks are off.')).toBeInTheDocument()
+      expect(card().getByText('No check has run yet.')).toBeInTheDocument()
+    })
+
+    it('saves an enabled daily check', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      await screen.findByText(/22:19 \(UTC\)/)
+      fireEvent.click(card().getByLabelText('Check automatically'))
+      fireEvent.change(card().getByLabelText('at'), { target: { value: '02:30' } })
+      fireEvent.click(card().getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(posted(calls, 'PUT /api/kaspersky/schedule')).toBeTruthy())
+      expect(JSON.parse(posted(calls, 'PUT /api/kaspersky/schedule').body)).toEqual({
+        enabled: true,
+        frequency: 'daily',
+        time: '02:30',
+        weekday: 0,
+        action: 'check',
+        quiet_hours: 4,
+      })
+      expect(await screen.findByText('Saved.')).toBeInTheDocument()
+      expect(await card().findByText(/Next check: 2026-09-27 03:00/)).toBeInTheDocument()
+    })
+
+    it('asks for the day only when the check is weekly', async () => {
+      mockApi()
+      render(<KasperskySection />)
+      await screen.findByText(/22:19 \(UTC\)/)
+      fireEvent.click(card().getByLabelText('Check automatically'))
+      expect(card().queryByLabelText('Day of the week')).not.toBeInTheDocument()
+      fireEvent.change(card().getByLabelText('Every'), { target: { value: 'weekly' } })
+      fireEvent.change(card().getByLabelText('Day of the week'), { target: { value: '6' } })
+      expect(card().getByLabelText('Day of the week')).toHaveValue('6')
+    })
+
+    it('warns about updating and offers the wait only for the update action', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      await screen.findByText(/22:19 \(UTC\)/)
+      fireEvent.click(card().getByLabelText('Check automatically'))
+      expect(card().queryByText(/Choose a time when nobody uses it/)).not.toBeInTheDocument()
+      fireEvent.click(card().getByLabelText(/Check and update/))
+      expect(card().getByText(/Choose a time when nobody uses it/)).toBeInTheDocument()
+      fireEvent.change(card().getByLabelText(/Wait if a machine started Kaspersky/), { target: { value: '6' } })
+      fireEvent.click(card().getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(posted(calls, 'PUT /api/kaspersky/schedule')).toBeTruthy())
+      const body = JSON.parse(posted(calls, 'PUT /api/kaspersky/schedule').body)
+      expect(body.action).toBe('update')
+      expect(body.quiet_hours).toBe(6)
+    })
+
+    it('shows what the last check found for each disk', async () => {
+      mockApi({
+        'GET /api/kaspersky/schedule': {
+          ...SCHEDULE_OFF,
+          schedule: { ...SCHEDULE_OFF.schedule, enabled: true },
+          next_run: '2026-09-27 03:00',
+          last: {
+            at: '2026-09-26 03:00',
+            action: 'check',
+            folders: [{ name: 'kaspersky-24', state: 'available', message: 'Newer databases are published: 2026-09-26 13:28 (on the disk: 2026-03-06 12:00).' }],
+          },
+        },
+      })
+      render(<KasperskySection />)
+      expect(await screen.findByText(/Last check: 2026-09-26 03:00/)).toBeInTheDocument()
+      expect(card().getByText('newer databases available')).toBeInTheDocument()
+      expect(card().getByText(/Next check: 2026-09-27 03:00/)).toBeInTheDocument()
+    })
+
+    it('runs the check on request', async () => {
+      const calls = mockApi()
+      render(<KasperskySection />)
+      await screen.findByText(/22:19 \(UTC\)/)
+      fireEvent.click(card().getByRole('button', { name: 'Run now' }))
+      await waitFor(() => expect(posted(calls, 'POST /api/kaspersky/schedule/run')).toBeTruthy())
+    })
+
+    it('shows the reason when the schedule is refused', async () => {
+      mockApi({ 'PUT /api/kaspersky/schedule': { __error: 'time must be HH:MM, 00:00 to 23:59' } })
+      render(<KasperskySection />)
+      await screen.findByText(/22:19 \(UTC\)/)
+      fireEvent.click(card().getByRole('button', { name: 'Save' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('time must be HH:MM, 00:00 to 23:59')
+    })
+  })
+
   describe('screen settings', () => {
     it('shows the default text size and how the menu is set up', async () => {
       mockApi()
@@ -331,7 +470,7 @@ describe('KasperskySection', () => {
       fireEvent.click(screen.getByLabelText(/Machines tell the server/))
       fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
       fireEvent.change(screen.getByLabelText('Model of rule 1'), { target: { value: 'Latitude 5530' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(inCard(/Screen: text size/).getByRole('button', { name: 'Save' }))
 
       await waitFor(() => expect(posted(calls, 'PUT /api/kaspersky/display')).toBeTruthy())
       expect(JSON.parse(posted(calls, 'PUT /api/kaspersky/display').body)).toEqual({
@@ -347,7 +486,7 @@ describe('KasperskySection', () => {
       render(<KasperskySection />)
       await screen.findByLabelText('Text size')
       fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(inCard(/Screen: text size/).getByRole('button', { name: 'Save' }))
       await waitFor(() => expect(posted(calls, 'PUT /api/kaspersky/display')).toBeTruthy())
       expect(JSON.parse(posted(calls, 'PUT /api/kaspersky/display').body).rules).toEqual([])
     })

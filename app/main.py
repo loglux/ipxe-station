@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.backend import krd_display
+from app.backend import krd_display, krd_schedule
 from app.routes.assets import assets_router
 from app.routes.boot import boot_router
 from app.routes.boundary import api_boundary_context
@@ -18,6 +18,7 @@ from app.routes.kaspersky import (
     display_settings,
     kaspersky_router,
     record_firmware_report,
+    schedule_loop,
 )
 from app.routes.monitoring import monitoring_router, syslog_monitor_thread
 from app.routes.proxy_dhcp import proxy_dhcp_router
@@ -147,6 +148,7 @@ async def krd_display_hook(request: Request):
         name: request.query_params.get(name, "")[:200] for name in krd_display.HOOK_QUERY_FIELDS
     }
     device = _normalise_inventory(fields)
+    krd_schedule.note_boot()
     scale, source = krd_display.resolve_scale(display_settings(), device)
     add_log(
         "system",
@@ -335,6 +337,7 @@ def _proxy_dhcp_watchdog():
 
 
 threading.Thread(target=_proxy_dhcp_watchdog, daemon=True, name="proxy-dhcp-watchdog").start()
+threading.Thread(target=schedule_loop, daemon=True, name="krd-schedule").start()
 
 
 # ---------------------------------------------------------------------------

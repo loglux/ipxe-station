@@ -49,7 +49,7 @@ class Machine:
         (self.sys / "class" / "dmi" / "id").mkdir(parents=True)
         (self.sys / "class" / "dmi" / "id" / "chassis_type").write_text(chassis + "\n")
 
-    def run(self, scale):
+    def run(self, scale, extra_env=None):
         (self.root / "usr/share/glib-2.0/schemas").mkdir(parents=True, exist_ok=True)
         script = self.root / "hook.sh"
         script.write_text(kd.render_hook(scale))
@@ -57,6 +57,7 @@ class Machine:
             "PATH": "/usr/bin:/bin",
             "IPXE_STATION_SYS": str(self.sys),
             "IPXE_STATION_ROOT": str(self.root),
+            **(extra_env or {}),
         }
         done = subprocess.run([SH, str(script)], env=env, capture_output=True, text=True)
         assert done.returncode == 0, done.stderr
@@ -337,3 +338,16 @@ def test_a_menu_that_does_not_validate_is_not_reported_as_saved(api, menu, monke
     monkeypatch.setattr(ipxe_routes, "save_menu", lambda m: {"valid": False, "message": "bad"})
     resp = client.post("/api/kaspersky/display/menu", json={"hook": True})
     assert resp.status_code == 422 and "bad" in resp.json()["detail"]
+
+
+def test_the_script_logs_what_it_was_asked_and_what_the_video_mode_is(machine):
+    (machine.root / "proc").mkdir()
+    (machine.root / "proc" / "cmdline").write_text("boot=live nomodeset BOOTIF=01-x\n")
+    machine.panel("1920x1080", 344)
+    env = {"IPXE_STATION_PROC": str(machine.root / "proc")}
+    machine.run("auto", extra_env=env)
+    assert "text size requested: auto" in machine.log
+    assert "video: safe mode (nomodeset)" in machine.log
+    (machine.root / "proc" / "cmdline").write_text("boot=live BOOTIF=01-x\n")
+    machine.run("auto", extra_env=env)
+    assert "video: the kernel video driver is on" in machine.log

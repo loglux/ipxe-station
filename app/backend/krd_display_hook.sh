@@ -9,6 +9,7 @@ SCALE="__SCALE__"
 REPORT_URL="__REPORT_URL__"   # where to tell the server about missing firmware; empty = do not
 
 SYS="${IPXE_STATION_SYS:-/sys}"
+PROC="${IPXE_STATION_PROC:-/proc}"
 ROOT="${IPXE_STATION_ROOT:-}"
 LOG="${ROOT}/var/log/ipxe-station-display.log"
 
@@ -75,7 +76,8 @@ guess_scale() {
 }
 
 # After the desktop is up, send the server the lines where the kernel could not find firmware, so it
-# can recommend what to add to the disk. Only those lines are sent.
+# can recommend what to add to the disk, and what this script decided about the screen. Only those
+# lines are sent.
 setup_report() {
     [ -n "$REPORT_URL" ] || return 0
     bin="${ROOT}/usr/local/bin/ipxe-station-report"
@@ -84,7 +86,10 @@ setup_report() {
 #!/bin/sh
 sleep "\${IPXE_STATION_REPORT_DELAY:-40}"
 out=/tmp/ipxe-station-firmware.txt
-{ dmesg 2>/dev/null || sudo -n dmesg 2>/dev/null; } | grep -iE 'firmware: failed to load|Direct firmware load for|Failed to load (Intel )?firmware' > "\$out"
+{
+    { dmesg 2>/dev/null || sudo -n dmesg 2>/dev/null; } | grep -iE 'firmware: failed to load|Direct firmware load for|Failed to load (Intel )?firmware'
+    sed 's/^/ipxe-station-display: /' "$LOG" 2>/dev/null
+} > "\$out"
 wget -q -O /dev/null --post-file="\$out" '$REPORT_URL'
 EOS
     chmod 755 "$bin"
@@ -98,6 +103,13 @@ EOD
     log "report: will send missing-firmware lines to the server"
 }
 setup_report
+
+log "text size requested: $SCALE"
+if grep -qw nomodeset "$PROC/cmdline" 2>/dev/null; then
+    log "video: safe mode (nomodeset), the kernel video driver is off"
+else
+    log "video: the kernel video driver is on"
+fi
 
 case "$SCALE" in
     off)

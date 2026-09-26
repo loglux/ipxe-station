@@ -649,4 +649,42 @@ def test_the_installed_report_script_sends_only_the_firmware_lines(tmp_path):
     )
     body = (sent / "body").read_text()
     assert "iwlwifi-so-a0-gf-a0-72.ucode" in body and "unrelated" not in body
+    # what the script decided about the screen travels with it, marked so it cannot be mistaken
+    assert "ipxe-station-display: text size requested: off" in body
     assert url in (sent / "args").read_text()
+
+
+def test_the_report_carries_what_the_script_decided_about_the_screen(api):
+    text = (
+        "firmware: failed to load iwlwifi-so-a0-gf-a0-72.ucode (-2)\n"
+        "ipxe-station-display: text size requested: auto\n"
+        "ipxe-station-display: screen: card0-eDP-1 1920x1080, 344 mm wide (from EDID)\n"
+        "ipxe-station-display: text size: 150% (text-scaling-factor 1.50, Xft.dpi 144)\n"
+        "some other line that is not ours\n"
+    )
+    client.post("/ipxe/krd-report", params={"mac": "aa:bb:cc:dd:ee:01"}, content=text.encode())
+    report = client.get("/api/kaspersky/firmware-reports").json()["reports"][0]
+    assert report["display"] == [
+        "text size requested: auto",
+        "screen: card0-eDP-1 1920x1080, 344 mm wide (from EDID)",
+        "text size: 150% (text-scaling-factor 1.50, Xft.dpi 144)",
+    ]
+    assert [m["name"] for m in report["missing"]] == ["iwlwifi-so-a0-gf-a0-72.ucode"]
+
+
+def test_screen_lines_from_a_machine_are_cleaned_and_limited(api):
+    hostile = "ipxe-station-display: <script>alert(1)</script> " + "x" * 500
+    many = "".join(f"ipxe-station-display: line {i}\n" for i in range(30))
+    client.post(
+        "/ipxe/krd-report",
+        params={"mac": "aa:bb:cc:dd:ee:01"},
+        content=(hostile + "\n" + many).encode(),
+    )
+    display = client.get("/api/kaspersky/firmware-reports").json()["reports"][0]["display"]
+    assert len(display) == 10 and all(len(line) <= 200 for line in display)
+    assert "<" not in display[0] and ">" not in display[0]
+
+
+def test_a_report_without_screen_lines_has_an_empty_list(api):
+    client.post("/ipxe/krd-report", params={"mac": "aa:bb:cc:dd:ee:01"}, content=b"")
+    assert client.get("/api/kaspersky/firmware-reports").json()["reports"][0]["display"] == []
