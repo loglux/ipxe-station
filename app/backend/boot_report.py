@@ -22,6 +22,8 @@ HOOK_PATH = "/ipxe/live-report.sh"
 REPORT_PATH = "/ipxe/boot-report"
 HOOK_QUERY_FIELDS = ("mac", "manufacturer", "product")
 DEFAULT_DELAY_SECONDS = 45
+MEDIUM_HOOK_ARG = "live-config.hooks=medium"
+MEDIUM_HOOK_FILE = "live/config-hooks/ipxe-station-report.sh"
 
 MAX_BODY_BYTES = 300 * 1024
 SECTION_LIMIT = 16 * 1024
@@ -46,7 +48,8 @@ SECTIONS = (
 
 _MARK = re.compile(r"^##### ([a-z-]+)\s*$")
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
-_SAFE_URL = re.compile(r"^http://[A-Za-z0-9.\-:]+/[A-Za-z0-9/_.\-]*\?[A-Za-z0-9=&%+._\-]*$")
+_SAFE_URL = re.compile(r"^http://[A-Za-z0-9.\-:]+/[A-Za-z0-9/_.\-]*(\?[A-Za-z0-9=&%+._\-]*)?$")
+_FOLDER = re.compile(r"^[A-Za-z0-9._-]+$")
 
 # PCI classes where a missing driver means something does not work.
 _NEEDS_DRIVER = (
@@ -101,7 +104,86 @@ def hook_argument() -> str:
 
 
 def is_hook_token(token: str) -> bool:
-    return token.startswith("live-config.hooks=") and HOOK_PATH in token
+    return token == MEDIUM_HOOK_ARG or (
+        token.startswith("live-config.hooks=") and HOOK_PATH in token
+    )
+
+
+# ---------------------------------------------------------------------------
+# Two ways to get the script onto the machine
+# ---------------------------------------------------------------------------
+#
+# By URL: live-config downloads it with wget, so the image needs wget (Debian 13's live image has
+# curl only, and then live-config silently fetches nothing).
+# From the medium: over NFS the extracted disk is the medium, and live-config runs the files in
+# live/config-hooks/ of it (live-config.hooks=medium). No download, no wget.
+
+
+def image_folder(kernel: str) -> Optional[str]:
+    """The disk folder of an entry whose kernel is ``<folder>/live/vmlinuz``."""
+    parts = (kernel or "").split("/")
+    return parts[0] if len(parts) >= 3 and parts[1] == "live" and _FOLDER.match(parts[0]) else None
+
+
+def image_has_wget(http_root: Path, folder: str) -> Optional[bool]:
+    """Whether the live image has wget, from its package list; None when there is no list."""
+    try:
+        text = (http_root / folder / "live" / "filesystem.packages").read_text()
+    except OSError:
+        return None
+    return any(line.split("\t", 1)[0].strip() == "wget" for line in text.splitlines())
+
+
+def entry_mode(tokens: List[str], kernel: str, http_root: Path) -> dict:
+    """How an entry could send a report, and why not when it cannot."""
+    folder = image_folder(kernel)
+    if any(t.startswith("netboot=nfs") for t in tokens):
+        if folder:
+            return {"mode": "medium", "supported": True, "reason": ""}
+        return {
+            "mode": "medium",
+            "supported": False,
+            "reason": "Its kernel is not in a live/ folder.",
+        }
+    if folder and image_has_wget(http_root, folder) is False:
+        return {
+            "mode": "url",
+            "supported": False,
+            "reason": (
+                "This image has no wget, which live-config needs to fetch the script. "
+                "Add an NFS entry for it instead."
+            ),
+        }
+    return {"mode": "url", "supported": True, "reason": ""}
+
+
+def hook_file(http_root: Path, folder: str) -> Path:
+    return http_root / folder / MEDIUM_HOOK_FILE
+
+
+def install_medium_hook(http_root: Path, folder: str, report_base_url: str) -> Path:
+    """Put the script in the disk's live/config-hooks/, where live-config finds it over NFS."""
+    if not _FOLDER.match(folder):
+        raise ValueError("invalid folder")
+    target = hook_file(http_root, folder)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(render_hook(report_base_url))
+    os.chmod(tmp, 0o755)
+    os.replace(tmp, target)
+    return target
+
+
+def remove_medium_hook(http_root: Path, folder: str) -> bool:
+    target = hook_file(http_root, folder)
+    if not target.exists():
+        return False
+    target.unlink()
+    try:
+        target.parent.rmdir()  # the folder goes with it when it was only ours
+    except OSError:
+        pass
+    return True
 
 
 # ---------------------------------------------------------------------------

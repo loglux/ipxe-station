@@ -1,6 +1,7 @@
 #!/bin/sh
-# Boot report for a live system, made by iPXE Station for the machine that asked.
-# Runs as a live-config hook early in boot, as root. It only sets up a small job; the job runs once
+# Boot report for a live system, made by iPXE Station.
+# Runs as a live-config hook early in boot, as root: fetched from the server by URL (the live system
+# needs wget for that) or read from the medium (live-config.hooks=medium, over NFS). It only sets up a small job; the job runs once
 # the desktop is up, collects what is below and sends it to the server that started it. Serial
 # numbers and UUIDs are not collected (the server already knows the machine from the network boot).
 # It never fails the boot.
@@ -93,7 +94,26 @@ text() { cut -c1-300; }
         text | tail -n 80
 } > "$out" 2>/dev/null
 
-wget -q -O /dev/null --post-file="$out" "$REPORT_URL"
+# Name the machine when the address does not already: the MAC of the card it network-booted from
+# (BOOTIF on the kernel command line) and its model from DMI.
+enc() { printf '%s' "$1" | sed 's/ /%20/g; s/[^A-Za-z0-9._%:-]//g'; }
+url="$REPORT_URL"
+case "$url" in
+    *\?*) ;;
+    *)
+        mac="$(tr ' ' '\n' < "${IPXE_STATION_PROC:-/proc}/cmdline" | sed -n 's/^BOOTIF=01-//p' | head -n 1 | tr '-' ':')"
+        vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)"
+        model="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
+        url="$url?mac=$(enc "$mac")&manufacturer=$(enc "$vendor")&product=$(enc "$model")"
+        ;;
+esac
+
+# Debian's live image has curl but no wget; other images are the other way round.
+if command -v curl >/dev/null 2>&1; then
+    curl -fsS -m 30 -o /dev/null --data-binary "@$out" "$url" 2>/dev/null
+elif command -v wget >/dev/null 2>&1; then
+    wget -q -O /dev/null --post-file="$out" "$url"
+fi
 rm -f "$out"
 EOS
 chmod 755 "${ROOT}/usr/local/bin/ipxe-station-boot-report"

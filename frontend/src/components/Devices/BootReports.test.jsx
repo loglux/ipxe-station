@@ -154,6 +154,29 @@ describe('BootReportSettings', () => {
     expect(screen.getByText(/Serial numbers are not collected/)).toBeInTheDocument()
   })
 
+  it('shows why an entry cannot report and does not let it be ticked', async () => {
+    mockApi({
+      'GET /api/boot-reports/entries': {
+        entries: [
+          {
+            name: 'debian_live_1',
+            title: 'Debian Live (ISO)',
+            enabled: false,
+            mode: 'url',
+            supported: false,
+            reason: 'This image has no wget, which live-config needs to fetch the script. Add an NFS entry for it instead.',
+          },
+          { name: 'debian_live_nfs', title: 'Debian Live (NFS)', enabled: false, mode: 'medium', supported: true, reason: '' },
+        ],
+      },
+    })
+    render(<BootReportSettings />)
+    expect(await screen.findByLabelText(/Debian Live \(ISO\)/)).toBeDisabled()
+    expect(screen.getByText(/Cannot report: This image has no wget/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Debian Live \(NFS\)/)).toBeEnabled()
+    expect(screen.getByText('— over NFS')).toBeInTheDocument()
+  })
+
   it('sends the whole choice when one box is ticked', async () => {
     const calls = mockApi({
       'GET /api/boot-reports/entries': ENTRIES,

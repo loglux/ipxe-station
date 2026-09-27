@@ -175,20 +175,27 @@ export function BootReportSettings() {
       <p className="devices-subtitle">
         A live system that is asked to can tell this server how it went: memory, disks, devices and their drivers,
         the battery, kernel errors and missing firmware, failed services. The report is sent about a minute after
-        the desktop starts. Serial numbers are not collected. Kaspersky Rescue Disk has its own report, under
-        Assets.
+        the desktop starts. Serial numbers are not collected. A system started over NFS needs nothing from the image; one
+        started by fetching an ISO needs wget in it. Kaspersky Rescue Disk has its own report, under Assets.
       </p>
-      {entries.map((entry) => (
-        <label key={entry.name} className="boot-report-entry">
-          <input
-            type="checkbox"
-            checked={entry.enabled}
-            onChange={(e) => toggle(entry.name, e.target.checked)}
-            disabled={busy}
-          />
-          <span>{entry.title || entry.name}</span>
-        </label>
-      ))}
+      {entries.map((entry) => {
+        const blocked = entry.supported === false
+        return (
+          <div key={entry.name} className="boot-report-entry-row">
+            <label className="boot-report-entry">
+              <input
+                type="checkbox"
+                checked={entry.enabled}
+                onChange={(e) => toggle(entry.name, e.target.checked)}
+                disabled={busy || blocked}
+              />
+              <span>{entry.title || entry.name}</span>
+              {entry.mode === 'medium' && !blocked && <small className="text-muted"> — over NFS</small>}
+            </label>
+            {blocked && <small className="boot-report-reason">Cannot report: {entry.reason}</small>}
+          </div>
+        )
+      })}
       {error && <div className="devices-error" role="alert">{error}</div>}
     </details>
   )

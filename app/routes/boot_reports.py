@@ -31,10 +31,12 @@ def _entries(model) -> list:
 
 
 def _entry_state(entry) -> dict:
+    tokens = (entry.cmdline or "").split()
     return {
         "name": entry.name,
         "title": entry.title,
-        "enabled": any(map(boot_report.is_hook_token, entry.cmdline.split())),
+        "enabled": any(map(boot_report.is_hook_token, tokens)),
+        **boot_report.entry_mode(tokens, entry.kernel, state.HTTP_ROOT),
     }
 
 
@@ -60,18 +62,39 @@ def choose_entries(payload: EntriesChoice):
     entries = _entries(model)
     if not entries:
         raise HTTPException(status_code=404, detail="No live Linux entry in the menu")
-    names = {e.name for e in entries}
-    unknown = [n for n in payload.enabled if n not in names]
-    if unknown:
-        raise HTTPException(status_code=422, detail=f"'{unknown[0]}' cannot send a boot report")
+    by_name = {e.name: e for e in entries}
+    for name in payload.enabled:
+        if name not in by_name:
+            raise HTTPException(status_code=422, detail=f"'{name}' cannot send a boot report")
+        mode = _entry_state(by_name[name])
+        if not mode["supported"]:
+            raise HTTPException(status_code=422, detail=f"{mode['title']}: {mode['reason']}")
+
+    settings = state.load_settings()
+    base = f"http://{settings.server_ip}:{settings.http_port}{boot_report.REPORT_PATH}"
+    wanted_folders = set()
+    all_folders = set()
     for entry in entries:
+        folder = boot_report.image_folder(entry.kernel)
         tokens = [t for t in entry.cmdline.split() if not boot_report.is_hook_token(t)]
+        all_folders.add(folder)
         if entry.name in payload.enabled:
-            tokens.append(boot_report.hook_argument())
+            if boot_report.entry_mode(tokens, entry.kernel, state.HTTP_ROOT)["mode"] == "medium":
+                tokens.append(boot_report.MEDIUM_HOOK_ARG)
+                wanted_folders.add(folder)
+            else:
+                tokens.append(boot_report.hook_argument())
         entry.cmdline = " ".join(tokens)
     result = ipxe_routes.save_menu(model)
     if not result.get("valid"):
         raise HTTPException(status_code=422, detail=result.get("message") or "Menu not valid")
+
+    # the script file on the medium follows the menu: there where an NFS entry asks, gone elsewhere
+    for folder in wanted_folders:
+        boot_report.install_medium_hook(state.HTTP_ROOT, folder, base)
+    for folder in all_folders - wanted_folders:
+        if folder:
+            boot_report.remove_medium_hook(state.HTTP_ROOT, folder)
     add_log("system", "info", f"Boot reports asked for by: {', '.join(payload.enabled) or 'none'}")
     return {"entries": [_entry_state(e) for e in entries], "warnings": result.get("warnings", [])}
 

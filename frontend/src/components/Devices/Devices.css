@@ -344,3 +344,13 @@
   gap: 8px;
   margin: 4px 0;
 }
+
+.boot-report-entry-row {
+  margin: 4px 0;
+}
+
+.boot-report-reason {
+  display: block;
+  margin-left: 24px;
+  color: var(--color-warning-text);
+}

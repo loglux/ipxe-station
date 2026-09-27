@@ -216,6 +216,39 @@ def test_the_kernel_argument_uses_the_menus_variables():
     assert br.is_hook_token(arg) and not br.is_hook_token("live-config.hooks=http://x/other.sh")
 
 
+def make_sender(tmp_path):
+    """A fake curl and wget that keep what they are asked to send (never post for real)."""
+    fakebin = tmp_path / "fakebin"
+    fakebin.mkdir(exist_ok=True)
+    (fakebin / "curl").write_text(
+        '#!/bin/sh\nfor a in "$@"; do echo "$a" >> "$SENT/args"; '
+        'case $a in @*) cat "${a#@}" > "$SENT/body";; esac; done\n'
+    )
+    (fakebin / "wget").write_text(
+        '#!/bin/sh\nfor a in "$@"; do echo "$a" >> "$SENT/args"; '
+        'case $a in --post-file=*) cat "${a#--post-file=}" > "$SENT/body";; esac; done\n'
+    )
+    for name in ("curl", "wget"):
+        (fakebin / name).chmod(0o755)
+    return fakebin
+
+
+def run_collector(root, tmp_path, proc=None):
+    """Run the installed collector with fake senders; returns (sent dir)."""
+    sent = tmp_path / "sent"
+    sent.mkdir(exist_ok=True)
+    env = {
+        "PATH": f"{make_sender(tmp_path)}:/usr/bin:/bin:/usr/sbin:/sbin",
+        "IPXE_STATION_CONF": str(root / "etc/ipxe-station-report.conf"),
+        "IPXE_STATION_REPORT_DELAY": "0",
+        "SENT": str(sent),
+    }
+    if proc is not None:
+        env["IPXE_STATION_PROC"] = str(proc)
+    subprocess.run([str(root / "usr/local/bin/ipxe-station-boot-report")], env=env, check=True)
+    return sent
+
+
 def test_the_installed_job_sends_the_sections_and_no_serial_numbers(tmp_path):
     url = br.report_url_for("192.168.10.170:9021", DELL)
     root = tmp_path / "machine"
@@ -230,13 +263,7 @@ def test_the_installed_job_sends_the_sections_and_no_serial_numbers(tmp_path):
     conf = (root / "etc/ipxe-station-report.conf").read_text()
     assert f"REPORT_URL='{url}'" in conf
 
-    fakebin = tmp_path / "fakebin"
-    fakebin.mkdir()
-    (fakebin / "wget").write_text(
-        '#!/bin/sh\nfor a in "$@"; do echo "$a" >> "$SENT/args"; '
-        'case $a in --post-file=*) cat "${a#--post-file=}" > "$SENT/body";; esac; done\n'
-    )
-    (fakebin / "wget").chmod(0o755)
+    fakebin = make_sender(tmp_path)
     sent = tmp_path / "sent"
     sent.mkdir()
     run_env = {
@@ -401,3 +428,173 @@ def test_a_menu_that_does_not_validate_is_not_reported_as_saved(api, menu, monke
     monkeypatch.setattr(ipxe_routes, "save_menu", lambda m: {"valid": False, "message": "bad"})
     resp = client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_1"]})
     assert resp.status_code == 422 and "bad" in resp.json()["detail"]
+
+
+# --- how the script reaches a machine ------------------------------------------------------------
+
+
+def test_the_disk_folder_comes_from_the_kernel_path():
+    assert br.image_folder("debian-13.3-live-xfce/live/vmlinuz") == "debian-13.3-live-xfce"
+    assert br.image_folder("ubuntu-24.04/casper/vmlinuz") is None
+    assert br.image_folder("vmlinuz") is None and br.image_folder("") is None
+    assert br.image_folder("../x/live/vmlinuz") is None
+
+
+def image(tmp_path, packages, name="debian-13.3-live-xfce"):
+    live = tmp_path / name / "live"
+    live.mkdir(parents=True)
+    if packages is not None:
+        (live / "filesystem.packages").write_text(packages)
+    return name
+
+
+def test_an_image_without_wget_cannot_take_the_script_by_url(tmp_path):
+    name = image(tmp_path, "curl\t8.14\nlive-config\t11.0.5\nwget2\t2.2\n")
+    assert br.image_has_wget(tmp_path, name) is False  # wget2 is not wget
+    got = br.entry_mode(["boot=live", "fetch=http://x/y.iso"], f"{name}/live/vmlinuz", tmp_path)
+    assert got["mode"] == "url" and got["supported"] is False and "no wget" in got["reason"]
+
+
+def test_an_image_with_wget_or_an_unknown_one_can_take_it_by_url(tmp_path):
+    name = image(tmp_path, "wget\t1.21\n", "with-wget")
+    assert br.entry_mode(["boot=live"], f"{name}/live/vmlinuz", tmp_path)["supported"] is True
+    unknown = br.entry_mode(["boot=live"], "somewhere/live/vmlinuz", tmp_path)
+    assert unknown == {"mode": "url", "supported": True, "reason": ""}
+
+
+def test_an_nfs_entry_reads_the_script_from_the_medium_and_needs_no_wget(tmp_path):
+    name = image(tmp_path, "curl\t8.14\n")
+    got = br.entry_mode(
+        ["boot=live", "netboot=nfs", "nfsroot=x:/y"], f"{name}/live/vmlinuz", tmp_path
+    )
+    assert got == {"mode": "medium", "supported": True, "reason": ""}
+    odd = br.entry_mode(["boot=live", "netboot=nfs"], "vmlinuz", tmp_path)
+    assert odd["mode"] == "medium" and odd["supported"] is False
+
+
+def test_the_medium_hook_is_installed_executable_and_removed_with_its_folder(tmp_path):
+    name = image(tmp_path, None)
+    path = br.install_medium_hook(tmp_path, name, "http://192.168.10.170:9021/ipxe/boot-report")
+    assert path == tmp_path / name / "live/config-hooks/ipxe-station-report.sh"
+    assert path.stat().st_mode & 0o111
+    assert 'REPORT_URL="http://192.168.10.170:9021/ipxe/boot-report"' in path.read_text()
+    assert (
+        br.remove_medium_hook(tmp_path, name) is True
+        and br.remove_medium_hook(tmp_path, name) is False
+    )
+    assert not path.parent.exists() and (tmp_path / name / "live").exists()  # only our folder goes
+
+
+def test_the_medium_hook_refuses_a_folder_that_escapes(tmp_path):
+    with pytest.raises(ValueError):
+        br.install_medium_hook(tmp_path, "../evil", "http://h:1/ipxe/boot-report")
+
+
+def test_a_machine_names_itself_when_the_script_came_from_the_medium(tmp_path):
+    root = tmp_path / "machine"
+    base = "http://192.168.10.170:9021/ipxe/boot-report"
+    hook = br.install_medium_hook(tmp_path / "http", "debian", base)
+    env = {"PATH": "/usr/bin:/bin", "IPXE_STATION_ROOT": str(root)}
+    subprocess.run(["sh", str(hook)], env=env, check=True)
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    (proc / "cmdline").write_text("boot=live components BOOTIF=01-aa-bb-cc-dd-ee-01 ip=dhcp\n")
+    sent = run_collector(root, tmp_path, proc)
+    args = (sent / "args").read_text()
+    assert f"{base}?mac=aa:bb:cc:dd:ee:01&manufacturer=" in args
+    assert "--data-binary" in args  # curl is what Debian's image has
+    assert "##### system" in (sent / "body").read_text()
+
+
+def test_an_address_that_already_names_the_machine_is_used_as_it_is(tmp_path):
+    root = tmp_path / "machine"
+    url = br.report_url_for("h:1", DELL)
+    script = tmp_path / "hook.sh"
+    script.write_text(br.render_hook(url, 0))
+    subprocess.run(
+        ["sh", str(script)],
+        env={"PATH": "/usr/bin:/bin", "IPXE_STATION_ROOT": str(root)},
+        check=True,
+    )
+    sent = run_collector(root, tmp_path)
+    assert url in (sent / "args").read_text() and "&manufacturer=%" not in (
+        sent / "args"
+    ).read_text().replace(url, "")
+
+
+def test_a_plain_report_address_without_a_query_is_accepted_by_the_script_template():
+    plain = "http://192.168.10.170:9021/ipxe/boot-report"
+    assert f'REPORT_URL="{plain}"' in br.render_hook(plain)
+    assert 'REPORT_URL=""' in br.render_hook("http://h/x?y=1&z='$(id)'")
+
+
+# --- API: modes -------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def disks(tmp_path, monkeypatch):
+    """A web root with a Debian image that has curl only, and settings pointing at this server."""
+    root = tmp_path / "http"
+    image(root, "curl\t8.14\n")
+    monkeypatch.setattr(state, "HTTP_ROOT", root)
+    monkeypatch.setattr(
+        state,
+        "load_settings",
+        lambda: SimpleNamespace(server_ip="192.168.10.170", http_port=9021),
+    )
+    return root
+
+
+NFS_LINE = (
+    "boot=live components netboot=nfs "
+    "nfsroot=${server_ip}:${nfs_root}/debian-13.3-live-xfce ip=dhcp"
+)
+
+
+def test_entries_say_which_mode_they_can_use_and_why_not(api, menu, disks):
+    model, _ = menu
+    model.entries.append(entry("debian_live_nfs", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE))
+    got = {e["name"]: e for e in client.get("/api/boot-reports/entries").json()["entries"]}
+    assert (
+        got["debian_live_1"]["supported"] is False and "no wget" in got["debian_live_1"]["reason"]
+    )
+    assert (
+        got["debian_live_nfs"]["mode"] == "medium" and got["debian_live_nfs"]["supported"] is True
+    )
+
+
+def test_an_entry_that_cannot_run_the_script_is_refused_with_the_reason(api, menu, disks):
+    resp = client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_1"]})
+    assert resp.status_code == 422 and "no wget" in resp.json()["detail"]
+
+
+def test_an_nfs_entry_gets_the_medium_argument_and_the_file_on_the_disk(api, menu, disks):
+    model, saved = menu
+    model.entries.append(entry("debian_live_nfs", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE))
+    got = client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_nfs"]})
+    assert got.status_code == 200
+    nfs = model.entries[-1]
+    assert nfs.cmdline.split()[-1] == "live-config.hooks=medium" and len(saved) == 1
+    hook = disks / "debian-13.3-live-xfce/live/config-hooks/ipxe-station-report.sh"
+    assert 'REPORT_URL="http://192.168.10.170:9021/ipxe/boot-report"' in hook.read_text()
+    assert [e["enabled"] for e in got.json()["entries"] if e["name"] == "debian_live_nfs"] == [True]
+
+
+def test_turning_the_nfs_entry_off_removes_the_argument_and_the_file(api, menu, disks):
+    model, _ = menu
+    model.entries.append(entry("debian_live_nfs", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE))
+    client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_nfs"]})
+    client.post("/api/boot-reports/entries", json={"enabled": []})
+    assert "live-config.hooks" not in model.entries[-1].cmdline
+    assert not (disks / "debian-13.3-live-xfce/live/config-hooks").exists()
+
+
+def test_the_file_stays_while_any_nfs_entry_of_the_disk_still_asks(api, menu, disks):
+    model, _ = menu
+    model.entries.append(entry("nfs_a", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE))
+    model.entries.append(entry("nfs_b", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE))
+    client.post("/api/boot-reports/entries", json={"enabled": ["nfs_a", "nfs_b"]})
+    client.post("/api/boot-reports/entries", json={"enabled": ["nfs_b"]})
+    assert (disks / "debian-13.3-live-xfce/live/config-hooks/ipxe-station-report.sh").exists()
+    assert model.entries[-2].cmdline.count("live-config.hooks") == 0
+    assert model.entries[-1].cmdline.count("live-config.hooks=medium") == 1

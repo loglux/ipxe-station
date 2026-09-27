@@ -6,15 +6,33 @@ and services that failed. The reports are kept with the machine on the **Devices
 each laptop behaves in each system. It is meant for the day you boot a batch of machines and want to know which
 ones need attention, without opening a terminal on any of them.
 
-Checked so far: the collecting script and the server side, tested and run against this server. **Not yet run on
-a real Debian Live boot.** [Kaspersky Rescue Disk](kaspersky.md) has its own, older report (firmware and screen).
+Checked so far: the collecting script and the server side, tested and run against this server, and the finding
+below about Debian 13. **A real Debian Live boot that sends a report has not been confirmed yet.**
+[Kaspersky Rescue Disk](kaspersky.md) has its own, older report (firmware and screen).
+
+## Which entries can send a report
+
+`live-config` has two ways to run a script that comes from the server, and which one works depends on how the
+system is started:
+
+- **Over NFS** (`netboot=nfs`): the extracted disk on the server is the medium the system runs from, so
+  `live-config.hooks=medium` runs the script from the disk's `live/config-hooks/`. Nothing is downloaded and the
+  image needs nothing. **This is the way for Debian Live.**
+- **Fetching an ISO or squashfs**: the script has to be downloaded by URL, and `live-config` does that with `wget`.
+  **Debian 13's live image has curl but no wget, so this fails silently**: the machine boots normally and never asks
+  for the script. Images that do have wget (Kaspersky Rescue Disk) work.
+
+The **Devices** page shows this for every live entry: an entry that cannot report is greyed out with the reason.
+For Debian Live, add an NFS entry (**Builder** → **+ Add Entry** → *Debian Live* offers an NFS mode once **Settings →
+NFS Boot Root** is set).
 
 ## Turning it on
 
 **Devices** → *Boot reports from live systems*. It lists the live Linux entries of the menu (entries that boot
 with `boot=live`, such as Debian Live); tick the ones that should ask for a report. Ticking adds one argument to
-the entry, `live-config.hooks=http://<server>/ipxe/live-report.sh?...`, and saves the menu. Nothing is written to
-the boot image. Boot the machine from the network, choose that entry, and about a minute after the desktop
+the entry and saves the menu: `live-config.hooks=medium` for an NFS entry (and the script is put in the disk's
+`live/config-hooks/`), or `live-config.hooks=http://<server>/ipxe/live-report.sh?...` where the image has wget.
+Unticking removes both. Nothing is written to the boot image itself. Boot the machine from the network, choose that entry, and about a minute after the desktop
 starts the report arrives; the machine shows **📋 1 boot report** and, when you open it, the report with facts
 and problems as chips. **Show details** loads the full text of every section.
 
@@ -56,10 +74,13 @@ The list and the details are behind the usual token check.
 
 ## How it works
 
-`live-config`, which Debian Live uses to set the system up, runs the script named by `live-config.hooks=` early
-in boot, as root. The script (made by the server for that machine) installs a small job and an autostart entry;
-the job runs once the desktop is up (after 45 seconds), collects the sections and posts them back with
-`wget`. It never fails the boot. The mechanism is the same one Kaspersky Rescue Disk uses.
+`live-config`, which Debian Live uses to set the system up, runs the hooks named by `live-config.hooks=` early in
+boot, as root: files from the medium (`medium`) or scripts fetched by URL. The script installs a small job and an
+autostart entry; the job runs once the desktop is up (after 45 seconds), collects the sections and sends them
+with `curl` (or `wget` where there is no curl). A script that came from the medium does not know the machine, so
+the job names it itself: the MAC of the card it network-booted from (`BOOTIF` on the kernel command line, which
+the entries carry) and its model from DMI. It never fails the boot. The URL mechanism is the one Kaspersky Rescue
+Disk uses.
 
 ## API
 

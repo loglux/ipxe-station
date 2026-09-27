@@ -335,6 +335,25 @@ def debian_live_recipe(
     if not kernel or not initrd:
         return []
 
+    # live-boot mounts the extracted medium over NFS: no RAM limit, and the live system can run
+    # hooks that sit on the medium (live/config-hooks), which needs no wget in the image.
+    if nfs_root:
+        version_dir = kernel.split("/")[0]
+        opts.append(
+            BootOption(
+                mode="nfs",
+                label="Debian Live (Experimental) — NFS, reads on demand",
+                kernel=kernel,
+                initrd=initrd,
+                cmdline=(
+                    f"boot=live components netboot=nfs "
+                    f"nfsroot={server_ip}:{nfs_root.rstrip('/')}/{version_dir} "
+                    f"ip=dhcp {LIVE_BOOT_NETDEV}"
+                ),
+                recommended=True,
+            )
+        )
+
     if iso:
         iso_url = f"http://{server_ip}:{port}/http/{iso}"
         opts.append(

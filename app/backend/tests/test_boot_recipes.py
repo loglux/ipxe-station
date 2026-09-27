@@ -615,6 +615,21 @@ class TestLiveBootNetworkDevice:
 
         assert opts and all("BOOTIF=01-${net0/mac:hexhyp}" in o.cmdline for o in opts)
 
+    def test_debian_live_offers_nfs_when_an_nfs_root_is_set(self):
+        """Over NFS the extracted disk is the medium, so live-config can run hooks from it."""
+        entry = {
+            "kernel": "debian-13.3-live-xfce/live/vmlinuz",
+            "initrd": "debian-13.3-live-xfce/live/initrd.img",
+            "iso": "debian-13.3-live-xfce/x.iso",
+        }
+        opts = debian_live_recipe(entry, SERVER_IP, PORT, "/srv/http/")
+        assert [o.mode for o in opts] == ["nfs", "iso"]
+        nfs = opts[0]
+        assert nfs.recommended is True
+        assert f"nfsroot={SERVER_IP}:/srv/http/debian-13.3-live-xfce" in nfs.cmdline
+        assert "netboot=nfs" in nfs.cmdline and "BOOTIF=01-${net0/mac:hexhyp}" in nfs.cmdline
+        assert not any(o.mode == "nfs" for o in debian_live_recipe(entry, SERVER_IP, PORT))
+
     def test_debian_live_options_pin_the_boot_nic(self):
         entry = {
             "kernel": "debian-13.3-live/vmlinuz",
