@@ -8,6 +8,7 @@ ones need attention, without opening a terminal on any of them.
 
 Checked on a Dell Latitude 5530 with Debian 13 Live started over NFS: the report arrives, and it read correctly
 (memory, disks, screen, battery, devices and their drivers). Two Debian 13 quirks had to be worked around, below.
+Ubuntu (Server and Desktop, over NFS) is built the same way but **not yet run on a real boot**.
 [Kaspersky Rescue Disk](kaspersky.md) has its own, older report (firmware and screen).
 
 ## Which entries can send a report
@@ -24,6 +25,15 @@ system is started:
 - **Fetching an ISO or squashfs**: the script has to be downloaded by URL, and `live-config` does that with `wget`.
   **Debian 13's live image has curl but no wget, so this fails silently**: the machine boots normally and never asks
   for the script. Images that do have wget (Kaspersky Rescue Disk) work.
+
+- **Ubuntu (`casper`) over NFS**: with no `layerfs-path`, `casper` stacks every `*.squashfs` of the disk's `casper/`
+  folder as a layer of the live system. Turning a report on puts a small layer, `casper/zz-ipxe-station.squashfs`,
+  on the disk (built on the server): the collector, a systemd service, and the link that starts it. The service
+  runs only on a kernel command line that has `ipxe.report`, so the layer does nothing for entries that did not ask;
+  an asking entry gets `ipxe.report=http://<server>/ipxe/boot-report ipxe.mac=<mac>`. It runs as root, on Server and on
+  Desktop, without a desktop session. **Not yet confirmed on a real Ubuntu boot.** An Ubuntu entry that does not use
+  NFS, or names its layers with `layerfs-path`, cannot take part. (Ubuntu 24.04 has systemd 255, which cannot take a
+  service from the kernel command line: that came in 256.)
 
 The **Devices** page shows this for every live entry: an entry that cannot report is greyed out with the reason.
 For Debian Live, add an NFS entry (**Builder** → **+ Add Entry** → *Debian Live* offers an NFS mode once **Settings →
@@ -67,7 +77,8 @@ Bluetooth are present.
 
 ## When a report does not arrive
 
-On the machine, in a terminal, run `curl -s <server>:9021/d | sh`. The script looks at what should have happened
+On the machine, in a terminal, run `curl -s <server>:9021/d | sh` (Ubuntu Desktop has no curl or wget; there use
+`busybox wget -qO- <server>:9021/d | sh`). The script looks at what should have happened
 (the kernel command line, what is on the medium, what the hook installed, the `live-config` log, the tools present,
 whether the server can be reached), runs the report job once with tracing, prints all of it and sends it to the
 server: `GET /api/boot-reports/debug` returns what came back (the last 10). It changes nothing else. This is how
@@ -89,7 +100,7 @@ The list and the details are behind the usual token check.
 `live-config`, which Debian Live uses to set the system up, runs the hooks named by `live-config.hooks=` early in
 boot, as root: local files (`file://`) or scripts fetched by URL. The script installs a small job and an
 autostart entry; the job runs once the desktop is up (after 45 seconds), collects the sections and sends them
-with `curl` (or `wget` where there is no curl). A script that came from the medium does not know the machine, so
+with `curl`, else `wget`, else `python3` (Ubuntu Desktop's image has only that). A script that came from the medium does not know the machine, so
 the job names it itself: the MAC of the card it network-booted from (`BOOTIF` on the kernel command line, which
 the entries carry) and its model from DMI. It never fails the boot. The URL mechanism is the one Kaspersky Rescue
 Disk uses.

@@ -175,8 +175,8 @@ export function BootReportSettings() {
       <p className="devices-subtitle">
         A live system that is asked to can tell this server how it went: memory, disks, devices and their drivers,
         the battery, kernel errors and missing firmware, failed services. The report is sent about a minute after
-        the desktop starts. Serial numbers are not collected. A system started over NFS needs nothing from the image; one
-        started by fetching an ISO needs wget in it. Kaspersky Rescue Disk has its own report, under Assets.
+        the desktop starts. Serial numbers are not collected. A Debian or Ubuntu system started over NFS needs nothing from the image (a small
+        script or layer is put on the disk); one started by fetching an ISO needs wget in it (Debian). Kaspersky Rescue Disk has its own report, under Assets.
       </p>
       {entries.map((entry) => {
         const blocked = entry.supported === false
@@ -190,7 +190,9 @@ export function BootReportSettings() {
                 disabled={busy || blocked}
               />
               <span>{entry.title || entry.name}</span>
-              {entry.mode === 'medium' && !blocked && <small className="text-muted"> — over NFS</small>}
+              {(entry.mode === 'medium' || entry.mode === 'layer') && !blocked && (
+                <small className="text-muted"> — over NFS</small>
+              )}
             </label>
             {blocked && <small className="boot-report-reason">Cannot report: {entry.reason}</small>}
           </div>

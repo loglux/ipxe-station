@@ -45,8 +45,10 @@
   fetched; over NFS the hook can be read from the medium instead. `live-config.hooks=medium` also fails on Debian 13 (it
   looks in `/lib/live/mount/medium`, the medium is at `/run/live/medium`), so the entry names the file with
   `file://`. **Confirmed on a Dell Latitude 5530 with Debian 13 Live over NFS**: the report arrived and read correctly; the
-  summary also singles out memory and disk errors (ECC / machine-check and I/O lines). Ubuntu (`casper`, no `live-config`) needs another way to run a script; SystemRescue
-  (`ar_source`) and WinPE (`start.ps1`) are candidates.
+  summary also singles out memory and disk errors (ECC / machine-check and I/O lines). Ubuntu (`casper`, no `live-config`) is done differently: over NFS a small squashfs layer
+  (`casper/zz-ipxe-station.squashfs`) with a service that starts only on `ipxe.report` on the kernel command line, since
+  casper stacks every squashfs of the folder; **not yet booted on real Ubuntu**. SystemRescue (`ar_source`) and WinPE
+  (`start.ps1`) are candidates.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

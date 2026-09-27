@@ -1,6 +1,9 @@
 """Boot reports from live systems: the script, reading what comes back, storing it, the API."""
 
+import http.server
+import shutil
 import subprocess
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -383,7 +386,8 @@ def menu(monkeypatch):
 
 def test_only_live_config_systems_can_send_reports(api, menu):
     names = [e["name"] for e in client.get("/api/boot-reports/entries").json()["entries"]]
-    assert names == ["debian_live_1", "debian_live_2"]  # not Kaspersky (own script), not casper
+    # Debian Live and Ubuntu, but not Kaspersky (it has its own script)
+    assert names == ["debian_live_1", "debian_live_2", "ubuntu_live_1"]
 
 
 def test_the_chosen_entries_get_the_argument_and_the_rest_do_not(api, menu):
@@ -391,13 +395,13 @@ def test_the_chosen_entries_get_the_argument_and_the_rest_do_not(api, menu):
     got = client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_1"]}).json()[
         "entries"
     ]
-    assert [e["enabled"] for e in got] == [True, False]
+    assert [e["enabled"] for e in got] == [True, False, False]
     assert (
         "live-config.hooks=http://${server_ip}:${port}/ipxe/live-report.sh"
         in model.entries[0].cmdline
     )
     assert "live-config.hooks" not in model.entries[1].cmdline
-    assert "live-config" not in model.entries[2].cmdline and len(saved) == 1
+    assert "live-config" not in model.entries[3].cmdline and len(saved) == 1
     assert model.entries[0].cmdline.startswith("boot=live components fetch=http://x/y.iso ip=dhcp")
 
 
@@ -417,7 +421,7 @@ def test_other_entries_and_a_missing_menu_are_refused_clearly(api, menu, monkeyp
         == 422
     )
     assert (
-        client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_live_1"]}).status_code
+        client.post("/api/boot-reports/entries", json={"enabled": ["no_such_entry"]}).status_code
         == 422
     )
     monkeypatch.setattr(ipxe_routes, "saved_menu", lambda: None)
@@ -435,7 +439,8 @@ def test_a_menu_that_does_not_validate_is_not_reported_as_saved(api, menu, monke
 
 def test_the_disk_folder_comes_from_the_kernel_path():
     assert br.image_folder("debian-13.3-live-xfce/live/vmlinuz") == "debian-13.3-live-xfce"
-    assert br.image_folder("ubuntu-24.04/casper/vmlinuz") is None
+    assert br.image_folder("ubuntu-24.04/casper/vmlinuz") == "ubuntu-24.04"
+    assert br.image_folder("ubuntu-24.04/boot/vmlinuz") is None
     assert br.image_folder("vmlinuz") is None and br.image_folder("") is None
     assert br.image_folder("../x/live/vmlinuz") is None
 
@@ -756,3 +761,227 @@ def test_a_report_stored_before_the_summary_learnt_something_is_summarised_again
     assert fresh["summary"]["memory_errors"] == 2 and fresh["v"] == br.SUMMARY_VERSION
     assert br.get(path, entry["id"])["summary"]["memory_errors"] == 2
     assert br._load(path)[0]["v"] == br.SUMMARY_VERSION  # and it is kept
+
+
+# --- Ubuntu (casper): a layer on the disk -------------------------------------------------------
+
+needs_mksquashfs = pytest.mark.skipif(
+    shutil.which("mksquashfs") is None, reason="needs squashfs-tools"
+)
+
+CASPER_NFS = (
+    "ip=dhcp boot=casper netboot=nfs nfsroot=${server_ip}:${nfs_root}/ubuntu-24.04-desktop "
+    "ignore_uuid cloud-init=disabled quiet splash"
+)
+
+
+def test_an_ubuntu_nfs_entry_can_take_the_layer(tmp_path):
+    got = br.entry_mode(CASPER_NFS.split(), "ubuntu-24.04-desktop/casper/vmlinuz", tmp_path)
+    assert got == {"mode": "layer", "supported": True, "reason": ""}
+
+
+def test_an_ubuntu_entry_that_is_not_nfs_or_names_its_layers_cannot(tmp_path):
+    iso = "ip=dhcp boot=casper url=http://x/y.iso".split()
+    got = br.entry_mode(iso, "ubuntu-24.04/casper/vmlinuz", tmp_path)
+    assert got["mode"] == "layer" and got["supported"] is False and "NFS" in got["reason"]
+    named = (CASPER_NFS + " layerfs-path=minimal.standard.live.squashfs").split()
+    got = br.entry_mode(named, "ubuntu-24.04-desktop/casper/vmlinuz", tmp_path)
+    assert got["supported"] is False and "layerfs-path" in got["reason"]
+    assert br.entry_mode(CASPER_NFS.split(), "vmlinuz", tmp_path)["supported"] is False
+
+
+def test_the_layer_arguments_use_the_menus_variables_and_are_recognised_as_ours():
+    args = br.layer_arguments()
+    assert args == [
+        "ipxe.report=http://${server_ip}:${port}/ipxe/boot-report",
+        "ipxe.mac=${net0/mac}",
+    ]
+    assert all(br.is_hook_token(a) for a in args) and not br.is_hook_token("ipxe.other=1")
+
+
+@needs_mksquashfs
+def test_the_layer_holds_the_collector_the_service_and_the_link_that_starts_it(tmp_path):
+    layer = br.install_layer(tmp_path, "ubuntu-24.04-desktop")
+    assert layer == tmp_path / "ubuntu-24.04-desktop/casper/zz-ipxe-station.squashfs"
+    listing = subprocess.run(
+        ["unsquashfs", "-lls", str(layer)], capture_output=True, text=True
+    ).stdout
+    assert "usr/local/bin/ipxe-station-boot-report" in listing and "-rwxr-xr-x root/root" in listing
+    assert "etc/systemd/system/ipxe-station-report.service" in listing
+    assert "multi-user.target.wants/ipxe-station-report.service -> /etc/systemd/system/" in listing
+    out = tmp_path / "unpacked"
+    subprocess.run(["unsquashfs", "-d", str(out), str(layer)], capture_output=True, check=True)
+    unit = (out / "etc/systemd/system/ipxe-station-report.service").read_text()
+    assert "ConditionKernelCommandLine=ipxe.report" in unit  # only entries that ask are affected
+    assert "ExecStart=/usr/local/bin/ipxe-station-boot-report" in unit
+    assert (out / "usr/local/bin/ipxe-station-boot-report").read_text() == br.COLLECTOR.read_text()
+    assert not list(layer.parent.glob("*.tmp"))
+
+
+@needs_mksquashfs
+def test_a_layer_can_be_replaced_and_removed(tmp_path):
+    br.install_layer(tmp_path, "ubuntu-24.04")
+    first = br.layer_path(tmp_path, "ubuntu-24.04").stat().st_size
+    br.install_layer(tmp_path, "ubuntu-24.04")
+    assert br.layer_path(tmp_path, "ubuntu-24.04").stat().st_size == first
+    assert (
+        br.remove_layer(tmp_path, "ubuntu-24.04") is True
+        and br.remove_layer(tmp_path, "ubuntu-24.04") is False
+    )
+
+
+def test_a_missing_tool_or_a_bad_folder_is_a_clear_error(tmp_path, monkeypatch):
+    with pytest.raises(ValueError):
+        br.install_layer(tmp_path, "../evil")
+    monkeypatch.setattr(br.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="mksquashfs"):
+        br.install_layer(tmp_path, "ubuntu-24.04")
+
+
+UBUNTU_ENTRY = "ubuntu-24.04-desktop/casper/vmlinuz"
+
+
+@needs_mksquashfs
+def test_turning_on_an_ubuntu_entry_adds_the_arguments_and_the_layer(api, menu, disks):
+    model, saved = menu
+    model.entries.append(entry("ubuntu_nfs", UBUNTU_ENTRY, CASPER_NFS))
+    got = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_nfs"]})
+    assert got.status_code == 200
+    tokens = model.entries[-1].cmdline.split()
+    assert tokens[-2:] == br.layer_arguments() and len(saved) == 1
+    assert br.layer_path(disks, "ubuntu-24.04-desktop").exists()
+    states = {e["name"]: e for e in got.json()["entries"]}
+    assert states["ubuntu_nfs"]["enabled"] is True and states["ubuntu_nfs"]["mode"] == "layer"
+    assert not br.hook_file(disks, "ubuntu-24.04-desktop").exists()  # not the Debian way
+
+
+@needs_mksquashfs
+def test_turning_it_off_removes_the_arguments_and_the_layer_unless_another_entry_still_asks(
+    api, menu, disks
+):
+    model, _ = menu
+    model.entries.append(entry("ubuntu_a", UBUNTU_ENTRY, CASPER_NFS))
+    model.entries.append(entry("ubuntu_b", UBUNTU_ENTRY, CASPER_NFS))
+    client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_a", "ubuntu_b"]})
+    client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_b"]})
+    assert "ipxe.report" not in model.entries[-2].cmdline
+    assert br.layer_path(disks, "ubuntu-24.04-desktop").exists()
+    client.post("/api/boot-reports/entries", json={"enabled": []})
+    assert (
+        "ipxe.report" not in model.entries[-1].cmdline
+        and "ipxe.mac" not in model.entries[-1].cmdline
+    )
+    assert not br.layer_path(disks, "ubuntu-24.04-desktop").exists()
+
+
+def test_an_ubuntu_entry_that_cannot_take_the_layer_is_refused_with_the_reason(api, menu, disks):
+    model, _ = menu
+    model.entries.append(entry("ubuntu_iso", UBUNTU_ENTRY, "boot=casper url=http://x/y.iso"))
+    resp = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_iso"]})
+    assert resp.status_code == 422 and "NFS" in resp.json()["detail"]
+
+
+def test_if_the_layer_cannot_be_built_the_menu_is_left_alone(api, menu, disks, monkeypatch):
+    model, saved = menu
+    model.entries.append(entry("ubuntu_nfs", UBUNTU_ENTRY, CASPER_NFS))
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("mksquashfs failed: no space")
+
+    monkeypatch.setattr(br, "build_layer", boom)
+    resp = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_nfs"]})
+    assert resp.status_code == 500 and "no space" in resp.json()["detail"] and saved == []
+
+
+# --- the collector reads its address from the kernel command line -------------------------------
+
+
+def test_a_machine_with_the_layer_takes_its_address_and_mac_from_the_kernel_command_line(tmp_path):
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    (proc / "cmdline").write_text(
+        "boot=casper netboot=nfs ipxe.report=http://192.168.10.170:9021/ipxe/boot-report "
+        "ipxe.mac=aa:bb:cc:dd:ee:07 quiet\n"
+    )
+    root = tmp_path / "machine"
+    collector = root / "usr/local/bin"
+    collector.mkdir(parents=True)
+    (collector / "ipxe-station-boot-report").write_text(br.COLLECTOR.read_text())
+    (collector / "ipxe-station-boot-report").chmod(0o755)
+    (root / "etc").mkdir()  # no conf file: nothing but the command line to go on
+    sent = run_collector(root, tmp_path, proc)
+    args = (sent / "args").read_text()
+    assert "http://192.168.10.170:9021/ipxe/boot-report?mac=aa:bb:cc:dd:ee:07&manufacturer=" in args
+
+
+def test_a_machine_without_the_parameter_or_a_conf_sends_nothing(tmp_path):
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    (proc / "cmdline").write_text("boot=casper quiet\n")
+    root = tmp_path / "machine"
+    (root / "usr/local/bin").mkdir(parents=True)
+    (root / "usr/local/bin/ipxe-station-boot-report").write_text(br.COLLECTOR.read_text())
+    (root / "usr/local/bin/ipxe-station-boot-report").chmod(0o755)
+    (root / "etc").mkdir()
+    sent = run_collector(root, tmp_path, proc)
+    assert not (sent / "args").exists()
+
+
+def test_with_neither_curl_nor_wget_the_report_goes_by_python(tmp_path):
+    """Ubuntu Desktop's live image has neither; it has python3."""
+    received = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            received["path"] = self.path
+            received["body"] = self.rfile.read(int(self.headers["Content-Length"])).decode()
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        tools = tmp_path / "tools"
+        tools.mkdir()
+        for name in (
+            "sh",
+            "tr",
+            "sed",
+            "head",
+            "tail",
+            "cat",
+            "cut",
+            "grep",
+            "mktemp",
+            "sleep",
+            "uname",
+            "rm",
+            "python3",
+            "basename",
+            "id",
+        ):
+            found = shutil.which(name)
+            if found:
+                (tools / name).symlink_to(found)
+        proc = tmp_path / "proc"
+        proc.mkdir()
+        (proc / "cmdline").write_text(
+            f"ipxe.report=http://127.0.0.1:{server.server_port}/ipxe/boot-report "
+            "ipxe.mac=aa:bb:cc:dd:ee:09\n"
+        )
+        env = {
+            "PATH": str(tools),
+            "IPXE_STATION_PROC": str(proc),
+            "IPXE_STATION_REPORT_DELAY": "0",
+            "IPXE_STATION_CONF": "/nonexistent",
+        }
+        collector = tmp_path / "collector.sh"
+        collector.write_text(br.COLLECTOR.read_text())
+        subprocess.run([str(tools / "sh"), str(collector)], env=env, check=True)
+    finally:
+        server.shutdown()
+    assert received["path"].startswith("/ipxe/boot-report?mac=aa:bb:cc:dd:ee:09")
+    assert "##### system" in received["body"]

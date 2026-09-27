@@ -19,11 +19,10 @@ def reports_file():
 
 
 def _eligible(entry) -> bool:
-    """Live-config systems (Debian Live and the like). Kaspersky has its own script."""
-    return (
-        "boot=live" in (entry.cmdline or "").split()
-        and "kaspersky" not in (entry.kernel or "").lower()
-    )
+    """Debian Live and the like (boot=live) and Ubuntu (boot=casper). Kaspersky has its own."""
+    tokens = (entry.cmdline or "").split()
+    live = "boot=live" in tokens or "boot=casper" in tokens
+    return live and "kaspersky" not in (entry.kernel or "").lower()
 
 
 def _entries(model) -> list:
@@ -82,29 +81,41 @@ def choose_entries(payload: EntriesChoice):
 
     settings = state.load_settings()
     base = f"http://{settings.server_ip}:{settings.http_port}{boot_report.REPORT_PATH}"
-    wanted_folders = set()
-    all_folders = set()
+    medium_folders, layer_folders, all_folders = set(), set(), set()
     for entry in entries:
         folder = boot_report.image_folder(entry.kernel)
         tokens = [t for t in entry.cmdline.split() if not boot_report.is_hook_token(t)]
         all_folders.add(folder)
         if entry.name in payload.enabled:
-            if boot_report.entry_mode(tokens, entry.kernel, state.HTTP_ROOT)["mode"] == "medium":
+            mode = boot_report.entry_mode(tokens, entry.kernel, state.HTTP_ROOT)["mode"]
+            if mode == "medium":
                 tokens.append(boot_report.MEDIUM_HOOK_ARG)
-                wanted_folders.add(folder)
+                medium_folders.add(folder)
+            elif mode == "layer":
+                tokens.extend(boot_report.layer_arguments())
+                layer_folders.add(folder)
             else:
                 tokens.append(boot_report.hook_argument())
         entry.cmdline = " ".join(tokens)
+
+    # The script files follow the menu: on the disk where an entry asks, gone elsewhere. They go in
+    # first; the layer and the hook only act on entries whose command line asks for them.
+    try:
+        for folder in medium_folders:
+            boot_report.install_medium_hook(state.HTTP_ROOT, folder, base)
+        for folder in layer_folders:
+            boot_report.install_layer(state.HTTP_ROOT, folder)
+    except (RuntimeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not prepare the disk: {exc}")
     result = ipxe_routes.save_menu(model)
     if not result.get("valid"):
         raise HTTPException(status_code=422, detail=result.get("message") or "Menu not valid")
-
-    # the script file on the medium follows the menu: there where an NFS entry asks, gone elsewhere
-    for folder in wanted_folders:
-        boot_report.install_medium_hook(state.HTTP_ROOT, folder, base)
-    for folder in all_folders - wanted_folders:
+    for folder in all_folders - medium_folders:
         if folder:
             boot_report.remove_medium_hook(state.HTTP_ROOT, folder)
+    for folder in all_folders - layer_folders:
+        if folder:
+            boot_report.remove_layer(state.HTTP_ROOT, folder)
     add_log("system", "info", f"Boot reports asked for by: {', '.join(payload.enabled) or 'none'}")
     return {"entries": [_entry_state(e) for e in entries], "warnings": result.get("warnings", [])}
 

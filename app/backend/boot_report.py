@@ -10,6 +10,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -18,6 +21,7 @@ from urllib.parse import urlencode
 from .krd_firmware import parse_missing_firmware
 
 HOOK_TEMPLATE = Path(__file__).with_name("boot_report_hook.sh")
+COLLECTOR = Path(__file__).with_name("boot_report_collector.sh")
 DEBUG_TEMPLATE = Path(__file__).with_name("boot_debug.sh")
 DEBUG_PATH = "/ipxe/boot-report-debug"
 MAX_DEBUG = 10
@@ -25,6 +29,8 @@ HOOK_PATH = "/ipxe/live-report.sh"
 REPORT_PATH = "/ipxe/boot-report"
 HOOK_QUERY_FIELDS = ("mac", "manufacturer", "product")
 DEFAULT_DELAY_SECONDS = 45
+LAYER_FILE = "casper/zz-ipxe-station.squashfs"
+LAYER_UNIT = "ipxe-station-report.service"
 MEDIUM_HOOK_FILE = "live/config-hooks/ipxe-station-report.sh"
 # live-config runs a local file named by file://. Its own "medium" mode looks in
 # /lib/live/mount/medium, where Debian 13 no longer mounts the medium (it is /run/live/medium), so
@@ -105,6 +111,7 @@ def render_hook(report_url: str, delay: int = DEFAULT_DELAY_SECONDS) -> str:
     delay = max(0, min(int(delay), 600))
     return (
         HOOK_TEMPLATE.read_text()
+        .replace("__COLLECTOR__", COLLECTOR.read_text().rstrip("\n"))
         .replace("__REPORT_URL__", report_url)
         .replace("__DELAY__", str(delay))
     )
@@ -129,10 +136,17 @@ def hook_argument() -> str:
 
 
 def is_hook_token(token: str) -> bool:
-    """Any of our hook arguments, including the older "medium" form, so they get replaced."""
+    """Any of our arguments, including the older "medium" form, so they get replaced."""
+    if token.startswith(("ipxe.report=", "ipxe.mac=")):
+        return True
     if not token.startswith("live-config.hooks="):
         return False
     return token == "live-config.hooks=medium" or HOOK_PATH in token or MEDIUM_HOOK_FILE in token
+
+
+def layer_arguments() -> List[str]:
+    """What turns the report on for an Ubuntu (casper) entry that has our layer on its medium."""
+    return ["ipxe.report=http://${server_ip}:${port}" + REPORT_PATH, "ipxe.mac=${net0/mac}"]
 
 
 # ---------------------------------------------------------------------------
@@ -146,9 +160,10 @@ def is_hook_token(token: str) -> bool:
 
 
 def image_folder(kernel: str) -> Optional[str]:
-    """The disk folder of an entry whose kernel is ``<folder>/live/vmlinuz``."""
+    """The disk folder of an entry whose kernel is in ``<folder>/live/`` or ``<folder>/casper/``."""
     parts = (kernel or "").split("/")
-    return parts[0] if len(parts) >= 3 and parts[1] == "live" and _FOLDER.match(parts[0]) else None
+    ok = len(parts) >= 3 and parts[1] in ("live", "casper") and _FOLDER.match(parts[0])
+    return parts[0] if ok else None
 
 
 def image_has_wget(http_root: Path, folder: str) -> Optional[bool]:
@@ -163,6 +178,28 @@ def image_has_wget(http_root: Path, folder: str) -> Optional[bool]:
 def entry_mode(tokens: List[str], kernel: str, http_root: Path) -> dict:
     """How an entry could send a report, and why not when it cannot."""
     folder = image_folder(kernel)
+    if "boot=casper" in tokens:
+        # Ubuntu: casper stacks every *.squashfs of the medium's casper/ folder when no layerfs-path
+        # is given, so over NFS a small layer of ours joins the system.
+        if not any(t.startswith("netboot=nfs") for t in tokens):
+            return {
+                "mode": "layer",
+                "supported": False,
+                "reason": "Only an NFS entry can take the report layer (the disk is its medium).",
+            }
+        if any(t.startswith("layerfs-path=") for t in tokens):
+            return {
+                "mode": "layer",
+                "supported": False,
+                "reason": "This entry names its layers (layerfs-path); an added one is not used.",
+            }
+        if folder:
+            return {"mode": "layer", "supported": True, "reason": ""}
+        return {
+            "mode": "layer",
+            "supported": False,
+            "reason": "Its kernel is not in a casper/ folder.",
+        }
     if any(t.startswith("netboot=nfs") for t in tokens):
         if folder:
             return {"mode": "medium", "supported": True, "reason": ""}
@@ -456,3 +493,86 @@ def record_debug(path: Path, client: str, text: str) -> None:
 
 def debug_reports(path: Path) -> List[dict]:
     return list(reversed(_load(path)))
+
+
+# ---------------------------------------------------------------------------
+# The layer for Ubuntu (casper)
+# ---------------------------------------------------------------------------
+
+_UNIT = """[Unit]
+Description=iPXE Station boot report
+ConditionKernelCommandLine=ipxe.report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ipxe-station-boot-report
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
+def layer_path(http_root: Path, folder: str) -> Path:
+    return http_root / folder / LAYER_FILE
+
+
+def build_layer(target: Path) -> None:
+    """Make the squashfs layer: the collector, the service, and the link that starts it.
+
+    The service only starts on a kernel command line that has ``ipxe.report``, so the layer can sit
+    on the disk for every entry and only the ones that ask are affected.
+    """
+    if shutil.which("mksquashfs") is None:
+        raise RuntimeError("mksquashfs is not available on this server")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "layer"
+        (root / "usr/local/bin").mkdir(parents=True)
+        (root / "etc/systemd/system/multi-user.target.wants").mkdir(parents=True)
+        script = root / "usr/local/bin/ipxe-station-boot-report"
+        script.write_text(COLLECTOR.read_text())
+        script.chmod(0o755)
+        (root / "etc/systemd/system" / LAYER_UNIT).write_text(_UNIT)
+        os.symlink(
+            f"/etc/systemd/system/{LAYER_UNIT}",
+            root / "etc/systemd/system/multi-user.target.wants" / LAYER_UNIT,
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        part = target.with_name(target.name + ".tmp")
+        part.unlink(missing_ok=True)
+        done = subprocess.run(
+            [
+                "mksquashfs",
+                str(root),
+                str(part),
+                "-noappend",
+                "-all-root",
+                "-comp",
+                "gzip",
+                "-quiet",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if done.returncode != 0:
+            part.unlink(missing_ok=True)
+            raise RuntimeError(f"mksquashfs failed: {done.stderr.strip()[:200]}")
+        os.chmod(part, 0o644)
+        os.replace(part, target)
+
+
+def install_layer(http_root: Path, folder: str) -> Path:
+    if not _FOLDER.match(folder):
+        raise ValueError("invalid folder")
+    target = layer_path(http_root, folder)
+    build_layer(target)
+    return target
+
+
+def remove_layer(http_root: Path, folder: str) -> bool:
+    target = layer_path(http_root, folder)
+    if not target.exists():
+        return False
+    target.unlink()
+    return True
