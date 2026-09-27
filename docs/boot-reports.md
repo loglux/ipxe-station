@@ -6,8 +6,8 @@ and services that failed. The reports are kept with the machine on the **Devices
 each laptop behaves in each system. It is meant for the day you boot a batch of machines and want to know which
 ones need attention, without opening a terminal on any of them.
 
-Checked so far: the collecting script and the server side, tested and run against this server, and two findings
-below about Debian 13. **A real Debian Live boot that sends a report has not been confirmed yet.**
+Checked on a Dell Latitude 5530 with Debian 13 Live started over NFS: the report arrives, and it read correctly
+(memory, disks, screen, battery, devices and their drivers). Two Debian 13 quirks had to be worked around, below.
 [Kaspersky Rescue Disk](kaspersky.md) has its own, older report (firmware and screen).
 
 ## Which entries can send a report
@@ -59,9 +59,10 @@ Sent once, as plain text, to the server that started the system:
 | Kernel messages | Lines with errors, failures, timeouts, call traces, missing firmware (at most 300) |
 | Failed services, journal | `systemctl --failed` and the recent error lines of the journal |
 
-The server turns them into a summary: memory, UEFI or BIOS, **battery health** (percent of the design capacity;
-under 60% is flagged), **missing firmware**, **devices without a driver** (only for kinds that need one: network,
-video, audio, storage, Bluetooth), failed services, the number of kernel messages, and whether Wi-Fi and
+The server turns them into a summary (redone from the stored text whenever the summary learns something new): memory, UEFI or BIOS, **battery health** (percent of the design capacity;
+under 60% is flagged), **memory errors** (ECC / machine-check lines, such as `HANDLING IBECC MEMORY ERROR`),
+**disk errors** (I/O errors, NVMe resets), **missing firmware** (not counting the Wi-Fi driver's harmless debug
+files), **devices without a driver** (only for kinds that need one: network, video, audio, storage, Bluetooth), failed services, the number of kernel messages, and whether Wi-Fi and
 Bluetooth are present.
 
 ## When a report does not arrive

@@ -38,6 +38,8 @@ MAX_BODY_BYTES = 300 * 1024
 SECTION_LIMIT = 16 * 1024
 TOTAL_LIMIT = 120 * 1024
 MAX_REPORTS = 200
+# Raised whenever the summary learns something new, so stored reports are summarised again.
+SUMMARY_VERSION = 2
 
 SECTIONS = (
     "system",
@@ -54,6 +56,20 @@ SECTIONS = (
     "failed-units",
     "journal-errors",
 )
+
+# Kernel lines that point at failing memory or a failing disk.
+_MEMORY_ERROR = re.compile(
+    r"MEMORY ERROR|EDAC .*\b(error|CE|UE)\b|machine check|mce: .*(error|corrected)"
+    r"|uncorrect|correctable",
+    re.I,
+)
+_DISK_ERROR = re.compile(
+    r"I/O error|blk_update_request|Buffer I/O|ata\d+.*(failed|error|exception)"
+    r"|nvme\d+.*(timeout|error|reset)|critical medium|medium error",
+    re.I,
+)
+# Missing firmware that is not a problem: debug traces the Wi-Fi driver asks for.
+_HARMLESS_FIRMWARE = ("iwl-debug",)
 
 _MARK = re.compile(r"^##### ([a-z-]+)\s*$")
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -319,7 +335,11 @@ def summarize(sections: Dict[str, str]) -> dict:
         "model": " ".join(p for p in (dmi.get("sys_vendor"), dmi.get("product_name")) if p),
         "kernel_problem_lines": len(_lines(kernel_text)),
         "failed_units": [line.split()[0] for line in _lines(sections.get("failed-units", ""))],
-        "missing_firmware": sorted({m["name"] for m in missing}),
+        "missing_firmware": sorted(
+            {m["name"] for m in missing if not m["name"].startswith(_HARMLESS_FIRMWARE)}
+        ),
+        "memory_errors": len([ln for ln in _lines(kernel_text) if _MEMORY_ERROR.search(ln)]),
+        "disk_errors": len([ln for ln in _lines(kernel_text) if _DISK_ERROR.search(ln)]),
         "no_driver": devices_without_driver(pci),
         "batteries": batteries(sections.get("power", "")),
         "has_wifi": bool(re.search(r"Network controller|Wireless|802\.11|Wi-?Fi", pci + usb, re.I)),
@@ -363,6 +383,7 @@ def record(path: Path, client: str, device: dict, body: str) -> dict:
         "mac": device.get("mac", ""),
         "device": " ".join(p for p in (device.get("manufacturer"), device.get("product")) if p),
         "summary": summary,
+        "v": SUMMARY_VERSION,
         "sections": sections,
     }
     reports = [r for r in _load(path) if r.get("id") != entry["id"]]
@@ -371,18 +392,32 @@ def record(path: Path, client: str, device: dict, body: str) -> dict:
     return entry
 
 
+def _current(path: Path) -> List[dict]:
+    """All reports, with summaries brought up to date (the text is kept, so it can be redone)."""
+    reports = _load(path)
+    changed = False
+    for report in reports:
+        if report.get("v") != SUMMARY_VERSION:
+            report["summary"] = summarize(report.get("sections", {}))
+            report["v"] = SUMMARY_VERSION
+            changed = True
+    if changed:
+        _save(path, reports)
+    return reports
+
+
 def summaries(path: Path, mac: str = "") -> List[dict]:
     """Reports without their full text, newest first; only one machine's when a MAC is given."""
     items = [
         {k: v for k, v in r.items() if k != "sections"}
-        for r in _load(path)
+        for r in _current(path)
         if not mac or r.get("mac") == mac
     ]
     return sorted(items, key=lambda r: r.get("ts", 0), reverse=True)
 
 
 def get(path: Path, report_id_: str) -> Optional[dict]:
-    return next((r for r in _load(path) if r.get("id") == report_id_), None)
+    return next((r for r in _current(path) if r.get("id") == report_id_), None)
 
 
 def delete(path: Path, report_id_: str) -> bool:

@@ -679,3 +679,80 @@ def test_the_older_medium_form_is_recognised_and_replaced(api, menu, disks):
     client.post("/api/boot-reports/entries", json={"enabled": ["nfs_old"]})
     tokens = model.entries[-1].cmdline.split()
     assert "live-config.hooks=medium" not in tokens and tokens.count(br.MEDIUM_HOOK_ARG) == 1
+
+
+# --- what the summary singles out ----------------------------------------------------------------
+
+# Lines a Dell Latitude 5530 really printed in Debian Live.
+LAPTOP_KERNEL = """\
+[    1.661342] pci 10000:e0:06.0: bridge window [io  size 0x1000]: failed to assign
+[   11.057607] EDAC igen6 MC1: HANDLING IBECC MEMORY ERROR
+[   11.057609] EDAC igen6 MC0: HANDLING IBECC MEMORY ERROR
+[   11.469701] iwlwifi 0000:00:14.3: firmware: failed to load iwl-debug-yoyo.bin (-2)
+[   11.472070] iwlwifi 0000:00:14.3: firmware: failed to load iwl-debug-yoyo.bin (-2)
+"""
+
+
+def summary_of(kernel_lines):
+    return br.summarize(br.parse_sections("##### kernel-messages\n" + kernel_lines))
+
+
+def test_memory_errors_are_counted_on_their_own():
+    s = summary_of(LAPTOP_KERNEL)
+    assert s["memory_errors"] == 2 and s["disk_errors"] == 0
+    assert s["kernel_problem_lines"] == 5  # the plain count still counts everything
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[  5.0] nvme nvme0: I/O error, dev nvme0n1",
+        "[  5.0] blk_update_request: I/O error, dev sda, sector 123",
+        "[  5.0] Buffer I/O error on dev sda1",
+        "[  5.0] ata1.00: failed command: READ DMA",
+        "[  5.0] nvme nvme0: controller reset",
+        "[  5.0] critical medium error, dev sda",
+    ],
+)
+def test_disk_errors_are_recognised(line):
+    assert summary_of(line + "\n")["disk_errors"] == 1
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[  5.0] EDAC MC0: 1 CE memory read error",
+        "[  5.0] mce: [Hardware Error]: Machine check events logged",
+        "[  5.0] EDAC igen6 MC0: HANDLING IBECC MEMORY ERROR",
+        "[  5.0] Uncorrected memory error",
+    ],
+)
+def test_memory_errors_are_recognised(line):
+    assert summary_of(line + "\n")["memory_errors"] == 1
+
+
+def test_ordinary_failures_are_neither_memory_nor_disk_errors():
+    s = summary_of("[  1.6] pci 10000:e0:06.0: bridge window [io  size 0x1000]: failed to assign\n")
+    assert s["memory_errors"] == 0 and s["disk_errors"] == 0 and s["kernel_problem_lines"] == 1
+
+
+def test_wifi_debug_firmware_is_not_reported_as_missing_but_real_firmware_is():
+    real = (
+        "[  3.1] iwlwifi 0000:00:14.3: firmware: failed to load iwlwifi-so-a0-gf-a0-72.ucode (-2)\n"
+    )
+    s = summary_of(LAPTOP_KERNEL + real)
+    assert s["missing_firmware"] == ["iwlwifi-so-a0-gf-a0-72.ucode"]
+    assert summary_of(LAPTOP_KERNEL)["missing_firmware"] == []
+
+
+def test_a_report_stored_before_the_summary_learnt_something_is_summarised_again(tmp_path):
+    path = tmp_path / "r.json"
+    entry = br.record(path, "10.0.0.5", DELL, "##### kernel-messages\n" + LAPTOP_KERNEL)
+    stored = br._load(path)
+    stored[0]["summary"] = {"os": "old"}
+    stored[0]["v"] = 1
+    br._save(path, stored)
+    fresh = br.summaries(path)[0]
+    assert fresh["summary"]["memory_errors"] == 2 and fresh["v"] == br.SUMMARY_VERSION
+    assert br.get(path, entry["id"])["summary"]["memory_errors"] == 2
+    assert br._load(path)[0]["v"] == br.SUMMARY_VERSION  # and it is kept

@@ -52,6 +52,8 @@ export function reportChips(summary) {
   for (const b of summary.batteries || []) {
     if (b.health_pct !== undefined) add(`Battery ${b.health_pct}% of new`, b.health_pct < 60)
   }
+  if (summary.memory_errors) add(`Memory errors: ${summary.memory_errors}`, true)
+  if (summary.disk_errors) add(`Disk errors: ${summary.disk_errors}`, true)
   if (summary.missing_firmware?.length) add(`Missing firmware: ${summary.missing_firmware.length}`, true)
   if (summary.no_driver?.length) add(`No driver: ${summary.no_driver.length}`, true)
   if (summary.failed_units?.length) add(`Failed services: ${summary.failed_units.length}`, true)

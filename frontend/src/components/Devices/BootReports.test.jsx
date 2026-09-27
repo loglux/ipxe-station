@@ -67,6 +67,13 @@ describe('report chips', () => {
     expect(text).not.toContain('No problems seen')
   })
 
+  it('flags memory and disk errors', () => {
+    const chips = reportChips({ memory_errors: 2, disk_errors: 1 })
+    expect(chips.find((c) => c.text === 'Memory errors: 2').bad).toBe(true)
+    expect(chips.find((c) => c.text === 'Disk errors: 1').bad).toBe(true)
+    expect(chips.map((c) => c.text)).not.toContain('No problems seen')
+  })
+
   it('flags a worn battery and says so when nothing is wrong', () => {
     expect(reportChips({ batteries: [{ health_pct: 40 }] }).find((c) => c.text.startsWith('Battery')).bad).toBe(true)
     expect(reportChips({ ram_mb: 4096, boot: 'bios', batteries: [] }).map((c) => c.text)).toEqual([
