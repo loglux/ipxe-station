@@ -60,6 +60,7 @@ function AssetManager() {
   const uploadStatusTimeoutRef = useRef(null)
   const uploadInputRef = useRef(null)
   const debianProductsRef = useRef([])
+  const versionListsRef = useRef([])
   const [urlStatus, setUrlStatus] = useState({}) // url → { checking, ok, size, error }
   const [nfsStatus, setNfsStatus] = useState(null) // null = not fetched yet
   const [pollInterval, setPollInterval] = useState(2000)
@@ -152,6 +153,28 @@ function AssetManager() {
           }
         })
 
+        // Version-picker downloads (Ubuntu Server/Desktop, SystemRescue, Kaspersky, Hiren) track
+        // their own "distroId" as "<prefix><version>"; rebuild it from the poll so the bar survives
+        // navigating away from the Assets tab and back (which remounts this component and drops
+        // the in-memory flag, even though the download itself keeps running on the server).
+        versionListsRef.current.forEach(({ versions, distroPrefix, folderOf }) => {
+          ;(versions || []).forEach(v => {
+            const folder = folderOf(v)
+            if (!folder) return
+            const distroId = distroPrefix + v.version
+            // an exact folder match (not .includes): "ubuntu-26.04" must not also match a
+            // Desktop key like "ubuntu-26.04-desktop/..."
+            const match = Object.keys(data.downloads).find(key => key.split('/')[0] === folder)
+            if (!match) return
+            const status = data.downloads[match].status
+            if (status === 'downloading' || status === 'extracting') {
+              activeDownloads[distroId] = true
+            } else if (status === 'extracted' || status === 'complete' || status === 'error') {
+              completedDownloads[distroId] = false
+            }
+          })
+        })
+
         if (Object.keys(activeDownloads).length > 0) {
           setDownloading(prev => ({ ...prev, ...activeDownloads }))
         }
@@ -163,6 +186,19 @@ function AssetManager() {
       console.error('Failed to fetch progress:', error)
     }
   }, [])
+
+  useEffect(() => {
+    // Each section computes its download destination folder differently (some come straight from
+    // the API's dest_folder, others are built from a fixed prefix); folderOf mirrors exactly what
+    // each download*() handler above uses to build isoDest, so the match is exact.
+    versionListsRef.current = [
+      { versions: ubuntuDesktopVersions, distroPrefix: 'ubuntu-desktop-', folderOf: v => v.dest_folder },
+      { versions: ubuntuVersions, distroPrefix: 'ubuntu-', folderOf: v => v.dest_folder },
+      { versions: systemRescueVersions, distroPrefix: 'systemrescue-', folderOf: v => `rescue-${v.version}` },
+      { versions: kasperskyVersions, distroPrefix: 'kaspersky-', folderOf: v => `kaspersky-${v.version}` },
+      { versions: hirenVersions, distroPrefix: 'hiren-', folderOf: v => v.dest_folder || `hiren-${v.version}` },
+    ]
+  }, [ubuntuDesktopVersions, ubuntuVersions, systemRescueVersions, kasperskyVersions, hirenVersions])
 
   const fetchNfsStatus = useCallback(async () => {
     setNfsStatus(prev => ({ ...prev, loading: true }))
