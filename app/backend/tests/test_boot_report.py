@@ -574,7 +574,7 @@ def test_an_nfs_entry_gets_the_medium_argument_and_the_file_on_the_disk(api, men
     got = client.post("/api/boot-reports/entries", json={"enabled": ["debian_live_nfs"]})
     assert got.status_code == 200
     nfs = model.entries[-1]
-    assert nfs.cmdline.split()[-1] == "live-config.hooks=medium" and len(saved) == 1
+    assert nfs.cmdline.split()[-1] == br.MEDIUM_HOOK_ARG and len(saved) == 1
     hook = disks / "debian-13.3-live-xfce/live/config-hooks/ipxe-station-report.sh"
     assert 'REPORT_URL="http://192.168.10.170:9021/ipxe/boot-report"' in hook.read_text()
     assert [e["enabled"] for e in got.json()["entries"] if e["name"] == "debian_live_nfs"] == [True]
@@ -597,4 +597,85 @@ def test_the_file_stays_while_any_nfs_entry_of_the_disk_still_asks(api, menu, di
     client.post("/api/boot-reports/entries", json={"enabled": ["nfs_b"]})
     assert (disks / "debian-13.3-live-xfce/live/config-hooks/ipxe-station-report.sh").exists()
     assert model.entries[-2].cmdline.count("live-config.hooks") == 0
-    assert model.entries[-1].cmdline.count("live-config.hooks=medium") == 1
+    assert model.entries[-1].cmdline.count(br.MEDIUM_HOOK_ARG) == 1
+
+
+# --- finding out why a report did not arrive ------------------------------------------------
+
+
+def test_the_short_address_serves_the_diagnostic_script_for_this_server(api):
+    got = client.get("/d", headers={"host": "192.168.10.170:9021"})
+    assert got.status_code == 200 and got.headers["cache-control"] == "no-cache"
+    assert 'SERVER_URL="http://192.168.10.170:9021"' in got.text
+
+
+def test_only_a_plain_host_reaches_the_diagnostic_script():
+    assert 'SERVER_URL=""' in br.render_debug_script("x'; rm -rf /; '")
+    assert 'SERVER_URL="http://h:1"' in br.render_debug_script("h:1")
+
+
+def test_a_diagnostic_report_is_kept_and_listed_newest_first(api):
+    assert client.post("/ipxe/boot-report-debug", content=b"== first\nhello").status_code == 204
+    client.post("/ipxe/boot-report-debug", content=b"== second\x1b[31m")
+    got = client.get("/api/boot-reports/debug").json()["reports"]
+    assert [r["text"].splitlines()[0] for r in got] == ["== second[31m", "== first"]
+    assert "\x1b" not in got[0]["text"]
+
+
+def test_diagnostic_reports_are_limited_in_size_and_number(api):
+    assert (
+        client.post("/ipxe/boot-report-debug", content=b"x" * (br.MAX_BODY_BYTES + 1)).status_code
+        == 413
+    )
+    for n in range(br.MAX_DEBUG + 3):
+        client.post("/ipxe/boot-report-debug", content=f"run {n}".encode())
+    got = client.get("/api/boot-reports/debug").json()["reports"]
+    assert len(got) == br.MAX_DEBUG and got[0]["text"] == f"run {br.MAX_DEBUG + 2}"
+
+
+def test_the_diagnostic_script_looks_around_runs_the_job_and_sends_what_it_finds(tmp_path):
+    fakebin = make_sender(tmp_path)
+    sent = tmp_path / "sent"
+    sent.mkdir()
+    script = tmp_path / "debug.sh"
+    script.write_text(br.render_debug_script("192.168.10.170:9021"))
+    done = subprocess.run(
+        ["sh", str(script)],
+        env={"PATH": f"{fakebin}:/usr/bin:/bin", "SENT": str(sent)},
+        capture_output=True,
+        text=True,
+    )
+    for heading in (
+        "kernel command line",
+        "hooks on the medium",
+        "what the hook installed",
+        "tools",
+        "running the report job",
+    ):
+        assert f"== {heading}" in done.stdout
+    assert "the job is not installed" in done.stdout  # nothing was installed on this machine
+    assert "http://192.168.10.170:9021/ipxe/boot-report-debug" in (sent / "args").read_text()
+    assert "== kernel command line" in (sent / "body").read_text()
+    assert "--- sent to the server" in done.stdout
+
+
+def test_the_medium_argument_names_the_file_under_the_path_debian_13_uses():
+    arg = br.MEDIUM_HOOK_ARG
+    assert arg.startswith(
+        "live-config.hooks=file:///run/live/medium/live/config-hooks/ipxe-station-report.sh"
+    )
+    assert "|file:///lib/live/mount/medium/live/config-hooks/ipxe-station-report.sh" in arg
+    assert " " not in arg and br.is_hook_token(arg)
+
+
+def test_the_older_medium_form_is_recognised_and_replaced(api, menu, disks):
+    model, _ = menu
+    model.entries.append(
+        entry(
+            "nfs_old", "debian-13.3-live-xfce/live/vmlinuz", NFS_LINE + " live-config.hooks=medium"
+        )
+    )
+    assert br.is_hook_token("live-config.hooks=medium")
+    client.post("/api/boot-reports/entries", json={"enabled": ["nfs_old"]})
+    tokens = model.entries[-1].cmdline.split()
+    assert "live-config.hooks=medium" not in tokens and tokens.count(br.MEDIUM_HOOK_ARG) == 1

@@ -18,12 +18,21 @@ from urllib.parse import urlencode
 from .krd_firmware import parse_missing_firmware
 
 HOOK_TEMPLATE = Path(__file__).with_name("boot_report_hook.sh")
+DEBUG_TEMPLATE = Path(__file__).with_name("boot_debug.sh")
+DEBUG_PATH = "/ipxe/boot-report-debug"
+MAX_DEBUG = 10
 HOOK_PATH = "/ipxe/live-report.sh"
 REPORT_PATH = "/ipxe/boot-report"
 HOOK_QUERY_FIELDS = ("mac", "manufacturer", "product")
 DEFAULT_DELAY_SECONDS = 45
-MEDIUM_HOOK_ARG = "live-config.hooks=medium"
 MEDIUM_HOOK_FILE = "live/config-hooks/ipxe-station-report.sh"
+# live-config runs a local file named by file://. Its own "medium" mode looks in
+# /lib/live/mount/medium, where Debian 13 no longer mounts the medium (it is /run/live/medium), so
+# the file is named directly, under both paths; the one that does not exist is skipped.
+MEDIUM_HOOK_ARG = (
+    "live-config.hooks="
+    f"file:///run/live/medium/{MEDIUM_HOOK_FILE}|file:///lib/live/mount/medium/{MEDIUM_HOOK_FILE}"
+)
 
 MAX_BODY_BYTES = 300 * 1024
 SECTION_LIMIT = 16 * 1024
@@ -104,9 +113,10 @@ def hook_argument() -> str:
 
 
 def is_hook_token(token: str) -> bool:
-    return token == MEDIUM_HOOK_ARG or (
-        token.startswith("live-config.hooks=") and HOOK_PATH in token
-    )
+    """Any of our hook arguments, including the older "medium" form, so they get replaced."""
+    if not token.startswith("live-config.hooks="):
+        return False
+    return token == "live-config.hooks=medium" or HOOK_PATH in token or MEDIUM_HOOK_FILE in token
 
 
 # ---------------------------------------------------------------------------
@@ -115,8 +125,8 @@ def is_hook_token(token: str) -> bool:
 #
 # By URL: live-config downloads it with wget, so the image needs wget (Debian 13's live image has
 # curl only, and then live-config silently fetches nothing).
-# From the medium: over NFS the extracted disk is the medium, and live-config runs the files in
-# live/config-hooks/ of it (live-config.hooks=medium). No download, no wget.
+# From the medium: over NFS the extracted disk is the medium, and live-config runs our file from
+# live/config-hooks/ of it by its file:// path. No download, no wget.
 
 
 def image_folder(kernel: str) -> Optional[str]:
@@ -382,3 +392,32 @@ def delete(path: Path, report_id_: str) -> bool:
         return False
     _save(path, kept)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Finding out why a report did not arrive
+# ---------------------------------------------------------------------------
+
+
+def render_debug_script(host: str) -> str:
+    """A read-only script for a person to run on the machine: it looks around and reports back."""
+    url = f"http://{host}"
+    if not _SAFE_URL.match(url + "/x"):
+        url = ""  # only a plain host and port ever goes into a script
+    return DEBUG_TEMPLATE.read_text().replace("__SERVER_URL__", url)
+
+
+def record_debug(path: Path, client: str, text: str) -> None:
+    entries = _load(path)
+    entries.append(
+        {
+            "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "client": client,
+            "text": clean(text)[: SECTION_LIMIT * 2],
+        }
+    )
+    _save(path, entries[-MAX_DEBUG:])
+
+
+def debug_reports(path: Path) -> List[dict]:
+    return list(reversed(_load(path)))

@@ -42,8 +42,9 @@
   PCI/USB with drivers, battery health, kernel errors, missing firmware, failed services), kept per machine and
   system on the Devices tab. Server side and script are tested and were run against the server. Found on a real
   Debian 13 Live boot: its image has no `wget`, which `live-config` needs to fetch a hook by URL, so nothing was
-  fetched; over NFS the hook is read from the medium (`live-config.hooks=medium`) and needs nothing from the image.
-  **A Debian Live NFS boot that sends a report has not been confirmed yet.** Ubuntu (`casper`, no `live-config`) needs another way to run a script; SystemRescue
+  fetched; over NFS the hook can be read from the medium instead. `live-config.hooks=medium` also fails on Debian 13 (it
+  looks in `/lib/live/mount/medium`, the medium is at `/run/live/medium`), so the entry names the file with
+  `file://`. **A Debian Live NFS boot that sends a report has not been confirmed yet.** Ubuntu (`casper`, no `live-config`) needs another way to run a script; SystemRescue
   (`ar_source`) and WinPE (`start.ps1`) are candidates.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a

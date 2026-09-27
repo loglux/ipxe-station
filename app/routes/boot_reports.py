@@ -40,6 +40,16 @@ def _entry_state(entry) -> dict:
     }
 
 
+def debug_file():
+    return state.IPXE_ROOT / "boot-debug.json"
+
+
+@boot_reports_router.get("/debug")
+def debug_reports():
+    """What people ran the diagnostic script on a machine and sent back (newest first)."""
+    return {"reports": boot_report.debug_reports(debug_file())}
+
+
 @boot_reports_router.get("")
 def list_reports(mac: str = ""):
     return {"reports": boot_report.summaries(reports_file(), mac)}

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.backend import boot_report, krd_display, krd_schedule
 from app.routes.assets import assets_router
 from app.routes.boot import boot_router
-from app.routes.boot_reports import boot_reports_router, reports_file
+from app.routes.boot_reports import boot_reports_router, debug_file, reports_file
 from app.routes.boundary import api_boundary_context
 from app.routes.dhcp import dhcp_router
 from app.routes.ipxe import build_personal_menu_script, ipxe_router
@@ -199,6 +199,27 @@ async def live_boot_report(request: Request):
     add_log(
         "system", "info", f"Boot report from {who}: {entry['summary']['os'] or 'a live system'}"
     )
+    return Response(status_code=204)
+
+
+@app.get("/d")
+async def boot_debug_script(request: Request):
+    """A short address for the diagnostic script: ``curl -s <server>/d | sh`` on the machine."""
+    return Response(
+        boot_report.render_debug_script(request.headers.get("host", "")),
+        media_type="text/x-shellscript",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.post(boot_report.DEBUG_PATH)
+async def boot_debug_report(request: Request):
+    body = await request.body()
+    if len(body) > boot_report.MAX_BODY_BYTES:
+        return Response("Report too large", status_code=413)
+    client = request.client.host if request.client else ""
+    boot_report.record_debug(debug_file(), client, body.decode("utf-8", "replace"))
+    add_log("system", "info", f"Boot report diagnostics from {client}")
     return Response(status_code=204)
 
 
