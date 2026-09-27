@@ -182,6 +182,36 @@ async def live_report_hook(request: Request):
     )
 
 
+@app.get(boot_report.CLOUDINIT_META_PATH)
+async def cloudinit_meta_data():
+    """The NoCloud datasource's meta-data; open, static, the same for every machine."""
+    return Response(
+        boot_report.cloudinit_meta_data(),
+        media_type="text/plain",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get(boot_report.CLOUDINIT_USER_PATH)
+async def cloudinit_user_data():
+    """The NoCloud datasource's user-data: starts the collector. Open, like boot.ipxe."""
+    return Response(
+        boot_report.cloudinit_user_data(),
+        media_type="text/cloud-config",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get(boot_report.CLOUDINIT_VENDOR_PATH)
+async def cloudinit_vendor_data():
+    """Empty, so a clean 200 replaces a 404 (cloud-init has been seen retrying a 404 here)."""
+    return Response(
+        boot_report.cloudinit_vendor_data(),
+        media_type="text/cloud-config",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @app.post(boot_report.REPORT_PATH)
 async def live_boot_report(request: Request):
     """What a live system reports about itself once it is up; open, size-limited, cleaned."""

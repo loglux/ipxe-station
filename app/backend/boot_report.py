@@ -6,13 +6,11 @@ turns that text into a summary (memory, problems, devices without a driver, batt
 firmware) and keeps the last report of each machine and system.
 """
 
+import base64
 import hashlib
 import json
 import os
 import re
-import shutil
-import subprocess
-import tempfile
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -29,9 +27,11 @@ HOOK_PATH = "/ipxe/live-report.sh"
 REPORT_PATH = "/ipxe/boot-report"
 HOOK_QUERY_FIELDS = ("mac", "manufacturer", "product")
 DEFAULT_DELAY_SECONDS = 45
-LAYER_FILE = "casper/zz-ipxe-station.squashfs"
-LAYER_UNIT = "ipxe-station-report.service"
 MEDIUM_HOOK_FILE = "live/config-hooks/ipxe-station-report.sh"
+CLOUDINIT_META_PATH = "/ipxe/cloud-init/meta-data"
+CLOUDINIT_USER_PATH = "/ipxe/cloud-init/user-data"
+CLOUDINIT_VENDOR_PATH = "/ipxe/cloud-init/vendor-data"
+_CLOUDINIT_DISABLE = re.compile(r"^cloud-init=disabl(e|ed)$")
 # live-config runs a local file named by file://. Its own "medium" mode looks in
 # /lib/live/mount/medium, where Debian 13 no longer mounts the medium (it is /run/live/medium), so
 # the file is named directly, under both paths; the one that does not exist is skipped.
@@ -137,16 +137,55 @@ def hook_argument() -> str:
 
 def is_hook_token(token: str) -> bool:
     """Any of our arguments, including the older "medium" form, so they get replaced."""
-    if token.startswith(("ipxe.report=", "ipxe.mac=")):
+    if token.startswith(("ipxe.report=", "ipxe.mac=")) or token.startswith("ds=nocloud-net"):
         return True
     if not token.startswith("live-config.hooks="):
         return False
     return token == "live-config.hooks=medium" or HOOK_PATH in token or MEDIUM_HOOK_FILE in token
 
 
-def layer_arguments() -> List[str]:
-    """What turns the report on for an Ubuntu (casper) entry that has our layer on its medium."""
-    return ["ipxe.report=http://${server_ip}:${port}" + REPORT_PATH, "ipxe.mac=${net0/mac}"]
+def cloudinit_arguments() -> List[str]:
+    """What turns the report on for a casper entry, through cloud-init's NoCloud datasource.
+
+    casper's own layer stacking cannot be joined reliably: which files it treats as one chain is
+    baked into each image's initrd (``conf/conf.d/default-layer.conf``) and differs by version and
+    flavour. cloud-init is a standard extension point instead: it ships in every official Ubuntu
+    image and fetches its configuration over plain HTTP, independently of the layer stack.
+    """
+    base = "http://${server_ip}:${port}" + CLOUDINIT_META_PATH.rsplit("/", 1)[0] + "/"
+    return [
+        f"ds=nocloud-net;s={base}",
+        "ipxe.report=http://${server_ip}:${port}" + REPORT_PATH,
+        "ipxe.mac=${net0/mac}",
+    ]
+
+
+def cloudinit_meta_data() -> str:
+    return "instance-id: ipxe-station\n"
+
+
+def cloudinit_vendor_data() -> str:
+    """Empty but valid, so a machine gets a clean 200 instead of retrying a 404 for it."""
+    return "#cloud-config\n{}\n"
+
+
+def cloudinit_user_data() -> str:
+    """A cloud-config that starts the shared collector in the background, in every Ubuntu flavour.
+
+    The collector itself reads ``ipxe.report``/``ipxe.mac`` from the kernel command line, so this
+    file never needs anything specific to the machine or the image.
+    """
+    encoded = base64.b64encode(COLLECTOR.read_bytes().rstrip(b"\n") + b"\n").decode()
+    return (
+        "#cloud-config\n"
+        "write_files:\n"
+        "  - path: /usr/local/bin/ipxe-station-boot-report\n"
+        "    encoding: b64\n"
+        f"    content: {encoded}\n"
+        "    permissions: '0755'\n"
+        "runcmd:\n"
+        "  - [sh, -c, 'nohup /usr/local/bin/ipxe-station-boot-report >/dev/null 2>&1 &']\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -179,27 +218,19 @@ def entry_mode(tokens: List[str], kernel: str, http_root: Path) -> dict:
     """How an entry could send a report, and why not when it cannot."""
     folder = image_folder(kernel)
     if "boot=casper" in tokens:
-        # Ubuntu: casper stacks every *.squashfs of the medium's casper/ folder when no layerfs-path
-        # is given, so over NFS a small layer of ours joins the system.
-        if not any(t.startswith("netboot=nfs") for t in tokens):
+        # Ubuntu: cloud-init (present in every official image) fetches its config over HTTP,
+        # independently of how casper stacks its squashfs layers.
+        disabled = next((t for t in tokens if _CLOUDINIT_DISABLE.match(t)), None)
+        if disabled:
             return {
-                "mode": "layer",
+                "mode": "cloud-init",
                 "supported": False,
-                "reason": "Only an NFS entry can take the report layer (the disk is its medium).",
+                "reason": (
+                    f"This entry turns cloud-init off ({disabled}); remove that from its command "
+                    "line in the Builder to allow a report."
+                ),
             }
-        if any(t.startswith("layerfs-path=") for t in tokens):
-            return {
-                "mode": "layer",
-                "supported": False,
-                "reason": "This entry names its layers (layerfs-path); an added one is not used.",
-            }
-        if folder:
-            return {"mode": "layer", "supported": True, "reason": ""}
-        return {
-            "mode": "layer",
-            "supported": False,
-            "reason": "Its kernel is not in a casper/ folder.",
-        }
+        return {"mode": "cloud-init", "supported": True, "reason": ""}
     if any(t.startswith("netboot=nfs") for t in tokens):
         if folder:
             return {"mode": "medium", "supported": True, "reason": ""}
@@ -493,86 +524,3 @@ def record_debug(path: Path, client: str, text: str) -> None:
 
 def debug_reports(path: Path) -> List[dict]:
     return list(reversed(_load(path)))
-
-
-# ---------------------------------------------------------------------------
-# The layer for Ubuntu (casper)
-# ---------------------------------------------------------------------------
-
-_UNIT = """[Unit]
-Description=iPXE Station boot report
-ConditionKernelCommandLine=ipxe.report
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/ipxe-station-boot-report
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-
-def layer_path(http_root: Path, folder: str) -> Path:
-    return http_root / folder / LAYER_FILE
-
-
-def build_layer(target: Path) -> None:
-    """Make the squashfs layer: the collector, the service, and the link that starts it.
-
-    The service only starts on a kernel command line that has ``ipxe.report``, so the layer can sit
-    on the disk for every entry and only the ones that ask are affected.
-    """
-    if shutil.which("mksquashfs") is None:
-        raise RuntimeError("mksquashfs is not available on this server")
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp) / "layer"
-        (root / "usr/local/bin").mkdir(parents=True)
-        (root / "etc/systemd/system/multi-user.target.wants").mkdir(parents=True)
-        script = root / "usr/local/bin/ipxe-station-boot-report"
-        script.write_text(COLLECTOR.read_text())
-        script.chmod(0o755)
-        (root / "etc/systemd/system" / LAYER_UNIT).write_text(_UNIT)
-        os.symlink(
-            f"/etc/systemd/system/{LAYER_UNIT}",
-            root / "etc/systemd/system/multi-user.target.wants" / LAYER_UNIT,
-        )
-        target.parent.mkdir(parents=True, exist_ok=True)
-        part = target.with_name(target.name + ".tmp")
-        part.unlink(missing_ok=True)
-        done = subprocess.run(
-            [
-                "mksquashfs",
-                str(root),
-                str(part),
-                "-noappend",
-                "-all-root",
-                "-comp",
-                "gzip",
-                "-quiet",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if done.returncode != 0:
-            part.unlink(missing_ok=True)
-            raise RuntimeError(f"mksquashfs failed: {done.stderr.strip()[:200]}")
-        os.chmod(part, 0o644)
-        os.replace(part, target)
-
-
-def install_layer(http_root: Path, folder: str) -> Path:
-    if not _FOLDER.match(folder):
-        raise ValueError("invalid folder")
-    target = layer_path(http_root, folder)
-    build_layer(target)
-    return target
-
-
-def remove_layer(http_root: Path, folder: str) -> bool:
-    target = layer_path(http_root, folder)
-    if not target.exists():
-        return False
-    target.unlink()
-    return True

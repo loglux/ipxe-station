@@ -81,7 +81,7 @@ def choose_entries(payload: EntriesChoice):
 
     settings = state.load_settings()
     base = f"http://{settings.server_ip}:{settings.http_port}{boot_report.REPORT_PATH}"
-    medium_folders, layer_folders, all_folders = set(), set(), set()
+    medium_folders, all_folders = set(), set()
     for entry in entries:
         folder = boot_report.image_folder(entry.kernel)
         tokens = [t for t in entry.cmdline.split() if not boot_report.is_hook_token(t)]
@@ -91,21 +91,18 @@ def choose_entries(payload: EntriesChoice):
             if mode == "medium":
                 tokens.append(boot_report.MEDIUM_HOOK_ARG)
                 medium_folders.add(folder)
-            elif mode == "layer":
-                tokens.extend(boot_report.layer_arguments())
-                layer_folders.add(folder)
+            elif mode == "cloud-init":
+                tokens.extend(boot_report.cloudinit_arguments())
             else:
                 tokens.append(boot_report.hook_argument())
         entry.cmdline = " ".join(tokens)
 
-    # The script files follow the menu: on the disk where an entry asks, gone elsewhere. They go in
-    # first; the layer and the hook only act on entries whose command line asks for them.
+    # The Debian script file follows the menu: on the disk where an entry asks, gone elsewhere.
+    # cloud-init needs nothing on the disk: it fetches its config from this server directly.
     try:
         for folder in medium_folders:
             boot_report.install_medium_hook(state.HTTP_ROOT, folder, base)
-        for folder in layer_folders:
-            boot_report.install_layer(state.HTTP_ROOT, folder)
-    except (RuntimeError, OSError) as exc:
+    except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not prepare the disk: {exc}")
     result = ipxe_routes.save_menu(model)
     if not result.get("valid"):
@@ -113,9 +110,6 @@ def choose_entries(payload: EntriesChoice):
     for folder in all_folders - medium_folders:
         if folder:
             boot_report.remove_medium_hook(state.HTTP_ROOT, folder)
-    for folder in all_folders - layer_folders:
-        if folder:
-            boot_report.remove_layer(state.HTTP_ROOT, folder)
     add_log("system", "info", f"Boot reports asked for by: {', '.join(payload.enabled) or 'none'}")
     return {"entries": [_entry_state(e) for e in entries], "warnings": result.get("warnings", [])}
 

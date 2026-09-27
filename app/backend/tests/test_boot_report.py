@@ -1,5 +1,6 @@
 """Boot reports from live systems: the script, reading what comes back, storing it, the API."""
 
+import base64
 import http.server
 import shutil
 import subprocess
@@ -317,6 +318,18 @@ def test_the_script_endpoint_serves_a_script_that_reports_back_to_this_server(ap
     assert "http://192.168.10.170:9021/ipxe/boot-report?mac=aa%3Abb%3Acc%3Add%3Aee%3A01" in got.text
 
 
+def test_the_cloudinit_endpoints_serve_what_a_machine_needs(api):
+    meta = client.get("/ipxe/cloud-init/meta-data")
+    assert meta.status_code == 200 and meta.headers["cache-control"] == "no-cache"
+    assert "instance-id" in meta.text
+    user = client.get("/ipxe/cloud-init/user-data")
+    assert user.status_code == 200 and user.text.startswith("#cloud-config\n")
+    assert "ipxe-station-boot-report" in user.text
+    # cloud-init has been seen retrying a 404 here every second; a clean 200 avoids that
+    vendor = client.get("/ipxe/cloud-init/vendor-data")
+    assert vendor.status_code == 200 and vendor.text.startswith("#cloud-config\n")
+
+
 def test_a_posted_report_is_stored_and_listed(api):
     assert post_report().status_code == 204
     reports = client.get("/api/boot-reports").json()["reports"]
@@ -434,6 +447,47 @@ def test_a_menu_that_does_not_validate_is_not_reported_as_saved(api, menu, monke
     assert resp.status_code == 422 and "bad" in resp.json()["detail"]
 
 
+# --- Ubuntu (casper): cloud-init instead of a layer ---------------------------------------------
+
+
+def test_a_casper_entry_reports_through_cloud_init(api, menu):
+    model, saved = menu
+    got = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_live_1"]})
+    assert got.status_code == 200 and len(saved) == 1
+    ubuntu = model.entries[3]
+    for arg in br.cloudinit_arguments():
+        assert arg in ubuntu.cmdline
+    state_ = next(e for e in got.json()["entries"] if e["name"] == "ubuntu_live_1")
+    assert state_["enabled"] is True and state_["mode"] == "cloud-init"
+    assert "live-config" not in ubuntu.cmdline  # not the Debian way
+
+
+def test_turning_cloud_init_off_removes_all_three_arguments(api, menu):
+    model, _ = menu
+    client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_live_1"]})
+    client.post("/api/boot-reports/entries", json={"enabled": []})
+    ubuntu = model.entries[3]
+    assert "ipxe.report" not in ubuntu.cmdline
+    assert "ipxe.mac" not in ubuntu.cmdline
+    assert "ds=nocloud-net" not in ubuntu.cmdline
+    assert ubuntu.cmdline == "boot=casper netboot=nfs"
+
+
+def test_a_casper_entry_that_disables_cloud_init_is_refused_with_the_reason(api, menu):
+    model, _ = menu
+    model.entries.append(
+        entry("ubuntu_disabled", "ubuntu-24.04/casper/vmlinuz", "boot=casper cloud-init=disabled")
+    )
+    resp = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_disabled"]})
+    assert resp.status_code == 422 and "cloud-init=disabled" in resp.json()["detail"]
+    state_ = next(
+        e
+        for e in client.get("/api/boot-reports/entries").json()["entries"]
+        if e["name"] == "ubuntu_disabled"
+    )
+    assert state_["supported"] is False and "Builder" in state_["reason"]
+
+
 # --- how the script reaches a machine ------------------------------------------------------------
 
 
@@ -475,6 +529,48 @@ def test_an_nfs_entry_reads_the_script_from_the_medium_and_needs_no_wget(tmp_pat
     assert got == {"mode": "medium", "supported": True, "reason": ""}
     odd = br.entry_mode(["boot=live", "netboot=nfs"], "vmlinuz", tmp_path)
     assert odd["mode"] == "medium" and odd["supported"] is False
+
+
+def test_a_casper_entry_reports_through_cloud_init_regardless_of_how_it_boots(tmp_path):
+    for tokens in (
+        ["boot=casper", "netboot=nfs", "nfsroot=x:/y"],
+        ["boot=casper", "url=http://x/y.iso"],
+        ["boot=casper"],
+    ):
+        assert br.entry_mode(tokens, "ubuntu-24.04/casper/vmlinuz", tmp_path) == {
+            "mode": "cloud-init",
+            "supported": True,
+            "reason": "",
+        }
+
+
+@pytest.mark.parametrize("flag", ["cloud-init=disabled", "cloud-init=disable"])
+def test_a_casper_entry_that_turns_cloud_init_off_is_refused(tmp_path, flag):
+    got = br.entry_mode(["boot=casper", flag], "ubuntu-24.04/casper/vmlinuz", tmp_path)
+    assert got["mode"] == "cloud-init" and got["supported"] is False
+    assert flag in got["reason"] and "Builder" in got["reason"]
+
+
+def test_cloudinit_arguments_use_the_menus_variables_and_are_recognised_as_ours():
+    args = br.cloudinit_arguments()
+    assert args[0] == "ds=nocloud-net;s=http://${server_ip}:${port}/ipxe/cloud-init/"
+    assert args[1:] == [
+        "ipxe.report=http://${server_ip}:${port}/ipxe/boot-report",
+        "ipxe.mac=${net0/mac}",
+    ]
+    assert all(br.is_hook_token(a) for a in args) and not br.is_hook_token("ds=other;s=1")
+
+
+def test_cloudinit_meta_data_and_user_data():
+    assert "instance-id" in br.cloudinit_meta_data()
+    assert br.cloudinit_vendor_data() == "#cloud-config\n{}\n"
+    user_data = br.cloudinit_user_data()
+    assert user_data.startswith("#cloud-config\n")
+    assert "path: /usr/local/bin/ipxe-station-boot-report" in user_data
+    assert "permissions: '0755'" in user_data
+    assert "ipxe-station-boot-report >/dev/null 2>&1 &" in user_data
+    encoded = user_data.split("content: ", 1)[1].splitlines()[0]
+    assert base64.b64decode(encoded) == br.COLLECTOR.read_bytes().rstrip(b"\n") + b"\n"
 
 
 def test_the_medium_hook_is_installed_executable_and_removed_with_its_folder(tmp_path):
@@ -761,136 +857,6 @@ def test_a_report_stored_before_the_summary_learnt_something_is_summarised_again
     assert fresh["summary"]["memory_errors"] == 2 and fresh["v"] == br.SUMMARY_VERSION
     assert br.get(path, entry["id"])["summary"]["memory_errors"] == 2
     assert br._load(path)[0]["v"] == br.SUMMARY_VERSION  # and it is kept
-
-
-# --- Ubuntu (casper): a layer on the disk -------------------------------------------------------
-
-needs_mksquashfs = pytest.mark.skipif(
-    shutil.which("mksquashfs") is None, reason="needs squashfs-tools"
-)
-
-CASPER_NFS = (
-    "ip=dhcp boot=casper netboot=nfs nfsroot=${server_ip}:${nfs_root}/ubuntu-24.04-desktop "
-    "ignore_uuid cloud-init=disabled quiet splash"
-)
-
-
-def test_an_ubuntu_nfs_entry_can_take_the_layer(tmp_path):
-    got = br.entry_mode(CASPER_NFS.split(), "ubuntu-24.04-desktop/casper/vmlinuz", tmp_path)
-    assert got == {"mode": "layer", "supported": True, "reason": ""}
-
-
-def test_an_ubuntu_entry_that_is_not_nfs_or_names_its_layers_cannot(tmp_path):
-    iso = "ip=dhcp boot=casper url=http://x/y.iso".split()
-    got = br.entry_mode(iso, "ubuntu-24.04/casper/vmlinuz", tmp_path)
-    assert got["mode"] == "layer" and got["supported"] is False and "NFS" in got["reason"]
-    named = (CASPER_NFS + " layerfs-path=minimal.standard.live.squashfs").split()
-    got = br.entry_mode(named, "ubuntu-24.04-desktop/casper/vmlinuz", tmp_path)
-    assert got["supported"] is False and "layerfs-path" in got["reason"]
-    assert br.entry_mode(CASPER_NFS.split(), "vmlinuz", tmp_path)["supported"] is False
-
-
-def test_the_layer_arguments_use_the_menus_variables_and_are_recognised_as_ours():
-    args = br.layer_arguments()
-    assert args == [
-        "ipxe.report=http://${server_ip}:${port}/ipxe/boot-report",
-        "ipxe.mac=${net0/mac}",
-    ]
-    assert all(br.is_hook_token(a) for a in args) and not br.is_hook_token("ipxe.other=1")
-
-
-@needs_mksquashfs
-def test_the_layer_holds_the_collector_the_service_and_the_link_that_starts_it(tmp_path):
-    layer = br.install_layer(tmp_path, "ubuntu-24.04-desktop")
-    assert layer == tmp_path / "ubuntu-24.04-desktop/casper/zz-ipxe-station.squashfs"
-    listing = subprocess.run(
-        ["unsquashfs", "-lls", str(layer)], capture_output=True, text=True
-    ).stdout
-    assert "usr/local/bin/ipxe-station-boot-report" in listing and "-rwxr-xr-x root/root" in listing
-    assert "etc/systemd/system/ipxe-station-report.service" in listing
-    assert "multi-user.target.wants/ipxe-station-report.service -> /etc/systemd/system/" in listing
-    out = tmp_path / "unpacked"
-    subprocess.run(["unsquashfs", "-d", str(out), str(layer)], capture_output=True, check=True)
-    unit = (out / "etc/systemd/system/ipxe-station-report.service").read_text()
-    assert "ConditionKernelCommandLine=ipxe.report" in unit  # only entries that ask are affected
-    assert "ExecStart=/usr/local/bin/ipxe-station-boot-report" in unit
-    assert (out / "usr/local/bin/ipxe-station-boot-report").read_text() == br.COLLECTOR.read_text()
-    assert not list(layer.parent.glob("*.tmp"))
-
-
-@needs_mksquashfs
-def test_a_layer_can_be_replaced_and_removed(tmp_path):
-    br.install_layer(tmp_path, "ubuntu-24.04")
-    first = br.layer_path(tmp_path, "ubuntu-24.04").stat().st_size
-    br.install_layer(tmp_path, "ubuntu-24.04")
-    assert br.layer_path(tmp_path, "ubuntu-24.04").stat().st_size == first
-    assert (
-        br.remove_layer(tmp_path, "ubuntu-24.04") is True
-        and br.remove_layer(tmp_path, "ubuntu-24.04") is False
-    )
-
-
-def test_a_missing_tool_or_a_bad_folder_is_a_clear_error(tmp_path, monkeypatch):
-    with pytest.raises(ValueError):
-        br.install_layer(tmp_path, "../evil")
-    monkeypatch.setattr(br.shutil, "which", lambda name: None)
-    with pytest.raises(RuntimeError, match="mksquashfs"):
-        br.install_layer(tmp_path, "ubuntu-24.04")
-
-
-UBUNTU_ENTRY = "ubuntu-24.04-desktop/casper/vmlinuz"
-
-
-@needs_mksquashfs
-def test_turning_on_an_ubuntu_entry_adds_the_arguments_and_the_layer(api, menu, disks):
-    model, saved = menu
-    model.entries.append(entry("ubuntu_nfs", UBUNTU_ENTRY, CASPER_NFS))
-    got = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_nfs"]})
-    assert got.status_code == 200
-    tokens = model.entries[-1].cmdline.split()
-    assert tokens[-2:] == br.layer_arguments() and len(saved) == 1
-    assert br.layer_path(disks, "ubuntu-24.04-desktop").exists()
-    states = {e["name"]: e for e in got.json()["entries"]}
-    assert states["ubuntu_nfs"]["enabled"] is True and states["ubuntu_nfs"]["mode"] == "layer"
-    assert not br.hook_file(disks, "ubuntu-24.04-desktop").exists()  # not the Debian way
-
-
-@needs_mksquashfs
-def test_turning_it_off_removes_the_arguments_and_the_layer_unless_another_entry_still_asks(
-    api, menu, disks
-):
-    model, _ = menu
-    model.entries.append(entry("ubuntu_a", UBUNTU_ENTRY, CASPER_NFS))
-    model.entries.append(entry("ubuntu_b", UBUNTU_ENTRY, CASPER_NFS))
-    client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_a", "ubuntu_b"]})
-    client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_b"]})
-    assert "ipxe.report" not in model.entries[-2].cmdline
-    assert br.layer_path(disks, "ubuntu-24.04-desktop").exists()
-    client.post("/api/boot-reports/entries", json={"enabled": []})
-    assert (
-        "ipxe.report" not in model.entries[-1].cmdline
-        and "ipxe.mac" not in model.entries[-1].cmdline
-    )
-    assert not br.layer_path(disks, "ubuntu-24.04-desktop").exists()
-
-
-def test_an_ubuntu_entry_that_cannot_take_the_layer_is_refused_with_the_reason(api, menu, disks):
-    model, _ = menu
-    model.entries.append(entry("ubuntu_iso", UBUNTU_ENTRY, "boot=casper url=http://x/y.iso"))
-    resp = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_iso"]})
-    assert resp.status_code == 422 and "NFS" in resp.json()["detail"]
-
-
-def test_if_the_layer_cannot_be_built_the_menu_is_left_alone(api, menu, disks, monkeypatch):
-    model, saved = menu
-    model.entries.append(entry("ubuntu_nfs", UBUNTU_ENTRY, CASPER_NFS))
-
-    def boom(*args, **kwargs):
-        raise RuntimeError("mksquashfs failed: no space")
-
-    monkeypatch.setattr(br, "build_layer", boom)
-    resp = client.post("/api/boot-reports/entries", json={"enabled": ["ubuntu_nfs"]})
-    assert resp.status_code == 500 and "no space" in resp.json()["detail"] and saved == []
 
 
 # --- the collector reads its address from the kernel command line -------------------------------

@@ -20,15 +20,16 @@ post() {
 
 {
     echo "== kernel command line"
-    tr ' ' '\n' < /proc/cmdline | grep -E 'hooks|BOOTIF|netboot|nfsroot|boot=|ipxe\.|layerfs'
+    tr ' ' '\n' < /proc/cmdline | grep -E 'hooks|BOOTIF|netboot|nfsroot|boot=|ipxe\.|ds='
 
-    echo "== report layer on the medium (Ubuntu)"
-    ls -la /run/live/medium/casper/zz-ipxe-station.squashfs /cdrom/casper/zz-ipxe-station.squashfs 2>&1
-    grep -E 'zz-ipxe' /proc/mounts 2>&1 | cut -c1-150
-
-    echo "== the report service (Ubuntu)"
-    systemctl status ipxe-station-report.service --no-pager 2>&1 | head -12
-    journalctl -u ipxe-station-report.service --no-pager 2>&1 | tail -8
+    echo "== cloud-init (Ubuntu)"
+    cloud-init status --long 2>&1
+    echo "--- datasource"
+    cat /run/cloud-init/cloud-id 2>&1
+    grep -A2 "DataSourceNoCloud" /run/cloud-init/*.json 2>/dev/null | head -8
+    echo "--- did it write and start our file"
+    ls -la /usr/local/bin/ipxe-station-boot-report 2>&1
+    grep -l "ipxe-station-boot-report" /var/log/cloud-init.log 2>/dev/null && tail -n 20 /var/log/cloud-init.log 2>&1
 
     echo "== hooks on the medium"
     ls -la /lib/live/mount/medium/live/config-hooks/ /run/live/medium/live/config-hooks/ 2>&1

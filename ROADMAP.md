@@ -45,10 +45,22 @@
   fetched; over NFS the hook can be read from the medium instead. `live-config.hooks=medium` also fails on Debian 13 (it
   looks in `/lib/live/mount/medium`, the medium is at `/run/live/medium`), so the entry names the file with
   `file://`. **Confirmed on a Dell Latitude 5530 with Debian 13 Live over NFS**: the report arrived and read correctly; the
-  summary also singles out memory and disk errors (ECC / machine-check and I/O lines). Ubuntu (`casper`, no `live-config`) is done differently: over NFS a small squashfs layer
-  (`casper/zz-ipxe-station.squashfs`) with a service that starts only on `ipxe.report` on the kernel command line, since
-  casper stacks every squashfs of the folder; **not yet booted on real Ubuntu**. SystemRescue (`ar_source`) and WinPE
-  (`start.ps1`) are candidates.
+  summary also singles out memory and disk errors (ECC / machine-check and I/O lines).
+
+  **Ubuntu (`casper`) is on hold, two approaches tried on hardware and abandoned:**
+  1. A small squashfs layer of ours (`casper/zz-ipxe-station.squashfs`), betting that `casper` stacks every
+     squashfs of the folder when no `layerfs-path` is given. On a real boot the layer sat on the disk but never
+     joined the overlay: this Ubuntu 24.04 image bakes an explicit layer chain into its initrd
+     (`conf/conf.d/default-layer.conf`, e.g. `minimal.standard.live.squashfs` → `minimal.standard` →
+     `minimal`), which differs by version and flavour, so an added file is silently ignored.
+  2. cloud-init's NoCloud datasource (`ds=nocloud-net;s=...`), which every official Ubuntu image ships and which
+     fetches over plain HTTP regardless of the layer stack. This worked — the machine fetched `meta-data`,
+     `user-data` and `vendor-data` from the server — but on a Dell Latitude 5530 (Ubuntu Desktop 24.04, NFS boot)
+     the desktop never appeared within several minutes, confirming the very reason `cloud-init=disabled` was
+     already on these entries (it was added, deliberately, to avoid boot delays). Reverted; the entries are back
+     to their original command lines.
+
+  SystemRescue (`ar_source`) and WinPE (`start.ps1`) are candidates for the same idea instead.
 - **Rescuezilla and ShredOS** — download from the Assets tab (versions and checksums from the official GitHub
   releases, verified after download) and boot from the menu with recipes for NFS and ISO (Rescuezilla) and a
   single kernel image (ShredOS). Downloaded and in the menu; **not yet booted on real hardware**.

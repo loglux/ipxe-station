@@ -8,8 +8,8 @@ ones need attention, without opening a terminal on any of them.
 
 Checked on a Dell Latitude 5530 with Debian 13 Live started over NFS: the report arrives, and it read correctly
 (memory, disks, screen, battery, devices and their drivers). Two Debian 13 quirks had to be worked around, below.
-Ubuntu (Server and Desktop, over NFS) is built the same way but **not yet run on a real boot**.
-[Kaspersky Rescue Disk](kaspersky.md) has its own, older report (firmware and screen).
+**Ubuntu is on hold** — see the note at the end of this page. [Kaspersky Rescue Disk](kaspersky.md) has its own,
+older report (firmware and screen).
 
 ## Which entries can send a report
 
@@ -26,18 +26,32 @@ system is started:
   **Debian 13's live image has curl but no wget, so this fails silently**: the machine boots normally and never asks
   for the script. Images that do have wget (Kaspersky Rescue Disk) work.
 
-- **Ubuntu (`casper`) over NFS**: with no `layerfs-path`, `casper` stacks every `*.squashfs` of the disk's `casper/`
-  folder as a layer of the live system. Turning a report on puts a small layer, `casper/zz-ipxe-station.squashfs`,
-  on the disk (built on the server): the collector, a systemd service, and the link that starts it. The service
-  runs only on a kernel command line that has `ipxe.report`, so the layer does nothing for entries that did not ask;
-  an asking entry gets `ipxe.report=http://<server>/ipxe/boot-report ipxe.mac=<mac>`. It runs as root, on Server and on
-  Desktop, without a desktop session. **Not yet confirmed on a real Ubuntu boot.** An Ubuntu entry that does not use
-  NFS, or names its layers with `layerfs-path`, cannot take part. (Ubuntu 24.04 has systemd 255, which cannot take a
-  service from the kernel command line: that came in 256.)
-
 The **Devices** page shows this for every live entry: an entry that cannot report is greyed out with the reason.
 For Debian Live, add an NFS entry (**Builder** → **+ Add Entry** → *Debian Live* offers an NFS mode once **Settings →
 NFS Boot Root** is set).
+
+## Ubuntu (`casper`) is on hold
+
+Two ways were tried on a real Dell Latitude 5530 and both were abandoned:
+
+1. **A layer of our own on the disk.** `casper`, with no `layerfs-path` on the command line, was expected to stack
+   every `*.squashfs` in the disk's `casper/` folder as a layer of the live system, so a small layer with just a
+   systemd service would join in. On the real boot the layer sat on the disk but never joined the overlay: this
+   Ubuntu 24.04 image bakes an exact layer chain into its initrd (`conf/conf.d/default-layer.conf`, e.g.
+   `minimal.standard.live.squashfs` → `minimal.standard` → `minimal`), which differs by Ubuntu version and flavour,
+   so an unlisted file is silently ignored. (Also, Ubuntu 24.04 ships systemd 255, which cannot take a service from
+   a kernel command line credential; that needs systemd 256.)
+2. **cloud-init's NoCloud datasource** (`ds=nocloud-net;s=...`), which every official Ubuntu image ships and which
+   fetches its configuration over plain HTTP regardless of the layer stack. This worked as designed — the machine
+   fetched `meta-data`, `user-data` and `vendor-data` from the server and wrote and started the collector — but the
+   Ubuntu Desktop live session then took several minutes longer to reach its desktop, for the exact reason the
+   existing entries already carry `cloud-init=disabled`: cloud-init delays boot while it waits on the network and
+   the datasource. Reverted; the entries are back to their original command lines.
+
+The cloud-init mechanism (`entry_mode`, the two endpoints, the checkbox on the Devices page) is still in place and
+tested, since it did successfully deliver the collector; it is just not turned on for any entry, and turning it on
+for a Desktop entry is not recommended until the delay is understood or worked around. It was not tried on a
+headless Ubuntu Server entry, which has no desktop session to wait for and may behave differently.
 
 ## Turning it on
 
